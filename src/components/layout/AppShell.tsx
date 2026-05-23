@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Home, Users, Plus, Bell, User, Layers, Briefcase, CheckSquare, HelpCircle } from "lucide-react";
+import { Home, Users, Plus, Bell, User, Layers, Briefcase, CheckSquare, HelpCircle, DollarSign } from "lucide-react";
 import { GatewayLogo } from "@/components/brand/GatewayLogo";
 import { BrandedFooter } from "@/components/brand/BrandedFooter";
 import { STRINGS } from "@/lib/strings";
@@ -26,6 +26,7 @@ const desktopExtraItems = [
   { href: "/pipeline", label: STRINGS.nav.pipeline, icon: Layers },
   { href: "/accounts", label: STRINGS.nav.accounts, icon: Briefcase },
   { href: "/my-tasks", label: STRINGS.nav.myTasks, icon: CheckSquare },
+  { href: "/pricing", label: STRINGS.nav.pricing, icon: DollarSign },
   { href: "/help", label: STRINGS.nav.help, icon: HelpCircle },
 ];
 

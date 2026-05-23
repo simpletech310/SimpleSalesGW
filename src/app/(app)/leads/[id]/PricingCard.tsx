@@ -279,14 +279,56 @@ export function PricingCard({ leadId, role, suggestedBundle, seatCount }: Props)
           )}
 
           {/* Proposed */}
-          <div className="grid md:grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label className="text-xs">Proposed MRR ($/month)</Label>
-              <Input type="number" step="1" min="0" value={proposedMrr} onChange={(e) => setProposedMrr(e.target.value)} required />
+          <div className="space-y-2">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <p className="gtn-eyebrow gtn-eyebrow--dark">Your proposed numbers</p>
+              {sticker && !isCustom && (
+                <button
+                  type="button"
+                  className="text-xs text-gtn-purple hover:text-gtn-purple-2 underline"
+                  onClick={() => {
+                    setProposedMrr(String(sticker.monthlyMrr));
+                    setProposedOneTime(String(sticker.onboardingTotal));
+                  }}
+                >
+                  Reset to sticker
+                </button>
+              )}
             </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Proposed onboarding ($ one-time)</Label>
-              <Input type="number" step="1" min="0" value={proposedOneTime} onChange={(e) => setProposedOneTime(e.target.value)} />
+            <div className="grid md:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Proposed MRR ($/month)</Label>
+                <Input
+                  type="number"
+                  step="1"
+                  min="0"
+                  value={proposedMrr}
+                  onChange={(e) => setProposedMrr(e.target.value)}
+                  required
+                  placeholder={sticker ? String(sticker.monthlyMrr) : "0"}
+                />
+                {sticker && !isCustom && (
+                  <p className="text-[10px] text-gtn-grey-2">
+                    Auto-filled from sticker ({fmtUsd(sticker.monthlyMrr)}/mo). Edit to apply a discount.
+                  </p>
+                )}
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Proposed onboarding ($ one-time)</Label>
+                <Input
+                  type="number"
+                  step="1"
+                  min="0"
+                  value={proposedOneTime}
+                  onChange={(e) => setProposedOneTime(e.target.value)}
+                  placeholder={sticker ? String(sticker.onboardingTotal) : "0"}
+                />
+                {sticker && !isCustom && (
+                  <p className="text-[10px] text-gtn-grey-2">
+                    Auto-filled from sticker ({fmtUsd(sticker.onboardingTotal)}).
+                  </p>
+                )}
+              </div>
             </div>
           </div>
 

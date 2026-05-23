@@ -15,6 +15,7 @@ export const STRINGS = {
     handoff: "Handoff",
     accounts: "Accounts",
     myTasks: "My tasks",
+    pricing: "Pricing",
     help: "Help",
   },
   auth: {

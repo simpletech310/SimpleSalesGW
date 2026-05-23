@@ -79,6 +79,43 @@ export function QualificationCard({
   const [reasonCodes, setReasonCodes] = useState<Set<string>>(new Set());
   const [notes, setNotes] = useState("");
 
+  // Auto-score (v2.5)
+  const [autoFilling, setAutoFilling] = useState(false);
+  const [autoRationale, setAutoRationale] = useState<Partial<Record<QualificationDimensionKey, string>> | null>(null);
+  const [autoRationaleSummary, setAutoRationaleSummary] = useState<string>("");
+
+  async function autoFill() {
+    setAutoFilling(true);
+    try {
+      const res = await fetch(`/api/leads/${leadId}/qualification/auto-score`);
+      if (!res.ok) {
+        toast.error("Couldn't compute auto-score");
+        return;
+      }
+      const data = await res.json();
+      const auto = data.auto as {
+        industryFit: number; sizeFit: number; geography: number; growthPosture: number;
+        authority: number; budget: number; timeline: number; complianceDriver: number;
+        rationale: Partial<Record<QualificationDimensionKey, string>>;
+      };
+      setValues({
+        industryFit: auto.industryFit,
+        sizeFit: auto.sizeFit,
+        geography: auto.geography,
+        growthPosture: auto.growthPosture,
+        authority: auto.authority,
+        budget: auto.budget,
+        timeline: auto.timeline,
+        complianceDriver: auto.complianceDriver,
+      });
+      setAutoRationale(auto.rationale);
+      setAutoRationaleSummary(new Date().toLocaleTimeString());
+      toast.success("Baseline applied. Hand-tune any dimensions that look off, then save.");
+    } finally {
+      setAutoFilling(false);
+    }
+  }
+
   const refresh = useCallback(async () => {
     const res = await fetch(`/api/leads/${leadId}/qualification`);
     if (res.ok) {
@@ -215,6 +252,30 @@ export function QualificationCard({
 
       {editing && (
         <div className="space-y-4">
+          {/* Auto-fill from lead info */}
+          <div className="flex items-center justify-between flex-wrap gap-2 rounded-md bg-gtn-callout-bg border-l-4 border-gtn-purple px-3 py-2">
+            <div className="text-xs">
+              <p className="font-semibold text-gtn-navy">Auto-score this lead</p>
+              <p className="text-gtn-grey-2">
+                We&apos;ll compute a baseline from industry, seats, geography, sponsor, MSP, renewal, and compliance.
+              </p>
+              {autoRationale && (
+                <p className="text-[10px] text-gtn-grey-3 mt-1">
+                  Last applied: {autoRationaleSummary}
+                </p>
+              )}
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              disabled={autoFilling}
+              onClick={autoFill}
+            >
+              {autoFilling ? "Scoring…" : "Auto-fill"}
+            </Button>
+          </div>
+
           <div className="grid sm:grid-cols-2 gap-3">
             {QUALIFICATION_DIMENSIONS.map((d) => (
               <div key={d.key} className="space-y-1">
@@ -235,7 +296,9 @@ export function QualificationCard({
                   }
                   className="h-6 p-0"
                 />
-                <p className="text-[10px] text-gtn-grey-2">{d.help}</p>
+                <p className="text-[10px] text-gtn-grey-2">
+                  {autoRationale?.[d.key as QualificationDimensionKey] ?? d.help}
+                </p>
               </div>
             ))}
           </div>
