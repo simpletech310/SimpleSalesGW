@@ -20,7 +20,16 @@ export type PermissionKey =
   | "user:manage"
   | "audit:view"
   | "system:config"
-  | "data:export";
+  | "data:export"
+  // v2.0 — customer / vCIO portal
+  | "customer:view:own"
+  | "customer:view:all"
+  | "discovery:run"
+  | "discovery:edit"
+  | "onboarding:manage"
+  | "qbr:schedule"
+  | "qbr:complete"
+  | "customer:archive";
 
 const matrix: Record<Role, ReadonlyArray<PermissionKey>> = {
   SALESPERSON: [
@@ -30,6 +39,7 @@ const matrix: Record<Role, ReadonlyArray<PermissionKey>> = {
     "outreach:send",
     "handoff:initiate",
     "pricing:view:sticker",
+    "customer:view:own",
   ],
   SALES_MANAGER: [
     "lead:view:own",
@@ -46,11 +56,22 @@ const matrix: Record<Role, ReadonlyArray<PermissionKey>> = {
     "pricing:view:sticker",
     "pricing:view:floor",
     "data:export",
+    "customer:view:own",
+    "customer:view:all",
+    "onboarding:manage",
+    "customer:archive",
   ],
   VCIO: [
     "lead:view:own",
     "lead:view:all",
     "lead:edit:scope-notes",
+    "customer:view:own",
+    "customer:view:all",
+    "discovery:run",
+    "discovery:edit",
+    "onboarding:manage",
+    "qbr:schedule",
+    "qbr:complete",
   ],
   COO: [
     "lead:view:own",
@@ -62,6 +83,10 @@ const matrix: Record<Role, ReadonlyArray<PermissionKey>> = {
     "pricing:view:floor",
     "audit:view",
     "data:export",
+    "customer:view:own",
+    "customer:view:all",
+    "onboarding:manage",
+    "customer:archive",
   ],
   SUPERADMIN: [
     "lead:view:own",
@@ -83,6 +108,14 @@ const matrix: Record<Role, ReadonlyArray<PermissionKey>> = {
     "audit:view",
     "system:config",
     "data:export",
+    "customer:view:own",
+    "customer:view:all",
+    "discovery:run",
+    "discovery:edit",
+    "onboarding:manage",
+    "qbr:schedule",
+    "qbr:complete",
+    "customer:archive",
   ],
 };
 
@@ -132,4 +165,25 @@ export function leadIsVisible(role: Role, userId: string, ownerUserId: string, s
   if (role === Role.VCIO) return VCIO_VISIBLE_STAGES.includes(stage);
   if (can(role, "lead:view:all")) return true;
   return ownerUserId === userId;
+}
+
+// ---------------------------------------------------------------------------
+// Customer (v2.0) visibility — Customer rows always derive from a Lead, so the
+// rule mirrors lead visibility but is checked against the underlying lead's
+// owner. vCIO sees all customers (regardless of stage — by the time a Lead
+// becomes a Customer it's past PRE_SALES anyway).
+// ---------------------------------------------------------------------------
+
+export function customerVisibilityFilter(
+  role: Role,
+  userId: string,
+): Prisma.CustomerWhereInput {
+  if (can(role, "customer:view:all")) return {};
+  // Otherwise: only customers whose lead is owned by the user
+  return { lead: { ownerUserId: userId } };
+}
+
+export function canSeeCustomer(role: Role, userId: string, leadOwnerUserId: string): boolean {
+  if (can(role, "customer:view:all")) return true;
+  return leadOwnerUserId === userId;
 }

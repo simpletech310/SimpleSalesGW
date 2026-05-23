@@ -3,7 +3,14 @@
  * Shared between the API route and the SSR page so they stay in sync.
  */
 
-import { AssessmentStatus, HandoffStatus, PricingApprovalStatus, type Role } from "@prisma/client";
+import {
+  AssessmentStatus,
+  DiscoveryStatus,
+  HandoffStatus,
+  OnboardingTaskStatus,
+  PricingApprovalStatus,
+  type Role,
+} from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { can } from "@/lib/rbac";
 import { approvalTier } from "@/lib/pricing";
@@ -41,13 +48,45 @@ export type NotificationsPayload = {
     initiatorName: string;
     initiatedAt: string;
   }>;
+  overdueOnboarding: Array<{
+    taskId: string;
+    customerId: string;
+    customerName: string;
+    title: string;
+    phase: string;
+    dueAt: string;
+  }>;
+  upcomingQbrs: Array<{
+    id: string;
+    customerId: string;
+    customerName: string;
+    scheduledAt: string;
+  }>;
+  inProgressDiscovery: Array<{
+    id: string;
+    customerId: string;
+    customerName: string;
+    kind: string;
+    startedAt: string;
+  }>;
 };
 
 export async function loadNotifications(user: { id: string; role: Role }): Promise<NotificationsPayload> {
   const now = new Date();
   const sevenDaysOut = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
-  const [openActions, assessments, pricingPending, handoffsAwaiting] = await Promise.all([
+  const thirtyDaysOut = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+  const isVcio = can(user.role, "onboarding:manage") || user.role === "VCIO";
+
+  const [
+    openActions,
+    assessments,
+    pricingPending,
+    handoffsAwaiting,
+    overdueTasks,
+    upcomingQbrs,
+    inProgressDiscovery,
+  ] = await Promise.all([
     prisma.activity.findMany({
       where: {
         actorUserId: user.id,
@@ -86,6 +125,37 @@ export async function loadNotifications(user: { id: string; role: Role }): Promi
             lead: { select: { id: true, businessName: true } },
             initiator: { select: { name: true } },
           },
+          take: 30,
+        })
+      : Promise.resolve([]),
+    // Overdue onboarding tasks owned by the current user (or all for vCIO/COO).
+    can(user.role, "onboarding:manage")
+      ? prisma.onboardingTask.findMany({
+          where: {
+            status: { notIn: [OnboardingTaskStatus.DONE, OnboardingTaskStatus.SKIPPED] },
+            dueAt: { not: null, lte: now },
+            ...(isVcio ? {} : { ownerUserId: user.id }),
+          },
+          orderBy: { dueAt: "asc" },
+          include: { customer: { include: { lead: { select: { businessName: true } } } } },
+          take: 30,
+        })
+      : Promise.resolve([]),
+    // Upcoming QBRs in next 30 days (vCIO/COO).
+    isVcio
+      ? prisma.qbr.findMany({
+          where: { completedAt: null, scheduledAt: { lte: thirtyDaysOut } },
+          orderBy: { scheduledAt: "asc" },
+          include: { customer: { include: { lead: { select: { businessName: true } } } } },
+          take: 30,
+        })
+      : Promise.resolve([]),
+    // In-progress discovery assessments (vCIO's queue).
+    isVcio
+      ? prisma.discoveryAssessment.findMany({
+          where: { status: DiscoveryStatus.IN_PROGRESS },
+          orderBy: { startedAt: "desc" },
+          include: { customer: { include: { lead: { select: { businessName: true } } } } },
           take: 30,
         })
       : Promise.resolve([]),
@@ -136,11 +206,35 @@ export async function loadNotifications(user: { id: string; role: Role }): Promi
       initiatorName: h.initiator.name,
       initiatedAt: (h.initiatedAt ?? h.createdAt).toISOString(),
     })),
+    overdueOnboarding: overdueTasks.map((t) => ({
+      taskId: t.id,
+      customerId: t.customerId,
+      customerName: t.customer.lead.businessName,
+      title: t.title,
+      phase: t.phase,
+      dueAt: t.dueAt!.toISOString(),
+    })),
+    upcomingQbrs: upcomingQbrs.map((q) => ({
+      id: q.id,
+      customerId: q.customerId,
+      customerName: q.customer.lead.businessName,
+      scheduledAt: q.scheduledAt.toISOString(),
+    })),
+    inProgressDiscovery: inProgressDiscovery.map((d) => ({
+      id: d.id,
+      customerId: d.customerId,
+      customerName: d.customer.lead.businessName,
+      kind: d.kind,
+      startedAt: (d.startedAt ?? d.createdAt).toISOString(),
+    })),
   };
   payload.total =
     payload.openActions.length +
     payload.assessmentsAwaiting.length +
     payload.pricingApprovalsPending.length +
-    payload.handoffsAwaiting.length;
+    payload.handoffsAwaiting.length +
+    payload.overdueOnboarding.length +
+    payload.upcomingQbrs.length +
+    payload.inProgressDiscovery.length;
   return payload;
 }

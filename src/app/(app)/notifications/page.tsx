@@ -76,6 +76,45 @@ export default async function NotificationsPage() {
           </Link>
         ))}
       </Section>
+
+      <Section title="Overdue onboarding tasks" empty="No overdue onboarding tasks.">
+        {data.overdueOnboarding.map((t) => (
+          <Link key={t.taskId} href={`/accounts/${t.customerId}`} className="block px-4 py-3 hover:bg-gtn-lavender/40 border-t border-gtn-lavender-2 first:border-0">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium text-gtn-navy">{t.title}</p>
+                <p className="text-xs text-gtn-grey-2">{t.customerName} · {t.phase.replace(/_/g, " ")}</p>
+              </div>
+              <span className="text-xs text-gtn-red whitespace-nowrap">due {format(new Date(t.dueAt), "PP")}</span>
+            </div>
+          </Link>
+        ))}
+      </Section>
+
+      <Section title="Upcoming QBRs (next 30 days)" empty="No QBRs scheduled in the next 30 days.">
+        {data.upcomingQbrs.map((q) => (
+          <Link key={q.id} href={`/accounts/${q.customerId}/qbrs/${q.id}`} className="block px-4 py-3 hover:bg-gtn-lavender/40 border-t border-gtn-lavender-2 first:border-0">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm font-medium text-gtn-navy">{q.customerName}</p>
+              <span className="text-xs text-gtn-grey-3 whitespace-nowrap">{format(new Date(q.scheduledAt), "PPp")}</span>
+            </div>
+          </Link>
+        ))}
+      </Section>
+
+      <Section title="Discovery assessments in progress" empty="No active discovery assessments.">
+        {data.inProgressDiscovery.map((d) => (
+          <Link key={d.id} href={`/accounts/${d.customerId}/discovery/${d.id}`} className="block px-4 py-3 hover:bg-gtn-lavender/40 border-t border-gtn-lavender-2 first:border-0">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium text-gtn-navy">{d.customerName}</p>
+                <p className="text-xs text-gtn-grey-2">{d.kind.replace(/_/g, " ")}</p>
+              </div>
+              <span className="text-xs text-gtn-grey-3 whitespace-nowrap">started {format(new Date(d.startedAt), "PP")}</span>
+            </div>
+          </Link>
+        ))}
+      </Section>
     </div>
   );
 }

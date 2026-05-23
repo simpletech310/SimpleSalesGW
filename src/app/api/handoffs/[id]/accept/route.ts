@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { ApiError, getAuditContext, jsonError, requireSessionUser } from "@/lib/api";
 import { can } from "@/lib/rbac";
 import { writeAudit } from "@/lib/audit";
+import { createCustomerFromHandoff } from "@/lib/customer/create-from-handoff";
 
 const schema = z.object({ note: z.string().max(2000).optional() });
 
@@ -38,16 +39,27 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         body: body.note ?? null,
       },
     });
+
+    // Spawn the post-close Customer record + onboarding tasks.
+    const customer = await createCustomerFromHandoff({
+      leadId: handoff.leadId,
+      acceptedByUserId: user.id,
+    });
+
     await writeAudit({
       actorUserId: user.id,
       entityType: "Handoff",
       entityId: id,
       action: "APPROVE",
       before: { status: handoff.status },
-      after: { status: HandoffStatus.ACCEPTED, acceptorUserId: user.id },
+      after: {
+        status: HandoffStatus.ACCEPTED,
+        acceptorUserId: user.id,
+        customerId: customer.id,
+      },
       ...getAuditContext(req),
     });
-    return NextResponse.json({ handoff: updated });
+    return NextResponse.json({ handoff: updated, customerId: customer.id });
   } catch (err) {
     return jsonError(err);
   }

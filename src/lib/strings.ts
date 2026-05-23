@@ -13,6 +13,7 @@ export const STRINGS = {
     me: "Me",
     admin: "Admin",
     handoff: "Handoff",
+    accounts: "Accounts",
   },
   auth: {
     title: "Sign in to Gateway",

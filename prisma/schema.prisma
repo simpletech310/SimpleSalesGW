@@ -176,6 +176,45 @@ enum PricingApprovalStatus {
 }
 
 // ============================================================================
+// v2.0 — post-handoff customer lifecycle
+// ============================================================================
+
+enum CustomerStatus {
+  ONBOARDING
+  ACTIVE
+  PAUSED
+  CHURNED
+}
+
+enum DiscoveryKind {
+  SITE_SURVEY
+  AI_READINESS
+  NIST_CSF
+}
+
+enum DiscoveryStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum OnboardingPhase {
+  PRE_ENGAGEMENT
+  DISCOVERY
+  ONBOARD
+  STABILIZE
+  STEADY_STATE
+}
+
+enum OnboardingTaskStatus {
+  PENDING
+  IN_PROGRESS
+  DONE
+  SKIPPED
+  BLOCKED
+}
+
+// ============================================================================
 // AUTH (NextAuth v5 adapter shape)
 // ============================================================================
 
@@ -207,6 +246,9 @@ model User {
   attachments       Attachment[]
   pricingRequests   PricingApproval[] @relation("PricingRequester")
   pricingApprovals  PricingApproval[] @relation("PricingApprover")
+  managedCustomers  Customer[]            @relation("CustomerManager")
+  discoveryCreated  DiscoveryAssessment[] @relation("DiscoveryCreator")
+  onboardingTasks   OnboardingTask[]      @relation("OnboardingTaskOwner")
 
   @@map("users")
 }
@@ -310,6 +352,7 @@ model Lead {
   handoffs            Handoff[]
   attachments         Attachment[]
   pricingApprovals    PricingApproval[]
+  customer            Customer?
 
   @@index([ownerUserId])
   @@index([pipelineStage])
@@ -511,4 +554,96 @@ model PricingApproval {
   @@index([leadId])
   @@index([status])
   @@map("pricing_approvals")
+}
+
+// ----------------------------------------------------------------------------
+// v2.0 — post-handoff customer lifecycle
+// "Customer" rather than "Account" to avoid collision with NextAuth's Account
+// model. URLs and labels can still say "Account" — this is the internal name.
+// ----------------------------------------------------------------------------
+
+model Customer {
+  id                    String          @id @default(uuid()) @db.Uuid
+  leadId                String          @unique @map("lead_id") @db.Uuid
+  accountManagerId      String?         @map("account_manager_id") @db.Uuid
+  status                CustomerStatus  @default(ONBOARDING)
+  currentPhase          OnboardingPhase @default(PRE_ENGAGEMENT) @map("current_phase")
+  onboardingStartedAt   DateTime?       @map("onboarding_started_at")
+  onboardingCompletedAt DateTime?       @map("onboarding_completed_at")
+  qbrFrequencyDays      Int             @default(90) @map("qbr_frequency_days")
+  nextQbrAt             DateTime?       @map("next_qbr_at")
+  strategicRoadmap      Json?           @map("strategic_roadmap")
+  createdAt             DateTime        @default(now()) @map("created_at")
+  updatedAt             DateTime        @updatedAt @map("updated_at")
+
+  lead                 Lead                  @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  accountManager       User?                 @relation("CustomerManager", fields: [accountManagerId], references: [id])
+  discoveryAssessments DiscoveryAssessment[]
+  onboardingTasks      OnboardingTask[]
+  qbrs                 Qbr[]
+
+  @@index([status])
+  @@index([accountManagerId])
+  @@map("customers")
+}
+
+model DiscoveryAssessment {
+  id              String          @id @default(uuid()) @db.Uuid
+  customerId      String          @map("customer_id") @db.Uuid
+  kind            DiscoveryKind
+  status          DiscoveryStatus @default(NOT_STARTED)
+  startedAt       DateTime?       @map("started_at")
+  completedAt     DateTime?       @map("completed_at")
+  createdByUserId String          @map("created_by_user_id") @db.Uuid
+  answers         Json            @default("{}")
+  scorecard       Json?
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+
+  customer  Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  createdBy User     @relation("DiscoveryCreator", fields: [createdByUserId], references: [id])
+
+  @@index([customerId, kind])
+  @@map("discovery_assessments")
+}
+
+model OnboardingTask {
+  id          String               @id @default(uuid()) @db.Uuid
+  customerId  String               @map("customer_id") @db.Uuid
+  phase       OnboardingPhase
+  title       String
+  description String?              @db.Text
+  ownerUserId String?              @map("owner_user_id") @db.Uuid
+  status      OnboardingTaskStatus @default(PENDING)
+  dueAt       DateTime?            @map("due_at")
+  completedAt DateTime?            @map("completed_at")
+  position    Int
+  templateKey String?              @map("template_key") // matches task-templates.ts ids
+  createdAt   DateTime             @default(now()) @map("created_at")
+  updatedAt   DateTime             @updatedAt @map("updated_at")
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  owner    User?    @relation("OnboardingTaskOwner", fields: [ownerUserId], references: [id])
+
+  @@index([customerId, phase, position])
+  @@index([ownerUserId, status])
+  @@map("onboarding_tasks")
+}
+
+model Qbr {
+  id          String    @id @default(uuid()) @db.Uuid
+  customerId  String    @map("customer_id") @db.Uuid
+  scheduledAt DateTime  @map("scheduled_at")
+  completedAt DateTime? @map("completed_at")
+  attendees   Json      @default("[]")
+  agenda      Json      @default("[]")
+  outcomes    String?   @db.Text
+  followUps   Json?     @map("follow_ups")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId, scheduledAt])
+  @@map("qbrs")
 }
