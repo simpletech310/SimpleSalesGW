@@ -17,9 +17,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (approval.status !== PricingApprovalStatus.PENDING) {
       throw new ApiError(409, `Already ${approval.status.toLowerCase()}`);
     }
-    const tier = approvalTier(Number(approval.discountPct));
+    // Below-floor pricing always escalates to COO regardless of % tier.
+    const tier = approval.belowFloor ? "COO" : approvalTier(Number(approval.discountPct));
     if (!canApproveAt(tier, user.role)) {
-      throw new ApiError(403, `Approval at this tier requires ${tier === "MANAGER" ? "Sales Manager" : "COO"} or Superadmin.`);
+      const need = tier === "MANAGER" ? "Sales Manager" : "COO";
+      const why = approval.belowFloor ? "below-floor pricing" : "this tier";
+      throw new ApiError(403, `Approval for ${why} requires ${need} or Superadmin.`);
     }
     const body = schema.parse(await req.json().catch(() => ({})));
     const updated = await prisma.pricingApproval.update({

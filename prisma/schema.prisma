@@ -537,8 +537,16 @@ model PricingApproval {
   leadId          String                @map("lead_id") @db.Uuid
   requesterUserId String                @map("requester_user_id") @db.Uuid
   approverUserId  String?               @map("approver_user_id") @db.Uuid
+  // MRR sticker + proposed (legacy field names retained for back-compat).
   stickerPrice    Decimal               @map("sticker_price") @db.Decimal(12, 2)
   proposedPrice   Decimal               @map("proposed_price") @db.Decimal(12, 2)
+  // One-time onboarding fee sticker + proposed (nullable for legacy rows).
+  stickerOneTime  Decimal?              @map("sticker_one_time") @db.Decimal(12, 2)
+  proposedOneTime Decimal?              @map("proposed_one_time") @db.Decimal(12, 2)
+  // Catalog snapshot at request time.
+  bundleId        String?               @map("bundle_id")
+  seatCount       Int?                  @map("seat_count")
+  belowFloor      Boolean               @default(false) @map("below_floor")
   discountPct     Decimal               @map("discount_pct") @db.Decimal(5, 2)
   reason          String                @db.Text
   status          PricingApprovalStatus @default(PENDING)

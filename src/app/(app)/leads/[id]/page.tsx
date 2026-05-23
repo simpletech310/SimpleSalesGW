@@ -136,7 +136,12 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
         </div>
       )}
 
-      <PricingCard leadId={lead.id} role={session.user.role} />
+      <PricingCard
+        leadId={lead.id}
+        role={session.user.role}
+        suggestedBundle={lead.suggestedBundle}
+        seatCount={lead.seatCount}
+      />
 
       <HandoffCard leadId={lead.id} role={session.user.role} />
 

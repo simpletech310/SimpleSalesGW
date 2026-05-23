@@ -161,9 +161,10 @@ export async function loadNotifications(user: { id: string; role: Role }): Promi
       : Promise.resolve([]),
   ]);
 
-  // Filter pricing approvals by tier the user can actually decide
+  // Filter pricing approvals by the tier the user can actually decide.
+  // Below-floor pricing always escalates to COO regardless of percent.
   const pricingFiltered = pricingPending.filter((p) => {
-    const tier = approvalTier(Number(p.discountPct));
+    const tier = p.belowFloor ? "COO" : approvalTier(Number(p.discountPct));
     if (tier === "MANAGER") return can(user.role, "pricing:approve:5to20");
     if (tier === "COO") return can(user.role, "pricing:approve:20plus");
     return false;

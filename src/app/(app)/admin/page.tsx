@@ -29,6 +29,11 @@ export default async function AdminHomePage() {
             <Card><h2 className="text-lg font-semibold">System config</h2><p className="text-sm text-gtn-grey-2 mt-1">Tune scoring thresholds + weights.</p></Card>
           </Link>
         )}
+        {can(role, "system:config") && (
+          <Link href="/admin/pricing" className="block">
+            <Card><h2 className="text-lg font-semibold">Pricing catalog</h2><p className="text-sm text-gtn-grey-2 mt-1">Edit bundle prices, floors, and onboarding fees.</p></Card>
+          </Link>
+        )}
       </div>
     </div>
   );

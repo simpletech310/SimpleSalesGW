@@ -17,7 +17,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (approval.status !== PricingApprovalStatus.PENDING) {
       throw new ApiError(409, `Already ${approval.status.toLowerCase()}`);
     }
-    const tier = approvalTier(Number(approval.discountPct));
+    const tier = approval.belowFloor ? "COO" : approvalTier(Number(approval.discountPct));
     if (!canApproveAt(tier, user.role)) {
       throw new ApiError(403, "Insufficient approval authority.");
     }
