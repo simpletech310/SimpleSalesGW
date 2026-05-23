@@ -21,13 +21,15 @@ type Assessment = {
 const KIND_LABEL: Record<DiscoveryKind, string> = {
   SITE_SURVEY: "MSP Site Survey",
   AI_READINESS: "AI Readiness Questionnaire",
-  NIST_CSF: "NIST CSF Assessment",
+  NIST_CSF: "NIST CSF 2.0 Self-Assessment",
+  NIST_800_171: "NIST 800-171 / CMMC Readiness",
 };
 
 const KIND_BLURB: Record<DiscoveryKind, string> = {
   SITE_SURVEY: "Inventory of sites, identity, endpoints, backups, security stack, and compliance obligations.",
   AI_READINESS: "Org readiness 0-4 scorecard plus a prioritized use-case catalog and 30/60/90 roadmap.",
-  NIST_CSF: "Six CSF Functions scored Tier 1-4 with gap list and remediation roadmap.",
+  NIST_CSF: "All 106 NIST CSF 2.0 Subcategories scored Tier 1-4 with rolled-up Category + Function summary, gap list, and remediation roadmap.",
+  NIST_800_171: "110 NIST 800-171 Rev 2 controls × 14 families. Produces SPRS score, POAM register, and SSP draft for CMMC Level 2/3 readiness.",
 };
 
 export function DiscoveryPanel({
@@ -59,7 +61,7 @@ export function DiscoveryPanel({
     }
   }
 
-  const kinds: DiscoveryKind[] = ["SITE_SURVEY", "AI_READINESS", "NIST_CSF"];
+  const kinds: DiscoveryKind[] = ["SITE_SURVEY", "AI_READINESS", "NIST_CSF", "NIST_800_171"];
 
   return (
     <div className="space-y-4">

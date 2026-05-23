@@ -31,6 +31,7 @@ export default async function DiscoveryAssessmentPage({ params }: { params: Prom
         title={title}
         customerName={assessment.customer.lead.businessName}
         customerId={id}
+        assessmentId={assessment.id}
         scorecard={assessment.scorecard as never}
       />
     );

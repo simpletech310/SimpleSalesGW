@@ -1,116 +1,280 @@
 import type { DiscoveryBank, DiscoveryQuestion } from "./types";
 
 /**
- * MSP Site Survey — structured data capture for the technical baseline.
- * Mirrors 01-MSP-Site-Survey/MSP_Site_Survey_TEMPLATE.md.
- * No numeric score — produces a Findings + Risks summary.
+ * MSP Site Survey — full-fidelity discovery questionnaire mirroring
+ * 01-MSP-Site-Survey/MSP_Site_Survey_TEMPLATE.md. ~120 questions across
+ * 15+ sections from client profile through facilities.
+ *
+ * Row-level inventory (Sites, Circuits, Firewalls, Switches, APs, Servers,
+ * Storage, Endpoints, Licenses, Vendors) lives in the structured Inventory
+ * Workbook on the Customer detail — this questionnaire captures narrative,
+ * intent, and qualitative judgments around that inventory.
  */
 
+// helpers
+function single(id: string, section: string, prompt: string, options: ReadonlyArray<{ value: string; label: string }>, required = false): DiscoveryQuestion {
+  return { id, section, prompt, type: "single_select", required, options };
+}
+function multi(id: string, section: string, prompt: string, options: ReadonlyArray<{ value: string; label: string }>, required = false): DiscoveryQuestion {
+  return { id, section, prompt, type: "multi_select", required, options };
+}
+function text(id: string, section: string, prompt: string, helpText?: string, required = false): DiscoveryQuestion {
+  return { id, section, prompt, helpText, type: "text", required };
+}
+function num(id: string, section: string, prompt: string, required = false): DiscoveryQuestion {
+  return { id, section, prompt, type: "numeric", required };
+}
+function bool(id: string, section: string, prompt: string, required = false): DiscoveryQuestion {
+  return { id, section, prompt, type: "boolean", required };
+}
+function date(id: string, section: string, prompt: string, required = false): DiscoveryQuestion {
+  return { id, section, prompt, type: "date", required };
+}
+
 export const SITE_SURVEY_QUESTIONS: ReadonlyArray<DiscoveryQuestion> = [
-  // Sites & Connectivity
-  { id: "SS01", section: "Sites & Connectivity", prompt: "How many physical locations?", type: "numeric", required: true },
-  { id: "SS02", section: "Sites & Connectivity", prompt: "Primary internet provider(s) and speeds", type: "text", required: true },
-  { id: "SS03", section: "Sites & Connectivity", prompt: "Is there a failover/redundant WAN link?", type: "boolean", required: true },
-  { id: "SS04", section: "Sites & Connectivity", prompt: "Do sites connect via VPN/SD-WAN?", type: "single_select", required: true, options: [
+  // 1. Client Profile
+  text("CP01", "Client Profile", "Legal business name", undefined, true),
+  text("CP02", "Client Profile", "Doing-business-as (DBA) name(s)"),
+  num("CP03", "Client Profile", "Year founded"),
+  text("CP04", "Client Profile", "Primary industry / vertical"),
+  num("CP05", "Client Profile", "Total employee headcount"),
+  num("CP06", "Client Profile", "Total endpoint count (workstations + servers + mobile)"),
+  text("CP07", "Client Profile", "Brief description of what the business does"),
+  text("CP08", "Client Profile", "Primary mission-critical processes (what must never go down)"),
+  text("CP09", "Client Profile", "Annual IT spend (or your best estimate)"),
+  single("CP10", "Client Profile", "Current IT support model", [
+    { value: "in_house_team", label: "In-house IT team" },
+    { value: "single_person", label: "Single in-house IT person" },
+    { value: "msp", label: "Current MSP" },
+    { value: "co_managed", label: "Co-managed (in-house + MSP)" },
+    { value: "informal", label: "Informal / office manager" },
+    { value: "none", label: "Nobody" },
+  ]),
+
+  // 2. Compliance Frameworks
+  multi("CF01", "Compliance Frameworks", "Active regulatory obligations", [
+    { value: "HIPAA", label: "HIPAA" },
+    { value: "PCI", label: "PCI-DSS" },
+    { value: "CMMC", label: "CMMC / NIST 800-171" },
+    { value: "GLBA", label: "GLBA" },
+    { value: "FTC", label: "FTC Safeguards" },
+    { value: "SEC", label: "SEC cyber rules" },
+    { value: "FERPA", label: "FERPA" },
+    { value: "STATE_PRIVACY", label: "State privacy law (CCPA / etc.)" },
+    { value: "SOC2", label: "SOC 2" },
+    { value: "ISO27001", label: "ISO 27001" },
+    { value: "NONE", label: "None" },
+  ]),
+  bool("CF02", "Compliance Frameworks", "Carry cyber insurance?"),
+  date("CF03", "Compliance Frameworks", "Cyber insurance renewal date"),
+  text("CF04", "Compliance Frameworks", "Insurance carrier + policy contact"),
+  bool("CF05", "Compliance Frameworks", "Received a third-party security questionnaire in the last 12 months?"),
+  text("CF06", "Compliance Frameworks", "Most recent independent audit (when + result)"),
+  text("CF07", "Compliance Frameworks", "Known compliance gaps the client has acknowledged"),
+  text("CF08", "Compliance Frameworks", "Regulated data types handled (PHI / PII / PCI / CUI / etc.)"),
+
+  // 3. Stakeholder Map
+  text("ST01", "Stakeholder Map", "Executive sponsor (name + title)", undefined, true),
+  text("ST02", "Stakeholder Map", "Primary IT decision-maker (name + title)", undefined, true),
+  text("ST03", "Stakeholder Map", "Day-to-day technical contact (name + title)"),
+  text("ST04", "Stakeholder Map", "Compliance / security owner (if separate)"),
+  text("ST05", "Stakeholder Map", "Finance / procurement contact"),
+  text("ST06", "Stakeholder Map", "Key vendors with admin access (M365 / Google / firewall / etc.)"),
+  text("ST07", "Stakeholder Map", "Anyone else who must be looped in"),
+
+  // 4. Sites & Physical
+  num("SP01", "Sites & Physical", "Number of physical locations", true),
+  text("SP02", "Sites & Physical", "Primary site address (street, city, state, zip)"),
+  text("SP03", "Sites & Physical", "Other site addresses (one per line)"),
+  text("SP04", "Sites & Physical", "Square footage of primary site"),
+  num("SP05", "Sites & Physical", "Headcount at primary site"),
+  bool("SP06", "Sites & Physical", "Is any site shared with other tenants?"),
+  bool("SP07", "Sites & Physical", "Are any sites planned to open / close / move in next 12 months?"),
+  text("SP08", "Sites & Physical", "Notes about physical environment (server room, IDF closets, etc.)"),
+
+  // 5. WAN
+  text("WAN01", "WAN", "Primary internet provider at primary site"),
+  text("WAN02", "WAN", "Primary site bandwidth (down / up)"),
+  text("WAN03", "WAN", "Static IPs assigned (count + range)"),
+  bool("WAN04", "WAN", "Failover / secondary WAN link present?"),
+  text("WAN05", "WAN", "Failover provider + bandwidth"),
+  single("WAN06", "WAN", "Inter-site connectivity model", [
     { value: "site_to_site_vpn", label: "Site-to-site VPN" },
     { value: "sd_wan", label: "SD-WAN" },
     { value: "mpls", label: "MPLS" },
-    { value: "none", label: "None — independent" },
+    { value: "vpn_software", label: "Software VPN per user" },
+    { value: "none", label: "No interconnect" },
     { value: "single_site", label: "Single site" },
-  ] },
-  { id: "SS05", section: "Sites & Connectivity", prompt: "Approximate end-user count across all sites", type: "numeric", required: true },
+  ]),
+  text("WAN07", "WAN", "SD-WAN / VPN vendor (if any)"),
+  num("WAN08", "WAN", "Internet circuits across all sites"),
+  text("WAN09", "WAN", "Monthly WAN spend across all sites"),
+  text("WAN10", "WAN", "Known WAN performance issues"),
 
-  // Identity & Endpoints
-  { id: "SS06", section: "Identity & Endpoints", prompt: "Primary identity provider", type: "single_select", required: true, options: [
-    { value: "entra_azuread", label: "Microsoft Entra / Azure AD" },
-    { value: "google_workspace", label: "Google Workspace" },
+  // 6. LAN — Firewalls
+  text("FW01", "LAN · Firewalls", "Firewall vendor(s)"),
+  text("FW02", "LAN · Firewalls", "Firewall models in use"),
+  text("FW03", "LAN · Firewalls", "Firewall firmware version + last update date"),
+  bool("FW04", "LAN · Firewalls", "Firewall under active support contract?"),
+  date("FW05", "LAN · Firewalls", "Hardware EOL date (oldest unit)"),
+
+  // 7. LAN — Switching
+  text("SW01", "LAN · Switching", "Switch vendor(s)"),
+  num("SW02", "LAN · Switching", "Total switch count across all sites"),
+  single("SW03", "LAN · Switching", "Switch management model", [
+    { value: "managed_centralized", label: "Centrally managed (Meraki / DNA / Aruba Central / etc.)" },
+    { value: "managed_per_device", label: "Managed per device" },
+    { value: "unmanaged", label: "Unmanaged" },
+    { value: "mixed", label: "Mixed" },
+  ]),
+  text("SW04", "LAN · Switching", "Switch firmware / EOL concerns"),
+
+  // 8. LAN — Wireless
+  text("WL01", "LAN · Wireless", "Wireless vendor(s)"),
+  num("WL02", "LAN · Wireless", "Approximate AP count"),
+  multi("WL03", "LAN · Wireless", "SSIDs in use", [
+    { value: "corp", label: "Corporate (auth'd)" },
+    { value: "byod", label: "BYOD" },
+    { value: "guest", label: "Guest (open or captive portal)" },
+    { value: "iot", label: "IoT / cameras / printers" },
+    { value: "voice", label: "Voice / VoIP-dedicated" },
+  ]),
+  bool("WL04", "LAN · Wireless", "Are guest and corporate SSIDs isolated at L2/L3?"),
+
+  // 9. LAN — Segmentation
+  bool("SEG01", "LAN · Segmentation", "VLANs in use?"),
+  text("SEG02", "LAN · Segmentation", "VLAN scheme (data / voice / guest / IoT / management)"),
+  bool("SEG03", "LAN · Segmentation", "Internal firewalling between VLANs?"),
+
+  // 10. Servers / Virtualization
+  num("SV01", "Servers", "Physical server count"),
+  num("SV02", "Servers", "Virtual server count"),
+  text("SV03", "Servers", "Hypervisor(s) in use (VMware / Hyper-V / Proxmox / etc.)"),
+  text("SV04", "Servers", "Critical line-of-business apps + where hosted"),
+  text("SV05", "Servers", "On-prem domain controllers / file servers"),
+  bool("SV06", "Servers", "Any servers running EOL operating systems?"),
+  text("SV07", "Servers", "Server room cooling + UPS / generator coverage"),
+  text("SV08", "Servers", "Known server-side performance / capacity issues"),
+
+  // 11. Cloud
+  multi("CL01", "Cloud", "Primary cloud platforms in use", [
+    { value: "m365", label: "Microsoft 365" },
+    { value: "gws", label: "Google Workspace" },
+    { value: "azure", label: "Microsoft Azure" },
+    { value: "aws", label: "AWS" },
+    { value: "gcp", label: "Google Cloud" },
+    { value: "other", label: "Other SaaS-heavy" },
+  ]),
+  text("CL02", "Cloud", "M365 / Google Workspace tenant id (if known)"),
+  num("CL03", "Cloud", "Number of M365 / GWS licenses"),
+  text("CL04", "Cloud", "License mix (Business Basic / Standard / Premium / E3 / E5 / etc.)"),
+  bool("CL05", "Cloud", "Conditional access / context-aware access policies in place?"),
+  bool("CL06", "Cloud", "Legacy auth disabled?"),
+  text("CL07", "Cloud", "Other major SaaS apps (CRM, ERP, helpdesk, etc.)"),
+  text("CL08", "Cloud", "Cloud monthly spend approximation"),
+
+  // 12. Storage
+  text("ST_S01", "Storage", "Primary file storage (on-prem fileserver / NAS / OneDrive / SharePoint / etc.)"),
+  text("ST_S02", "Storage", "Capacity in use vs. provisioned"),
+  text("ST_S03", "Storage", "Storage vendors + models"),
+  bool("ST_S04", "Storage", "Is sensitive data segregated to restricted shares?"),
+  text("ST_S05", "Storage", "Storage growth rate (TB/year approximation)"),
+
+  // 13. Voice
+  single("VC01", "Voice", "Phone system type", [
+    { value: "hosted_voip", label: "Hosted VoIP" },
+    { value: "on_prem_pbx", label: "On-prem PBX" },
+    { value: "ms_teams_phone", label: "Microsoft Teams Phone" },
+    { value: "cell_only", label: "Cell phones only" },
+    { value: "other", label: "Other" },
+  ]),
+  text("VC02", "Voice", "Voice vendor / provider"),
+  num("VC03", "Voice", "Approximate voice user count"),
+  text("VC04", "Voice", "DID range / main numbers"),
+  bool("VC05", "Voice", "Call recording or e911 considerations?"),
+
+  // 14. Security Stack
+  text("SS01", "Security", "Endpoint AV / EDR vendor"),
+  text("SS02", "Security", "EDR coverage % of endpoints"),
+  text("SS03", "Security", "DNS / web filter (if any)"),
+  text("SS04", "Security", "Email security (vendor + feature set)"),
+  text("SS05", "Security", "Phishing simulation / training platform"),
+  text("SS06", "Security", "SIEM / log aggregation"),
+  text("SS07", "Security", "MDR / SOC vendor (if any)"),
+  text("SS08", "Security", "Privileged access management (PAM)"),
+  text("SS09", "Security", "Last penetration test (when + result)"),
+  text("SS10", "Security", "Last tabletop exercise"),
+
+  // 15. Identity
+  single("ID01", "Identity", "Primary IdP", [
+    { value: "entra", label: "Microsoft Entra / Azure AD" },
+    { value: "gws", label: "Google Workspace" },
     { value: "okta", label: "Okta" },
     { value: "on_prem_ad", label: "On-prem Active Directory" },
-    { value: "hybrid", label: "Hybrid" },
-    { value: "other", label: "Other / unsure" },
-  ] },
-  { id: "SS07", section: "Identity & Endpoints", prompt: "MFA coverage", type: "single_select", required: true, options: [
+    { value: "hybrid", label: "Hybrid AD + Entra" },
+    { value: "other", label: "Other" },
+  ]),
+  single("ID02", "Identity", "MFA coverage", [
     { value: "all", label: "All users" },
     { value: "admins_only", label: "Admins only" },
     { value: "most", label: "Most users" },
     { value: "few", label: "Few users" },
     { value: "none", label: "None" },
-  ] },
-  { id: "SS08", section: "Identity & Endpoints", prompt: "Endpoint count (workstations + servers)", type: "numeric", required: true },
-  { id: "SS09", section: "Identity & Endpoints", prompt: "Endpoint management / RMM in place?", type: "single_select", required: true, options: [
-    { value: "yes_managed", label: "Yes — actively managed" },
-    { value: "yes_unmanaged", label: "Yes — installed but unmanaged" },
-    { value: "no", label: "No" },
-    { value: "unsure", label: "Unsure" },
-  ] },
-  { id: "SS10", section: "Identity & Endpoints", prompt: "AV / EDR product", type: "text", required: false },
+  ]),
+  bool("ID03", "Identity", "Privileged-account review cadence (quarterly or better)?"),
+  text("ID04", "Identity", "Service-account inventory (count + biggest concerns)"),
+  bool("ID05", "Identity", "Joiner / mover / leaver (JML) process documented?"),
+  text("ID06", "Identity", "Identity-related incidents in last 12 months"),
 
-  // Apps & Data
-  { id: "SS11", section: "Apps & Data", prompt: "Primary email/collab platform", type: "single_select", required: true, options: [
-    { value: "m365", label: "Microsoft 365" },
-    { value: "google_workspace", label: "Google Workspace" },
-    { value: "other", label: "Other" },
-  ] },
-  { id: "SS12", section: "Apps & Data", prompt: "File storage primary", type: "multi_select", required: true, options: [
-    { value: "onedrive_sharepoint", label: "OneDrive / SharePoint" },
-    { value: "google_drive", label: "Google Drive" },
-    { value: "on_prem_fileserver", label: "On-prem fileserver" },
-    { value: "nas", label: "NAS" },
-    { value: "dropbox_box", label: "Dropbox / Box" },
-    { value: "other", label: "Other" },
-  ] },
-  { id: "SS13", section: "Apps & Data", prompt: "Line-of-business / vertical applications", type: "text", required: false, helpText: "Practice management, ERP, scheduling, POS, etc." },
-  { id: "SS14", section: "Apps & Data", prompt: "Any SaaS apps with admin-only access concerns?", type: "boolean_with_text", required: false },
+  // 16. Endpoints
+  text("EP01", "Endpoints", "Endpoint management / RMM in use"),
+  text("EP02", "Endpoints", "OS mix (Win / Mac / Linux / iOS / Android approx %)"),
+  num("EP03", "Endpoints", "Average endpoint age (months)"),
+  bool("EP04", "Endpoints", "Disk encryption enforced (BitLocker / FileVault)?"),
+  bool("EP05", "Endpoints", "MDM in place for mobile devices?"),
+  text("EP06", "Endpoints", "Endpoint refresh budget / cycle"),
 
-  // Backups & DR
-  { id: "SS15", section: "Backups & DR", prompt: "Backup solution", type: "text", required: true },
-  { id: "SS16", section: "Backups & DR", prompt: "Last successful restore test", type: "single_select", required: true, options: [
+  // 17. Backups & DR
+  text("BK01", "Backups & DR", "Backup product / vendor"),
+  text("BK02", "Backups & DR", "Backup destination(s) — local / cloud / both"),
+  text("BK03", "Backups & DR", "Retention policy (days / weeks / months)"),
+  single("BK04", "Backups & DR", "Last successful restore test", [
     { value: "lt_30", label: "Within 30 days" },
     { value: "lt_90", label: "Within 90 days" },
     { value: "lt_365", label: "Within a year" },
     { value: "never", label: "Never tested" },
     { value: "unsure", label: "Unsure" },
-  ] },
-  { id: "SS17", section: "Backups & DR", prompt: "RPO target (acceptable data loss)", type: "text", required: false },
-  { id: "SS18", section: "Backups & DR", prompt: "RTO target (time to be back online)", type: "text", required: false },
+  ]),
+  text("BK05", "Backups & DR", "RPO target (acceptable data loss window)"),
+  text("BK06", "Backups & DR", "RTO target (time to recover)"),
+  bool("BK07", "Backups & DR", "Immutable / offsite copies in place?"),
+  text("BK08", "Backups & DR", "Disaster recovery plan status"),
 
-  // Security Stack
-  { id: "SS19", section: "Security Stack", prompt: "Firewall vendor + model(s)", type: "text", required: true },
-  { id: "SS20", section: "Security Stack", prompt: "DNS filtering / web filter in place?", type: "boolean", required: true },
-  { id: "SS21", section: "Security Stack", prompt: "Email security (beyond default)?", type: "text", required: false, helpText: "Mimecast, Proofpoint, M365 Defender, etc." },
-  { id: "SS22", section: "Security Stack", prompt: "SIEM / log aggregation?", type: "single_select", required: true, options: [
-    { value: "yes", label: "Yes — actively monitored" },
-    { value: "yes_unmonitored", label: "Yes — collected, not monitored" },
-    { value: "no", label: "No" },
-    { value: "unsure", label: "Unsure" },
-  ] },
-  { id: "SS23", section: "Security Stack", prompt: "Documented incident response plan?", type: "single_select", required: true, options: [
-    { value: "documented_tested", label: "Documented and tested" },
-    { value: "documented", label: "Documented only" },
-    { value: "no", label: "No" },
-    { value: "unsure", label: "Unsure" },
-  ] },
+  // 18. Collaboration
+  text("CO01", "Collaboration", "Email + collaboration platform"),
+  text("CO02", "Collaboration", "Chat / messaging tool (Teams / Slack / Google Chat)"),
+  text("CO03", "Collaboration", "Video conferencing platform"),
+  text("CO04", "Collaboration", "Project management / ticketing tool"),
 
-  // Compliance Obligations
-  { id: "SS24", section: "Compliance Obligations", prompt: "Active regulations", type: "multi_select", required: true, options: [
-    { value: "HIPAA", label: "HIPAA" },
-    { value: "PCI", label: "PCI-DSS" },
-    { value: "CMMC", label: "CMMC / NIST 800-171" },
-    { value: "GLBA", label: "GLBA" },
-    { value: "FTC_SAFEGUARDS", label: "FTC Safeguards" },
-    { value: "SEC", label: "SEC cyber" },
-    { value: "FERPA", label: "FERPA" },
-    { value: "STATE_PRIVACY", label: "State privacy law" },
-    { value: "NONE", label: "None" },
-  ] },
-  { id: "SS25", section: "Compliance Obligations", prompt: "Cyber insurance renewal date", type: "date", required: false },
-  { id: "SS26", section: "Compliance Obligations", prompt: "Most recent third-party security questionnaire / audit", type: "text", required: false },
+  // 19. Physical Security
+  single("PS01", "Physical Security", "Access control system", [
+    { value: "keycard_centrally_managed", label: "Keycard, centrally managed" },
+    { value: "keycard_legacy", label: "Keycard, legacy / unmanaged" },
+    { value: "smart_lock", label: "Smart lock" },
+    { value: "physical_keys", label: "Physical keys only" },
+    { value: "none", label: "None" },
+  ]),
+  bool("PS02", "Physical Security", "Video surveillance in place?"),
+  text("PS03", "Physical Security", "Cameras vendor + retention"),
+  text("PS04", "Physical Security", "Visitor management / sign-in process"),
 
-  // Stakeholders
-  { id: "SS27", section: "Stakeholders", prompt: "Primary IT decision-maker (name + title)", type: "text", required: true },
-  { id: "SS28", section: "Stakeholders", prompt: "Executive sponsor (name + title)", type: "text", required: true },
-  { id: "SS29", section: "Stakeholders", prompt: "Other key stakeholders (departments, vendors)", type: "text", required: false },
-  { id: "SS30", section: "Stakeholders", prompt: "Anything else the survey missed?", type: "text", required: false },
+  // 20. Facilities
+  text("FA01", "Facilities", "UPS / generator coverage at primary site"),
+  text("FA02", "Facilities", "Server-room cooling status"),
+  text("FA03", "Facilities", "Any planned facility work (build-out / move) in next 12 months?"),
+
+  // 21. Open notes
+  text("NOTES", "Notes", "Anything else the survey missed"),
 ];
 
 export const SITE_SURVEY_BANK: DiscoveryBank = {

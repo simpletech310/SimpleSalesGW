@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { Input, Label, Textarea } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
 import { FilesTab } from "./FilesTab";
+import { DocumentsPanel } from "@/app/(app)/accounts/[id]/DocumentsPanel";
 
 type Lead = {
   id: string;
@@ -46,7 +47,7 @@ type AuditEntry = {
   actor: { name: string } | null;
 };
 
-const TABS = ["Overview", "Research", "Activity", "Assessment", "Files", "Audit"] as const;
+const TABS = ["Overview", "Research", "Activity", "Assessment", "Files", "Documents", "Audit"] as const;
 
 export function LeadTabs({
   lead,
@@ -85,6 +86,7 @@ export function LeadTabs({
         {tab === "Activity" && <ActivityTab lead={lead} canEdit={canEdit} />}
         {tab === "Assessment" && <AssessmentTab lead={lead} />}
         {tab === "Files" && <FilesTab leadId={lead.id} />}
+        {tab === "Documents" && <DocumentsPanel scope="lead" parentId={lead.id} />}
         {tab === "Audit" && <AuditTab entries={auditLogs} />}
       </div>
     </div>

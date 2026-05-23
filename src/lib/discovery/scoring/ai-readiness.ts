@@ -1,15 +1,28 @@
 /**
- * AI Readiness scoring: average the option weights within each pillar to
- * produce a 0-4 maturity score per pillar plus overall.
+ * AI Readiness scoring:
+ *   - 8-dimension AI Maturity Scorecard (MS01..MS08), 0-4 each
+ *   - Use-case matrix per department: Impact (1-4) × Feasibility (0-4) →
+ *     prioritized list, top picks float to the quick-win bucket
+ *   - 30/60/90 + 12-month rollout drawn from the answers
  */
 
-import { AI_READINESS_QUESTIONS } from "../ai-readiness-questions";
+import { AI_READINESS_QUESTIONS, AI_READINESS_DEPARTMENTS } from "../ai-readiness-questions";
 
 export type AiReadinessScorecard = {
   kind: "AI_READINESS";
-  overall: number;        // 0-4 average
-  pillars: Array<{ name: string; score: number; questions: number }>;
-  topUseCases: string[];   // department picks from AI09
+  overall: number;                  // 0-4 average across MS01..MS08
+  dimensions: Array<{ id: string; label: string; score: number }>;
+  governanceScore: number;          // 0-4 average across GV* weighted questions
+  dataScore: number;                // 0-4 average across DR* weighted questions
+  useCases: Array<{
+    department: string;
+    summary?: string;
+    impactScore: number;             // 0-4
+    feasibilityScore: number;        // 0-4
+    priorityScore: number;           // impact * feasibility (0-16)
+    blockers?: string;
+  }>;
+  topUseCases: AiReadinessScorecard["useCases"];
   highestValueProcess?: string;
   stalledInitiatives?: string;
   rollout: {
@@ -17,69 +30,116 @@ export type AiReadinessScorecard = {
     days_31_90: string[];
     days_91_365: string[];
   };
+  /** Back-compat: roadmap renderer uses `pillars` shape. Mirror dimensions for now. */
+  pillars: Array<{ name: string; score: number }>;
+  /** Back-compat: previously exposed as a string[] of department names. */
+  topUseCaseDepartments: string[];
 };
 
-const PILLARS = ["Org Readiness", "Data Foundations", "Use Cases", "Governance"] as const;
+function getStringWeight(qid: string, answers: Record<string, unknown>): number | null {
+  const q = AI_READINESS_QUESTIONS.find((x) => x.id === qid);
+  if (!q || !q.options) return null;
+  const v = answers[qid];
+  if (typeof v !== "string") return null;
+  const opt = q.options.find((o) => o.value === v);
+  return opt?.weight ?? null;
+}
+
+function avgWeights(qids: string[], answers: Record<string, unknown>): number {
+  let sum = 0, count = 0;
+  for (const id of qids) {
+    const w = getStringWeight(id, answers);
+    if (w !== null) { sum += w; count += 1; }
+  }
+  return count === 0 ? 0 : Math.round((sum / count) * 10) / 10;
+}
+
+const MS_LABELS: Record<string, string> = {
+  MS01: "Strategy & vision",
+  MS02: "Leadership & culture",
+  MS03: "People & skills",
+  MS04: "Data foundations",
+  MS05: "Tooling & infrastructure",
+  MS06: "Governance & ethics",
+  MS07: "Operations",
+  MS08: "Customer value",
+};
 
 export function scoreAiReadiness(answers: Record<string, unknown>): AiReadinessScorecard {
-  const pillarScores: Array<{ name: string; score: number; questions: number }> = [];
-
-  for (const pillar of PILLARS) {
-    const qs = AI_READINESS_QUESTIONS.filter((q) => q.section === pillar && q.type === "single_select" && q.options);
-    let sum = 0;
-    let count = 0;
-    for (const q of qs) {
-      const v = answers[q.id];
-      if (typeof v !== "string") continue;
-      const opt = q.options!.find((o) => o.value === v);
-      if (opt?.weight !== undefined) {
-        sum += opt.weight;
-        count += 1;
-      }
-    }
-    const score = count === 0 ? 0 : Math.round((sum / count) * 10) / 10;
-    pillarScores.push({ name: pillar, score, questions: count });
-  }
-
-  const overall = pillarScores.length === 0
+  const dimensions = Object.keys(MS_LABELS).map((id) => ({
+    id,
+    label: MS_LABELS[id]!,
+    score: getStringWeight(id, answers) ?? 0,
+  }));
+  const overall = dimensions.length === 0
     ? 0
-    : Math.round((pillarScores.reduce((s, p) => s + p.score, 0) / pillarScores.length) * 10) / 10;
+    : Math.round((dimensions.reduce((s, d) => s + d.score, 0) / dimensions.length) * 10) / 10;
 
-  const departments = Array.isArray(answers["AI09"])
-    ? (answers["AI09"] as unknown[]).filter((x): x is string => typeof x === "string")
-    : [];
+  const governanceScore = avgWeights(["GV01", "GV02", "GV03"], answers);
+  const dataScore = avgWeights(["DR01", "DR02", "DR03"], answers);
 
-  const highestValueProcess = typeof answers["AI10"] === "string" ? (answers["AI10"] as string) : undefined;
-  const stalled = typeof answers["AI11"] === "string" && (answers["AI11"] as string).trim()
-    ? (answers["AI11"] as string)
+  // Use-case matrix per department
+  const useCases: AiReadinessScorecard["useCases"] = [];
+  for (const dept of AI_READINESS_DEPARTMENTS) {
+    const slug = dept.replace(/\s+/g, "").substring(0, 5).toUpperCase();
+    const summary = typeof answers[`UC.${slug}.02`] === "string" ? (answers[`UC.${slug}.02`] as string) : undefined;
+    const impactScore = getStringWeight(`UC.${slug}.05`, answers) ?? 0;
+    const feasibilityScore = getStringWeight(`UC.${slug}.06`, answers) ?? 0;
+    const blockers = typeof answers[`UC.${slug}.07`] === "string" ? (answers[`UC.${slug}.07`] as string) : undefined;
+    if (summary || impactScore > 0 || feasibilityScore > 0) {
+      useCases.push({
+        department: dept,
+        summary,
+        impactScore,
+        feasibilityScore,
+        priorityScore: impactScore * feasibilityScore,
+        blockers,
+      });
+    }
+  }
+  const topUseCases = [...useCases].sort((a, b) => b.priorityScore - a.priorityScore).slice(0, 5);
+
+  const highestValueProcess = typeof answers["EX04"] === "string" ? (answers["EX04"] as string) : undefined;
+  const stalled = typeof answers["GV11"] === "string" && (answers["GV11"] as string).trim()
+    ? (answers["GV11"] as string)
     : undefined;
 
-  // Rollout buckets sequenced by typical Gateway pattern.
   const rollout = {
     days_0_30: [
       overall < 2 ? "Publish AI acceptable-use policy" : "Inventory current AI tool usage (sanctioned + shadow)",
-      "Run a 60-minute workshop with one volunteer team on practical AI prompts",
+      ...topUseCases.slice(0, 2).map((u) => `Pilot quick win in ${u.department}: ${u.summary ?? "top automation"}`),
       stalled ? `Triage stalled initiative: ${stalled}` : "Identify 1-2 quick-win use cases",
     ],
     days_31_90: [
-      "Roll out approved AI tool to first department(s)",
+      "Roll out approved AI tool to first 1-2 departments",
       "Establish prompt library + monthly office hours",
-      departments.includes("legal") ? "Bring legal/compliance into the governance loop" : "Document a vendor-review checklist",
+      governanceScore < 2 ? "Stand up vendor-review + DLP policy" : "Document AI escalation + review process",
     ],
     days_91_365: [
-      "Expand to remaining departments based on measured ROI",
-      "Introduce custom RAG / domain-specific AI where data foundations support it",
+      ...topUseCases.slice(2, 5).map((u) => `Expand to ${u.department}: ${u.summary ?? "scoped use case"}`),
+      dataScore < 2 ? "Invest in data hygiene + classification before scaling" : "Introduce custom RAG / domain-specific AI",
       "Quarterly maturity re-assessment using this same scorecard",
     ],
   };
 
+  const ex03 = typeof answers["EX03"] === "string" ? (answers["EX03"] as string) : "";
+  if (ex03 && ex03.trim()) {
+    rollout.days_0_30.unshift(`Address top pain identified by exec: ${ex03}`);
+  }
+
   return {
     kind: "AI_READINESS",
     overall,
-    pillars: pillarScores,
-    topUseCases: departments,
+    dimensions,
+    governanceScore,
+    dataScore,
+    useCases,
+    topUseCases,
     highestValueProcess,
     stalledInitiatives: stalled,
     rollout,
+    // back-compat
+    pillars: dimensions.map((d) => ({ name: d.label, score: d.score })),
+    topUseCaseDepartments: topUseCases.map((u) => u.department),
   };
 }

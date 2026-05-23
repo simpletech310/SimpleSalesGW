@@ -190,6 +190,51 @@ enum DiscoveryKind {
   SITE_SURVEY
   AI_READINESS
   NIST_CSF
+  NIST_800_171
+}
+
+enum SignedDocType {
+  MSA
+  SOW
+  BAA
+  NDA
+  DPA
+  AMENDMENT
+  OTHER
+}
+
+enum SignedDocStatus {
+  DRAFT
+  SENT
+  SIGNED
+  EXPIRED
+  SUPERSEDED
+}
+
+enum CircuitType {
+  FIBER
+  CABLE
+  DSL
+  MPLS
+  WIRELESS
+  SATELLITE
+  OTHER
+}
+
+enum StorageType {
+  NAS
+  SAN
+  DAS
+  CLOUD
+  OTHER
+}
+
+enum LicenseType {
+  M365
+  GWS
+  SAAS
+  PERPETUAL
+  OTHER
 }
 
 enum DiscoveryStatus {
@@ -249,6 +294,7 @@ model User {
   managedCustomers  Customer[]            @relation("CustomerManager")
   discoveryCreated  DiscoveryAssessment[] @relation("DiscoveryCreator")
   onboardingTasks   OnboardingTask[]      @relation("OnboardingTaskOwner")
+  signedDocsUploaded SignedDocument[]     @relation("SignedDocUploader")
 
   @@map("users")
 }
@@ -353,6 +399,7 @@ model Lead {
   attachments         Attachment[]
   pricingApprovals    PricingApproval[]
   customer            Customer?
+  signedDocuments     SignedDocument[]
 
   @@index([ownerUserId])
   @@index([pipelineStage])
@@ -589,6 +636,17 @@ model Customer {
   discoveryAssessments DiscoveryAssessment[]
   onboardingTasks      OnboardingTask[]
   qbrs                 Qbr[]
+  sites                Site[]
+  circuits             NetworkCircuit[]
+  firewalls            FirewallAsset[]
+  switches             SwitchAsset[]
+  accessPoints         AccessPoint[]
+  servers              ServerAsset[]
+  storage              StorageAsset[]
+  endpoints            EndpointSummary[]
+  licenses             LicenseEntry[]
+  vendors              VendorContract[]
+  signedDocuments      SignedDocument[]
 
   @@index([status])
   @@index([accountManagerId])
@@ -654,4 +712,256 @@ model Qbr {
 
   @@index([customerId, scheduledAt])
   @@map("qbrs")
+}
+
+// ----------------------------------------------------------------------------
+// v2.1 — MSP Inventory Workbook (10 structured tables)
+// ----------------------------------------------------------------------------
+
+model Site {
+  id         String   @id @default(uuid()) @db.Uuid
+  customerId String   @map("customer_id") @db.Uuid
+  name       String
+  address    String?
+  city       String?
+  state      String?
+  zip        String?
+  isPrimary  Boolean  @default(false) @map("is_primary")
+  sqft       Int?
+  headcount  Int?
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  customer     Customer         @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  circuits     NetworkCircuit[]
+  firewalls    FirewallAsset[]
+  switches     SwitchAsset[]
+  accessPoints AccessPoint[]
+  servers      ServerAsset[]
+  storage      StorageAsset[]
+  endpoints    EndpointSummary[]
+
+  @@index([customerId])
+  @@map("sites")
+}
+
+model NetworkCircuit {
+  id            String       @id @default(uuid()) @db.Uuid
+  customerId    String       @map("customer_id") @db.Uuid
+  siteId        String?      @map("site_id") @db.Uuid
+  provider      String
+  type          CircuitType  @default(OTHER)
+  bandwidthDown Int?         @map("bandwidth_down") // Mbps
+  bandwidthUp   Int?         @map("bandwidth_up")   // Mbps
+  monthlyCost   Decimal?     @map("monthly_cost") @db.Decimal(10, 2)
+  contractEnd   DateTime?    @map("contract_end")
+  isFailover    Boolean      @default(false) @map("is_failover")
+  notes         String?      @db.Text
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  site     Site?    @relation(fields: [siteId], references: [id], onDelete: SetNull)
+
+  @@index([customerId])
+  @@index([siteId])
+  @@map("network_circuits")
+}
+
+model FirewallAsset {
+  id              String   @id @default(uuid()) @db.Uuid
+  customerId      String   @map("customer_id") @db.Uuid
+  siteId          String?  @map("site_id") @db.Uuid
+  vendor          String
+  model           String?
+  serialNumber    String?  @map("serial_number")
+  firmwareVersion String?  @map("firmware_version")
+  eolDate         DateTime? @map("eol_date")
+  supportContract String?  @map("support_contract")
+  notes           String?  @db.Text
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  site     Site?    @relation(fields: [siteId], references: [id], onDelete: SetNull)
+
+  @@index([customerId])
+  @@map("firewall_assets")
+}
+
+model SwitchAsset {
+  id         String   @id @default(uuid()) @db.Uuid
+  customerId String   @map("customer_id") @db.Uuid
+  siteId     String?  @map("site_id") @db.Uuid
+  vendor     String
+  model      String?
+  portCount  Int?     @map("port_count")
+  mgmtIp     String?  @map("mgmt_ip")
+  isStacked  Boolean  @default(false) @map("is_stacked")
+  notes      String?  @db.Text
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  site     Site?    @relation(fields: [siteId], references: [id], onDelete: SetNull)
+
+  @@index([customerId])
+  @@map("switch_assets")
+}
+
+model AccessPoint {
+  id         String   @id @default(uuid()) @db.Uuid
+  customerId String   @map("customer_id") @db.Uuid
+  siteId     String?  @map("site_id") @db.Uuid
+  vendor     String
+  model      String?
+  count      Int      @default(1)
+  notes      String?  @db.Text
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  site     Site?    @relation(fields: [siteId], references: [id], onDelete: SetNull)
+
+  @@index([customerId])
+  @@map("access_points")
+}
+
+model ServerAsset {
+  id         String   @id @default(uuid()) @db.Uuid
+  customerId String   @map("customer_id") @db.Uuid
+  siteId     String?  @map("site_id") @db.Uuid
+  hostname   String
+  role       String?
+  osVersion  String?  @map("os_version")
+  cpuCores   Int?     @map("cpu_cores")
+  ramGb      Int?     @map("ram_gb")
+  storageGb  Int?     @map("storage_gb")
+  virtual    Boolean  @default(false)
+  hypervisor String?
+  notes      String?  @db.Text
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  site     Site?    @relation(fields: [siteId], references: [id], onDelete: SetNull)
+
+  @@index([customerId])
+  @@map("server_assets")
+}
+
+model StorageAsset {
+  id           String      @id @default(uuid()) @db.Uuid
+  customerId   String      @map("customer_id") @db.Uuid
+  siteId       String?     @map("site_id") @db.Uuid
+  vendor       String
+  model        String?
+  capacityTb   Decimal?    @map("capacity_tb") @db.Decimal(8, 2)
+  type         StorageType @default(OTHER)
+  backupTarget Boolean     @default(false) @map("backup_target")
+  notes        String?     @db.Text
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  site     Site?    @relation(fields: [siteId], references: [id], onDelete: SetNull)
+
+  @@index([customerId])
+  @@map("storage_assets")
+}
+
+model EndpointSummary {
+  id                 String    @id @default(uuid()) @db.Uuid
+  customerId         String    @map("customer_id") @db.Uuid
+  siteId             String?   @map("site_id") @db.Uuid
+  count              Int       @default(0)
+  osMix              Json      @default("{}") @map("os_mix")
+  avgAgeMonths       Int?      @map("avg_age_months")
+  lastInventoriedAt  DateTime? @map("last_inventoried_at")
+  notes              String?   @db.Text
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  site     Site?    @relation(fields: [siteId], references: [id], onDelete: SetNull)
+
+  @@index([customerId])
+  @@map("endpoint_summaries")
+}
+
+model LicenseEntry {
+  id           String      @id @default(uuid()) @db.Uuid
+  customerId   String      @map("customer_id") @db.Uuid
+  vendor       String
+  product      String
+  seats        Int?
+  costPerSeat  Decimal?    @map("cost_per_seat") @db.Decimal(10, 2)
+  renewalDate  DateTime?   @map("renewal_date")
+  type         LicenseType @default(OTHER)
+  notes        String?     @db.Text
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@map("license_entries")
+}
+
+model VendorContract {
+  id            String    @id @default(uuid()) @db.Uuid
+  customerId    String    @map("customer_id") @db.Uuid
+  vendor        String
+  service       String?
+  contractStart DateTime? @map("contract_start")
+  contractEnd   DateTime? @map("contract_end")
+  autoRenew     Boolean   @default(false) @map("auto_renew")
+  monthlyCost   Decimal?  @map("monthly_cost") @db.Decimal(10, 2)
+  contact       String?
+  notes         String?   @db.Text
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@map("vendor_contracts")
+}
+
+// ----------------------------------------------------------------------------
+// v2.1 — Signed Document lifecycle
+// ----------------------------------------------------------------------------
+
+model SignedDocument {
+  id               String          @id @default(uuid()) @db.Uuid
+  leadId           String?         @map("lead_id") @db.Uuid
+  customerId       String?         @map("customer_id") @db.Uuid
+  type             SignedDocType
+  title            String
+  status           SignedDocStatus @default(DRAFT)
+  signedByName     String?         @map("signed_by_name")
+  signedByEmail    String?         @map("signed_by_email")
+  signedAt         DateTime?       @map("signed_at")
+  expiresAt        DateTime?       @map("expires_at")
+  version          Int             @default(1)
+  supersededById   String?         @unique @map("superseded_by_id") @db.Uuid
+  storagePath      String?         @map("storage_path")
+  publicUrl        String?         @map("public_url")
+  contentType      String?         @map("content_type")
+  byteSize         Int?            @map("byte_size")
+  uploadedByUserId String          @map("uploaded_by_user_id") @db.Uuid
+  notes            String?         @db.Text
+  createdAt        DateTime        @default(now()) @map("created_at")
+  updatedAt        DateTime        @updatedAt @map("updated_at")
+
+  lead       Lead?           @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  customer   Customer?       @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  uploadedBy User            @relation("SignedDocUploader", fields: [uploadedByUserId], references: [id])
+  supersededBy SignedDocument? @relation("SignedDocChain", fields: [supersededById], references: [id], onDelete: SetNull)
+  supersedes   SignedDocument? @relation("SignedDocChain")
+
+  @@index([leadId])
+  @@index([customerId])
+  @@index([type, status])
+  @@map("signed_documents")
 }

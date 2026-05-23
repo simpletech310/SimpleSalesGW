@@ -5,8 +5,10 @@ import { OnboardingPhase } from "@prisma/client";
 import { OnboardingPanel } from "./OnboardingPanel";
 import { DiscoveryPanel } from "./DiscoveryPanel";
 import { QbrsPanel } from "./QbrsPanel";
+import { InventoryPanel } from "./InventoryPanel";
+import { DocumentsPanel } from "./DocumentsPanel";
 
-const TABS = ["Onboarding", "Discovery", "QBRs", "Roadmap"] as const;
+const TABS = ["Onboarding", "Discovery", "Inventory", "QBRs", "Documents", "Roadmap"] as const;
 
 type Props = {
   customerId: string;
@@ -14,7 +16,7 @@ type Props = {
   leadOwnerEmail: string;
   discoveryAssessments: Array<{
     id: string;
-    kind: "SITE_SURVEY" | "AI_READINESS" | "NIST_CSF";
+    kind: "SITE_SURVEY" | "AI_READINESS" | "NIST_CSF" | "NIST_800_171";
     status: "NOT_STARTED" | "IN_PROGRESS" | "COMPLETED";
     startedAt: string | null;
     completedAt: string | null;
@@ -52,7 +54,9 @@ export function AccountTabs({ customerId, currentPhase, discoveryAssessments, qb
       <div className="mt-6">
         {tab === "Onboarding" && <OnboardingPanel customerId={customerId} currentPhase={currentPhase} />}
         {tab === "Discovery" && <DiscoveryPanel customerId={customerId} assessments={discoveryAssessments} />}
+        {tab === "Inventory" && <InventoryPanel customerId={customerId} />}
         {tab === "QBRs" && <QbrsPanel customerId={customerId} qbrs={qbrs} />}
+        {tab === "Documents" && <DocumentsPanel scope="customer" parentId={customerId} />}
         {tab === "Roadmap" && (
           <div className="gtn-card p-4">
             <a

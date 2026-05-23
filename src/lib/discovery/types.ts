@@ -31,6 +31,6 @@ export type DiscoveryQuestion = {
 };
 
 export type DiscoveryBank = {
-  kind: "SITE_SURVEY" | "AI_READINESS" | "NIST_CSF";
+  kind: "SITE_SURVEY" | "AI_READINESS" | "NIST_CSF" | "NIST_800_171";
   questions: ReadonlyArray<DiscoveryQuestion>;
 };

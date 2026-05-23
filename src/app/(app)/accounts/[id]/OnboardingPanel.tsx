@@ -89,6 +89,16 @@ export function OnboardingPanel({ customerId, currentPhase }: { customerId: stri
 
   return (
     <div className="space-y-3">
+      <div className="flex justify-end">
+        <a
+          href={`/accounts/${customerId}/onboarding/print`}
+          target="_blank"
+          rel="noreferrer"
+          className="text-xs text-gtn-purple underline"
+        >
+          Print checklist →
+        </a>
+      </div>
       {PHASES.map((phase) => {
         const phaseTasks = tasks.filter((t) => t.phase === phase).sort((a, b) => a.position - b.position);
         const done = phaseTasks.filter((t) => t.status === "DONE" || t.status === "SKIPPED").length;
