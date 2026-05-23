@@ -10,6 +10,8 @@ import { Input, Label, Textarea } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
 import { FieldHelp } from "@/components/help/FieldHelp";
 import { GlossaryTerm } from "@/components/help/GlossaryTerm";
+import { NextStepHint } from "@/components/help/NextStepHint";
+import { InlineLoading } from "@/components/brand";
 import { HELP } from "@/lib/help-copy";
 import { discountPercent, approvalTier } from "@/lib/pricing";
 import {
@@ -401,9 +403,25 @@ export function PricingCard({ leadId, role, suggestedBundle, seatCount }: Props)
         </form>
       )}
 
+      {/* v2.7 — what's next when a request is pending */}
+      {items !== null && items.some((a) => a.status === "PENDING") && (
+        <div className="mb-3">
+          {(() => {
+            const pending = items.find((a) => a.status === "PENDING")!;
+            const effTier = pending.belowFloor ? "COO" : approvalTier(Number(pending.discountPct));
+            const approverLabel = effTier === "MANAGER" ? "Sales Manager" : "COO";
+            return (
+              <NextStepHint label="Waiting on">
+                {`${approverLabel} approval. We'll email you when it's decided. Until then, you can edit other parts of the lead.`}
+              </NextStepHint>
+            );
+          })()}
+        </div>
+      )}
+
       {/* Existing approvals list */}
       {items === null ? (
-        <p className="text-sm text-gtn-grey-2">Loading…</p>
+        <InlineLoading />
       ) : items.length === 0 ? (
         <p className="text-sm text-gtn-grey-2">No pricing requests yet.</p>
       ) : (

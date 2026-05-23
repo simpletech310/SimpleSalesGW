@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input, Label, Textarea } from "@/components/ui/Input";
 import { FieldHelp } from "@/components/help/FieldHelp";
+import { NextStepHint } from "@/components/help/NextStepHint";
 import { HELP } from "@/lib/help-copy";
 import type { QualificationVerdict } from "@prisma/client";
 import {
@@ -248,6 +249,26 @@ export function QualificationCard({
             <p className="text-[11px] text-gtn-grey-3 mt-3">
               Scored by {card.scoredBy.name} · {format(new Date(card.scoredAt), "PPp")}
             </p>
+          )}
+
+          {/* v2.7 — what's next based on verdict */}
+          {(card.verdict === "LIGHTHOUSE" || card.verdict === "STRONG_FIT") && (
+            <div className="mt-4">
+              <NextStepHint
+                action={{ label: "Run a Discovery call", href: `/leads/${leadId}/discovery-call` }}
+              >
+                {card.verdict === "LIGHTHOUSE"
+                  ? "Lighthouse account. Fast-track Discovery and loop in the executive sponsor early."
+                  : "Strong fit. Book a Discovery call to map their tech + decision landscape."}
+              </NextStepHint>
+            </div>
+          )}
+          {card.verdict === "MARGINAL" && (
+            <div className="mt-4">
+              <NextStepHint label="Heads up">
+                Marginal fit. Get Sales Manager sign-off before you sink hours into a proposal.
+              </NextStepHint>
+            </div>
           )}
         </>
       )}

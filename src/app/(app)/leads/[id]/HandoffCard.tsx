@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { NextStepHint } from "@/components/help/NextStepHint";
 import type { Role } from "@prisma/client";
 
 type HandoffRow = {
@@ -75,9 +76,31 @@ export function HandoffCard({ leadId, role }: { leadId: string; role: Role }) {
 
   if (items === null || items.length === 0) return null;
 
+  const hasInitiated = items.some((h) => h.status === "INITIATED");
+  const hasAccepted = items.some((h) => h.status === "ACCEPTED");
+
   return (
     <Card>
       <h3 className="text-sm font-semibold text-gtn-navy mb-3">Sales → Ops handoff</h3>
+
+      {hasInitiated && !canAccept && (
+        <div className="mb-3">
+          <NextStepHint label="Waiting on">
+            COO acceptance. You&apos;ll see this lead spawn an Account under /accounts once Marcelo accepts.
+          </NextStepHint>
+        </div>
+      )}
+      {hasAccepted && (
+        <div className="mb-3">
+          <NextStepHint
+            label="What's next"
+            action={{ label: "Open the Account", href: `/accounts` }}
+          >
+            Handoff accepted. The customer is now under /accounts; vCIO takes over Discovery + onboarding.
+          </NextStepHint>
+        </div>
+      )}
+
       <ul className="divide-y divide-gtn-lavender-2">
         {items.map((h) => (
           <li key={h.id} className="py-3 space-y-2">

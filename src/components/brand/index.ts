@@ -15,3 +15,4 @@ export { PageHeaderBand } from "./PageHeaderBand";
 export { BrandedFooter } from "./BrandedFooter";
 export { Pill } from "./Pill";
 export type { PillTone } from "./Pill";
+export { SkeletonBlock, SkeletonCard, SkeletonHero, SkeletonRow, InlineLoading } from "./Skeleton";
