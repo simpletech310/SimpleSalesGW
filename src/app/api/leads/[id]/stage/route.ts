@@ -41,7 +41,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     }
 
     const before = lead.pipelineStage;
-    await prisma.lead.update({ where: { id }, data: { pipelineStage: stage } });
+    // Persist close date + reason when entering a terminal state.
+    const terminalUpdate: Record<string, unknown> = { pipelineStage: stage };
+    if (stage === PipelineStage.CLOSED_WON || stage === PipelineStage.CLOSED_LOST) {
+      terminalUpdate.actualCloseDate = new Date();
+    }
+    if (stage === PipelineStage.CLOSED_LOST && reason) {
+      terminalUpdate.closedLostReason = reason;
+    }
+    await prisma.lead.update({ where: { id }, data: terminalUpdate });
     await prisma.activity.create({
       data: {
         leadId: id,

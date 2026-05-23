@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { LeadTabs } from "./LeadTabs";
 import { PricingCard } from "./PricingCard";
+import { CloseDealButtons } from "./CloseDealButtons";
 
 export default async function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
@@ -83,6 +84,14 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
             <Link href={`/leads/${lead.id}/handoff`}>Handoff to Ops</Link>
           </Button>
         </div>
+      </div>
+
+      {/* Close-deal controls — terminal stages aren't on the Kanban */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <p className="text-xs text-gtn-grey-2">
+          Close this deal once signed, mark lost with a reason, or move to Nurture for later.
+        </p>
+        <CloseDealButtons leadId={lead.id} currentStage={lead.pipelineStage} />
       </div>
 
       {/* Score strip */}

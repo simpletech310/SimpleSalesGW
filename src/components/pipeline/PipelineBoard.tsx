@@ -68,8 +68,8 @@ export function PipelineBoard({ leads }: { leads: LeadCardData[] }) {
 
   return (
     <div className="-mx-4 px-4 overflow-x-auto md:mx-0 md:px-0">
-      <div className="flex md:grid md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3 min-w-max md:min-w-0">
-        {ALL_STAGES.slice(0, 6).map((stage) => (
+      <div className="flex gap-3 min-w-max pb-2">
+        {ALL_STAGES.map((stage) => (
           <StageColumn
             key={stage}
             stage={stage}
@@ -162,8 +162,11 @@ function StageQuickButtons({
   currentStage: PipelineStage;
   onPick: (s: PipelineStage) => void;
 }) {
+  // Linear progression only — active stages 0..5 (LEAD → NEGOTIATION).
+  // Terminal stages (CLOSED_WON / CLOSED_LOST / NURTURE) are reached via the
+  // explicit "Close deal" controls on the Lead detail page.
   const idx = ALL_STAGES.indexOf(currentStage);
-  const prev = idx > 0 ? ALL_STAGES[idx - 1] : null;
+  const prev = idx > 0 && idx <= 5 ? ALL_STAGES[idx - 1] : null;
   const next = idx < 5 ? ALL_STAGES[idx + 1] : null;
   return (
     <>
