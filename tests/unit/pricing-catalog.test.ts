@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { ServiceBundle } from "@prisma/client";
+import { ServiceBundle, ServiceLine } from "@prisma/client";
 import {
   DEFAULT_CATALOG,
+  SERVICE_LINE_TIERS,
+  bundleIncludesNormalized,
   computeSticker,
   isBelowFloor,
   listBundles,
+  normalizeInclude,
   tierFor,
 } from "@/lib/pricing/catalog";
 
@@ -121,5 +124,57 @@ describe("isBelowFloor", () => {
   it("exactly-at-floor is NOT below floor", () => {
     const s = computeSticker(DEFAULT_CATALOG, ServiceBundle.ESSENTIAL, 50);
     expect(isBelowFloor(s, s.monthlyFloor)).toBe(false);
+  });
+});
+
+describe("service-line sub-tier shape (v2.2)", () => {
+  it("normalizeInclude handles bare ServiceLine", () => {
+    const n = normalizeInclude(ServiceLine.VOIP);
+    expect(n.serviceLine).toBe(ServiceLine.VOIP);
+    expect(n.tier).toBeUndefined();
+  });
+
+  it("normalizeInclude handles { serviceLine, tier } shape", () => {
+    const n = normalizeInclude({ serviceLine: ServiceLine.MANAGED_IT, tier: "Complete+" });
+    expect(n.serviceLine).toBe(ServiceLine.MANAGED_IT);
+    expect(n.tier).toBe("Complete+");
+  });
+
+  it("bundleIncludesNormalized returns uniform shape from a mixed bundle", () => {
+    const norm = bundleIncludesNormalized(DEFAULT_CATALOG.bundles[ServiceBundle.ENTERPRISE]);
+    expect(norm.length).toBeGreaterThan(0);
+    for (const n of norm) {
+      expect(typeof n.serviceLine).toBe("string");
+      expect(n.tier === undefined || typeof n.tier === "string").toBe(true);
+    }
+  });
+
+  it("ENTERPRISE bundle carries explicit tier labels for vCIO + Managed IT + NIST", () => {
+    const norm = bundleIncludesNormalized(DEFAULT_CATALOG.bundles[ServiceBundle.ENTERPRISE]);
+    const vcio = norm.find((n) => n.serviceLine === ServiceLine.VCIO_RETAINER);
+    const mit = norm.find((n) => n.serviceLine === ServiceLine.MANAGED_IT);
+    const nist = norm.find((n) => n.serviceLine === ServiceLine.NIST_ASSESSMENT);
+    expect(vcio?.tier).toBe("Complete");
+    expect(mit?.tier).toBe("Complete+");
+    expect(nist?.tier).toBe("800-171 + CMMC");
+  });
+
+  it("SERVICE_LINE_TIERS publishes the named tiers per offering", () => {
+    expect(SERVICE_LINE_TIERS.VCIO_RETAINER).toEqual(["Lite", "Standard", "Complete"]);
+    expect(SERVICE_LINE_TIERS.MANAGED_IT).toEqual(["Foundation", "Complete", "Complete+"]);
+    expect(SERVICE_LINE_TIERS.NIST_ASSESSMENT).toEqual(["Baseline", "Industry Crosswalk", "800-171 + CMMC"]);
+  });
+
+  it("every default catalog tier referenced exists in SERVICE_LINE_TIERS", () => {
+    const list = [ServiceBundle.ESSENTIAL, ServiceBundle.PROFESSIONAL, ServiceBundle.COMPLIANCE_PLUS, ServiceBundle.ENTERPRISE];
+    for (const id of list) {
+      const norm = bundleIncludesNormalized(DEFAULT_CATALOG.bundles[id]);
+      for (const inc of norm) {
+        if (!inc.tier) continue;
+        const allowed = SERVICE_LINE_TIERS[inc.serviceLine];
+        if (!allowed) continue; // not every line publishes named tiers
+        expect(allowed).toContain(inc.tier);
+      }
+    }
   });
 });

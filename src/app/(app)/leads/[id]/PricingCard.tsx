@@ -10,6 +10,7 @@ import { Input, Label, Textarea } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
 import { discountPercent, approvalTier } from "@/lib/pricing";
 import {
+  bundleIncludesNormalized,
   computeSticker,
   fmtUsd,
   isBelowFloor,
@@ -255,6 +256,26 @@ export function PricingCard({ leadId, role, suggestedBundle, seatCount }: Props)
             <p className="text-xs text-gtn-grey-2 italic">
               Custom scope — enter the proposed numbers manually. No automatic sticker.
             </p>
+          )}
+
+          {/* What's included (service lines + sub-tier labels) */}
+          {catalog && !isCustom && (
+            <div className="rounded-md border border-gtn-lavender-2 p-3">
+              <p className="text-xs uppercase tracking-wide text-gtn-grey-2 mb-2">{"What's included"}</p>
+              <ul className="flex flex-wrap gap-1.5">
+                {bundleIncludesNormalized(catalog.bundles[bundleId]).map((inc, i) => (
+                  <li
+                    key={`${inc.serviceLine}-${i}`}
+                    className="text-[11px] bg-gtn-lavender text-gtn-navy rounded px-2 py-1"
+                  >
+                    <span className="font-semibold">{inc.serviceLine.replace(/_/g, " ")}</span>
+                    {inc.tier && (
+                      <span className="text-gtn-grey-2 ml-1">· {inc.tier}</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
 
           {/* Proposed */}

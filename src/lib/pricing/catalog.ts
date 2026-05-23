@@ -26,6 +26,17 @@ export type SeatTier = {
   perSeatFloor: number;
 };
 
+/**
+ * Per-service-line sub-tier label. The Internal Pricing Sheet uses these as
+ * named tiers per offering (vCIO Lite/Standard/Complete, Managed IT
+ * Foundation/Complete/Complete+, NIST Baseline/Industry Crosswalk/800-171+CMMC).
+ * `tier` is optional — older catalog entries that pre-date v2.2 still pass
+ * through as raw `ServiceLine` values.
+ */
+export type ServiceLineInclude =
+  | ServiceLine
+  | { serviceLine: ServiceLine; tier?: string };
+
 export type BundleDefinition = {
   id: ServiceBundle;
   label: string;
@@ -36,8 +47,32 @@ export type BundleDefinition = {
   onboarding: { base: number; perSeat: number };
   /** Annual fees not captured by MRR (e.g. NIST assessment). */
   annualAddOns?: ReadonlyArray<{ label: string; amount: number }>;
-  /** Service lines included. */
-  includes: ReadonlyArray<ServiceLine>;
+  /** Service lines included. May be a bare ServiceLine or {serviceLine, tier?}. */
+  includes: ReadonlyArray<ServiceLineInclude>;
+};
+
+/** Normalize an `includes` entry to the structured `{serviceLine, tier}` form. */
+export function normalizeInclude(entry: ServiceLineInclude): { serviceLine: ServiceLine; tier?: string } {
+  if (typeof entry === "string") return { serviceLine: entry };
+  return { serviceLine: entry.serviceLine, tier: entry.tier };
+}
+
+/** Flatten a bundle's includes to a uniform `{serviceLine, tier?}[]` for rendering. */
+export function bundleIncludesNormalized(b: BundleDefinition): Array<{ serviceLine: ServiceLine; tier?: string }> {
+  return b.includes.map(normalizeInclude);
+}
+
+/**
+ * Service-line sub-tier definitions per the Internal Pricing Sheet.
+ * These names are consumed by the catalog editor + PricingCard to surface the
+ * named tier when an `includes` entry specifies one.
+ */
+export const SERVICE_LINE_TIERS: Partial<Record<ServiceLine, ReadonlyArray<string>>> = {
+  VCIO_RETAINER: ["Lite", "Standard", "Complete"],
+  MANAGED_IT: ["Foundation", "Complete", "Complete+"],
+  NIST_ASSESSMENT: ["Baseline", "Industry Crosswalk", "800-171 + CMMC"],
+  CYBERSECURITY: ["Essential", "Advanced", "SOC-managed"],
+  AI_ADVISORY: ["Workshop", "Advisory", "Implementation"],
 };
 
 export type PricingCatalog = {
@@ -70,7 +105,10 @@ export const DEFAULT_CATALOG: PricingCatalog = {
         { minSeats: 76, maxSeats: 150, perSeatMrr: 149, perSeatFloor: 129 },
       ],
       onboarding: { base: 4500, perSeat: 50 },
-      includes: [ServiceLine.MANAGED_IT, ServiceLine.CYBERSECURITY],
+      includes: [
+        { serviceLine: ServiceLine.MANAGED_IT, tier: "Foundation" },
+        { serviceLine: ServiceLine.CYBERSECURITY, tier: "Essential" },
+      ],
     },
     PROFESSIONAL: {
       id: ServiceBundle.PROFESSIONAL,
@@ -84,8 +122,8 @@ export const DEFAULT_CATALOG: PricingCatalog = {
       ],
       onboarding: { base: 6500, perSeat: 60 },
       includes: [
-        ServiceLine.MANAGED_IT,
-        ServiceLine.CYBERSECURITY,
+        { serviceLine: ServiceLine.MANAGED_IT, tier: "Complete" },
+        { serviceLine: ServiceLine.CYBERSECURITY, tier: "Advanced" },
         ServiceLine.VOIP,
         ServiceLine.ACCESS_CONTROL,
       ],
@@ -103,10 +141,10 @@ export const DEFAULT_CATALOG: PricingCatalog = {
       onboarding: { base: 9500, perSeat: 75 },
       annualAddOns: [{ label: "Annual NIST CSF assessment", amount: 8500 }],
       includes: [
-        ServiceLine.MANAGED_IT,
-        ServiceLine.CYBERSECURITY,
-        ServiceLine.NIST_ASSESSMENT,
-        ServiceLine.VCIO_RETAINER,
+        { serviceLine: ServiceLine.MANAGED_IT, tier: "Complete" },
+        { serviceLine: ServiceLine.CYBERSECURITY, tier: "Advanced" },
+        { serviceLine: ServiceLine.NIST_ASSESSMENT, tier: "Industry Crosswalk" },
+        { serviceLine: ServiceLine.VCIO_RETAINER, tier: "Standard" },
       ],
     },
     ENTERPRISE: {
@@ -122,14 +160,14 @@ export const DEFAULT_CATALOG: PricingCatalog = {
       onboarding: { base: 18000, perSeat: 100 },
       annualAddOns: [{ label: "Annual NIST CSF assessment", amount: 8500 }],
       includes: [
-        ServiceLine.MANAGED_IT,
-        ServiceLine.CYBERSECURITY,
-        ServiceLine.NIST_ASSESSMENT,
-        ServiceLine.AI_ADVISORY,
+        { serviceLine: ServiceLine.MANAGED_IT, tier: "Complete+" },
+        { serviceLine: ServiceLine.CYBERSECURITY, tier: "SOC-managed" },
+        { serviceLine: ServiceLine.NIST_ASSESSMENT, tier: "800-171 + CMMC" },
+        { serviceLine: ServiceLine.AI_ADVISORY, tier: "Advisory" },
         ServiceLine.VOIP,
         ServiceLine.ACCESS_CONTROL,
         ServiceLine.VIDEO,
-        ServiceLine.VCIO_RETAINER,
+        { serviceLine: ServiceLine.VCIO_RETAINER, tier: "Complete" },
       ],
     },
     CUSTOM: {
