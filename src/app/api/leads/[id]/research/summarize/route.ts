@@ -1,0 +1,83 @@
+import { NextResponse } from "next/server";
+import { ResearchArtifactType } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
+import { ApiError, getAuditContext, jsonError, requireSessionUser } from "@/lib/api";
+import { can } from "@/lib/rbac";
+import { writeAudit } from "@/lib/audit";
+import { summarizeResearch } from "@/lib/ai/research-summary";
+import { AnthropicNotConfiguredError, isAnthropicConfigured } from "@/lib/ai/anthropic";
+
+export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const user = await requireSessionUser();
+    const { id } = await params;
+    const lead = await prisma.lead.findUnique({
+      where: { id },
+      include: { researchArtifacts: { orderBy: { createdAt: "desc" }, take: 8 } },
+    });
+    if (!lead) throw new ApiError(404, "Lead not found");
+    if (lead.ownerUserId !== user.id && !can(user.role, "lead:edit:any")) {
+      throw new ApiError(403, "Forbidden");
+    }
+    if (!isAnthropicConfigured()) {
+      throw new ApiError(400, "ANTHROPIC_API_KEY is not configured on the server.");
+    }
+
+    const result = await summarizeResearch({
+      lead: {
+        businessName: lead.businessName,
+        industry: lead.industry,
+        seatCount: lead.seatCount,
+        siteCount: lead.siteCount,
+        addressCity: lead.addressCity,
+        addressState: lead.addressState,
+        websiteUrl: lead.websiteUrl,
+        linkedinCompanyUrl: lead.linkedinCompanyUrl,
+        googleBusinessUrl: lead.googleBusinessUrl,
+        primaryContactName: lead.primaryContactName,
+        primaryContactTitle: lead.primaryContactTitle,
+        executiveSponsorName: lead.executiveSponsorName,
+        currentMspName: lead.currentMspName,
+        currentMspSatisfaction: lead.currentMspSatisfaction,
+        complianceDrivers: lead.complianceDrivers,
+        researchSummary: lead.researchSummary,
+      },
+      artifacts: lead.researchArtifacts.map((a) => ({
+        type: a.type,
+        sourceUrl: a.sourceUrl,
+        payload: a.payload,
+      })),
+    });
+
+    await prisma.$transaction([
+      prisma.researchArtifact.create({
+        data: {
+          leadId: lead.id,
+          type: ResearchArtifactType.CLAUDE_SUMMARY,
+          payload: result as never,
+          sourceUrl: null,
+        },
+      }),
+      prisma.lead.update({
+        where: { id: lead.id },
+        data: { researchSummary: result.summary, researchCompletedAt: new Date() },
+      }),
+    ]);
+
+    await writeAudit({
+      actorUserId: user.id,
+      entityType: "Lead",
+      entityId: lead.id,
+      action: "UPDATE",
+      after: { researchSummaryGenerated: true, summary: result.summary.slice(0, 200) },
+      ...getAuditContext(req),
+    });
+
+    return NextResponse.json({ summary: result.summary, suggestedQuestions: result.suggestedQuestions, risks: result.risks, fitSignals: result.fitSignals });
+  } catch (err) {
+    if (err instanceof AnthropicNotConfiguredError) {
+      return NextResponse.json({ error: err.message }, { status: 400 });
+    }
+    return jsonError(err);
+  }
+}

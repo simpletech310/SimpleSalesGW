@@ -1,0 +1,514 @@
+// Gateway TelNet Sales Portal — Prisma schema
+// Owned by Agent A. All other agents read from this contract.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+enum Role {
+  SALESPERSON
+  SALES_MANAGER
+  VCIO
+  COO
+  SUPERADMIN
+}
+
+enum Industry {
+  MEDICAL
+  LEGAL
+  FEDERAL_CONTRACTING
+  MANUFACTURING
+  HOSPITALITY
+  FINANCIAL_SERVICES
+  PROFESSIONAL_SERVICES
+  EDUCATION
+  NONPROFIT
+  OTHER
+}
+
+enum PipelineStage {
+  LEAD
+  QUALIFIED
+  DISCOVERY
+  PRE_SALES
+  PROPOSAL
+  NEGOTIATION
+  CLOSED_WON
+  CLOSED_LOST
+  NURTURE
+}
+
+enum LeadSource {
+  INBOUND
+  OUTBOUND
+  REFERRAL
+  EVENT
+  PARTNER
+  OTHER
+}
+
+enum ComplianceDriver {
+  HIPAA
+  PCI
+  CMMC
+  FERPA
+  GLBA
+  NYDFS
+  SEC
+  FFIEC
+  OTHER
+  NONE
+}
+
+enum RegulatedDataType {
+  PHI
+  PII
+  PCI_DATA
+  CUI
+  FERPA_DATA
+  FINANCIAL
+  TRADE_SECRET
+  OTHER
+  NONE
+}
+
+enum MspSatisfaction {
+  HAPPY
+  NEUTRAL
+  LEAVING
+  NONE
+}
+
+enum ServiceLine {
+  MANAGED_IT
+  VOIP
+  CABLING
+  ACCESS_CONTROL
+  VIDEO
+  CYBERSECURITY
+  NIST_ASSESSMENT
+  AI_ADVISORY
+  VCIO_RETAINER
+}
+
+enum ServiceBundle {
+  ESSENTIAL
+  PROFESSIONAL
+  ENTERPRISE
+  COMPLIANCE_PLUS
+  CUSTOM
+}
+
+enum ActivityType {
+  CALL
+  EMAIL
+  MEETING
+  NOTE
+  STAGE_CHANGE
+  SCORE_CHANGE
+  RESEARCH
+  ASSESSMENT_SENT
+  ASSESSMENT_COMPLETED
+  PROPOSAL_SENT
+  FOLLOW_UP_SCHEDULED
+  HANDOFF_INITIATED
+  HANDOFF_ACCEPTED
+}
+
+enum ActivityOutcome {
+  POSITIVE
+  NEUTRAL
+  NEGATIVE
+  NO_RESPONSE
+}
+
+enum AssessmentMode {
+  IN_PERSON
+  SELF_SERVICE_LINK
+  HYBRID
+}
+
+enum AssessmentStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+  EXPIRED
+}
+
+enum ResearchArtifactType {
+  WEBSITE_SNAPSHOT
+  LINKEDIN_LINK
+  GOOGLE_BUSINESS_DATA
+  NEWS_MENTION
+  CLAUDE_SUMMARY
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  APPROVE
+  REJECT
+  LOGIN
+  EXPORT
+}
+
+enum HandoffStatus {
+  DRAFT
+  INITIATED
+  ACCEPTED
+  REJECTED
+}
+
+enum PricingApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// ============================================================================
+// AUTH (NextAuth v5 adapter shape)
+// ============================================================================
+
+model User {
+  id            String    @id @default(uuid()) @db.Uuid
+  email         String    @unique
+  name          String
+  role          Role      @default(SALESPERSON)
+  phone         String?
+  avatarUrl     String?   @map("avatar_url")
+  passwordHash  String?   @map("password_hash") // fallback only; magic-link is primary
+  emailVerified DateTime? @map("email_verified")
+  image         String?
+  active        Boolean   @default(true)
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  lastLoginAt   DateTime? @map("last_login_at")
+
+  ownedLeads        Lead[]            @relation("LeadOwner")
+  activities        Activity[]
+  notes             Note[]
+  assessments       Assessment[]
+  auditLogs         AuditLog[]
+  accounts          Account[]
+  sessions          Session[]
+  nonStrategicApprovals Lead[]        @relation("NonStrategicApprover")
+  handoffsInitiated Handoff[]         @relation("HandoffInitiator")
+  handoffsAccepted  Handoff[]         @relation("HandoffAcceptor")
+  attachments       Attachment[]
+  pricingRequests   PricingApproval[] @relation("PricingRequester")
+  pricingApprovals  PricingApproval[] @relation("PricingApprover")
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String  @map("user_id") @db.Uuid
+  type              String
+  provider          String
+  providerAccountId String  @map("provider_account_id")
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique @map("session_token")
+  userId       String   @map("user_id") @db.Uuid
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// ============================================================================
+// CORE DOMAIN
+// ============================================================================
+
+model Lead {
+  id                          String              @id @default(uuid()) @db.Uuid
+  ownerUserId                 String              @map("owner_user_id") @db.Uuid
+  businessName                String              @map("business_name")
+  dbaName                     String?             @map("dba_name")
+  industry                    Industry
+  subindustry                 String?
+  seatCount                   Int?                @map("seat_count")
+  siteCount                   Int                 @default(1) @map("site_count")
+  addressStreet               String?             @map("address_street")
+  addressCity                 String?             @map("address_city")
+  addressState                String?             @map("address_state")
+  addressZip                  String?             @map("address_zip")
+  websiteUrl                  String?             @map("website_url")
+  linkedinCompanyUrl          String?             @map("linkedin_company_url")
+  googleBusinessUrl           String?             @map("google_business_url")
+  primaryContactName          String?             @map("primary_contact_name")
+  primaryContactTitle         String?             @map("primary_contact_title")
+  primaryContactEmail         String?             @map("primary_contact_email")
+  primaryContactPhone         String?             @map("primary_contact_phone")
+  executiveSponsorName        String?             @map("executive_sponsor_name")
+  executiveSponsorTitle       String?             @map("executive_sponsor_title")
+  pipelineStage               PipelineStage       @default(LEAD) @map("pipeline_stage")
+  source                      LeadSource          @default(INBOUND)
+  cyberInsuranceRenewalDate   DateTime?           @map("cyber_insurance_renewal_date")
+  complianceDrivers           ComplianceDriver[]  @map("compliance_drivers")
+  regulatedDataTypes          RegulatedDataType[] @map("regulated_data_types")
+  currentMspName              String?             @map("current_msp_name")
+  currentMspSatisfaction      MspSatisfaction     @default(NONE) @map("current_msp_satisfaction")
+  researchSummary             String?             @map("research_summary") @db.Text
+  researchCompletedAt         DateTime?           @map("research_completed_at")
+  suggestedBundle             ServiceBundle?      @map("suggested_bundle")
+  servicesScore               Int                 @default(0) @map("services_score")
+  customerScore               Int                 @default(0) @map("customer_score")
+  dealQualityScore            Int                 @default(0) @map("deal_quality_score")
+  nonStrategicFlag            Boolean             @default(false) @map("non_strategic_flag")
+  nonStrategicApprovalUserId  String?             @map("non_strategic_approval_user_id") @db.Uuid
+  nonStrategicApprovalReason  String?             @map("non_strategic_approval_reason") @db.Text
+  expectedCloseDate           DateTime?           @map("expected_close_date")
+  actualCloseDate             DateTime?           @map("actual_close_date")
+  closedLostReason            String?             @map("closed_lost_reason") @db.Text
+  connectwiseOpportunityId    String?             @map("connectwise_opportunity_id")
+  createdAt                   DateTime            @default(now()) @map("created_at")
+  updatedAt                   DateTime            @updatedAt @map("updated_at")
+
+  owner               User                @relation("LeadOwner", fields: [ownerUserId], references: [id])
+  nonStrategicApprover User?              @relation("NonStrategicApprover", fields: [nonStrategicApprovalUserId], references: [id])
+  activities          Activity[]
+  notes               Note[]
+  assessments         Assessment[]
+  serviceMatches      ServiceMatch[]
+  researchArtifacts   ResearchArtifact[]
+  handoffs            Handoff[]
+  attachments         Attachment[]
+  pricingApprovals    PricingApproval[]
+
+  @@index([ownerUserId])
+  @@index([pipelineStage])
+  @@index([industry])
+  @@index([dealQualityScore])
+  @@index([expectedCloseDate])
+  @@map("leads")
+}
+
+model Activity {
+  id                    String           @id @default(uuid()) @db.Uuid
+  leadId                String           @map("lead_id") @db.Uuid
+  actorUserId           String           @map("actor_user_id") @db.Uuid
+  type                  ActivityType
+  subject               String
+  body                  String?          @db.Text
+  outcome               ActivityOutcome?
+  nextAction            String?          @map("next_action")
+  nextActionDueAt       DateTime?        @map("next_action_due_at")
+  nextActionCompleted   Boolean          @default(false) @map("next_action_completed")
+  createdAt             DateTime         @default(now()) @map("created_at")
+
+  lead  Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  actor User @relation(fields: [actorUserId], references: [id])
+
+  @@index([leadId])
+  @@index([nextActionDueAt])
+  @@map("activities")
+}
+
+model Note {
+  id          String   @id @default(uuid()) @db.Uuid
+  leadId      String   @map("lead_id") @db.Uuid
+  actorUserId String   @map("actor_user_id") @db.Uuid
+  body        String   @db.Text
+  pinned      Boolean  @default(false)
+  clientId    String?  @map("client_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  lead  Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  actor User @relation(fields: [actorUserId], references: [id])
+
+  @@unique([leadId, clientId])
+  @@index([leadId])
+  @@map("notes")
+}
+
+model Assessment {
+  id                  String           @id @default(uuid()) @db.Uuid
+  leadId              String           @map("lead_id") @db.Uuid
+  createdByUserId     String           @map("created_by_user_id") @db.Uuid
+  mode                AssessmentMode   @default(IN_PERSON)
+  magicLinkToken      String?          @unique @map("magic_link_token")
+  magicLinkExpiresAt  DateTime?        @map("magic_link_expires_at")
+  status              AssessmentStatus @default(NOT_STARTED)
+  startedAt           DateTime?        @map("started_at")
+  completedAt         DateTime?        @map("completed_at")
+  respondentName      String?          @map("respondent_name")
+  respondentEmail     String?          @map("respondent_email")
+  createdAt           DateTime         @default(now()) @map("created_at")
+
+  lead      Lead                 @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  createdBy User                 @relation(fields: [createdByUserId], references: [id])
+  answers   AssessmentAnswer[]
+
+  @@index([leadId])
+  @@map("assessments")
+}
+
+model AssessmentAnswer {
+  id           String @id @default(uuid()) @db.Uuid
+  assessmentId String @map("assessment_id") @db.Uuid
+  questionId   String @map("question_id")
+  answerValue  Json   @map("answer_value")
+
+  assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+
+  @@unique([assessmentId, questionId])
+  @@map("assessment_answers")
+}
+
+model ServiceMatch {
+  id          String      @id @default(uuid()) @db.Uuid
+  leadId      String      @map("lead_id") @db.Uuid
+  serviceLine ServiceLine @map("service_line")
+  fitScore    Int         @map("fit_score")
+  reasoning   String      @db.Text
+  recommended Boolean     @default(false)
+
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@unique([leadId, serviceLine])
+  @@map("service_matches")
+}
+
+model ResearchArtifact {
+  id        String               @id @default(uuid()) @db.Uuid
+  leadId    String               @map("lead_id") @db.Uuid
+  type      ResearchArtifactType
+  payload   Json
+  sourceUrl String?              @map("source_url")
+  createdAt DateTime             @default(now()) @map("created_at")
+
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([leadId])
+  @@map("research_artifacts")
+}
+
+model Handoff {
+  id              String        @id @default(uuid()) @db.Uuid
+  leadId          String        @map("lead_id") @db.Uuid
+  initiatorUserId String        @map("initiator_user_id") @db.Uuid
+  acceptorUserId  String?       @map("acceptor_user_id") @db.Uuid
+  status          HandoffStatus @default(DRAFT)
+  payload         Json
+  notes           String?       @db.Text
+  initiatedAt     DateTime?     @map("initiated_at")
+  acceptedAt      DateTime?     @map("accepted_at")
+  rejectedAt      DateTime?     @map("rejected_at")
+  rejectedReason  String?       @map("rejected_reason") @db.Text
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  lead      Lead  @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  initiator User  @relation("HandoffInitiator", fields: [initiatorUserId], references: [id])
+  acceptor  User? @relation("HandoffAcceptor", fields: [acceptorUserId], references: [id])
+
+  @@index([leadId])
+  @@map("handoffs")
+}
+
+model AuditLog {
+  id          String      @id @default(uuid()) @db.Uuid
+  actorUserId String?     @map("actor_user_id") @db.Uuid
+  entityType  String      @map("entity_type")
+  entityId    String      @map("entity_id") @db.Uuid
+  action      AuditAction
+  before      Json?
+  after       Json?
+  ipAddress   String?     @map("ip_address")
+  userAgent   String?     @map("user_agent")
+  createdAt   DateTime    @default(now()) @map("created_at")
+
+  actor User? @relation(fields: [actorUserId], references: [id])
+
+  @@index([entityId, entityType])
+  @@index([actorUserId, createdAt])
+  @@map("audit_logs")
+}
+
+model SystemConfig {
+  id        String   @id @default(uuid()) @db.Uuid
+  key       String   @unique
+  value     Json
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("system_config")
+}
+
+model Attachment {
+  id               String   @id @default(uuid()) @db.Uuid
+  leadId           String   @map("lead_id") @db.Uuid
+  uploadedByUserId String   @map("uploaded_by_user_id") @db.Uuid
+  filename         String
+  contentType      String   @map("content_type")
+  byteSize         Int      @map("byte_size")
+  storagePath      String   @map("storage_path")
+  publicUrl        String   @map("public_url")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  lead       Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  uploadedBy User @relation(fields: [uploadedByUserId], references: [id])
+
+  @@index([leadId])
+  @@map("attachments")
+}
+
+model PricingApproval {
+  id              String                @id @default(uuid()) @db.Uuid
+  leadId          String                @map("lead_id") @db.Uuid
+  requesterUserId String                @map("requester_user_id") @db.Uuid
+  approverUserId  String?               @map("approver_user_id") @db.Uuid
+  stickerPrice    Decimal               @map("sticker_price") @db.Decimal(12, 2)
+  proposedPrice   Decimal               @map("proposed_price") @db.Decimal(12, 2)
+  discountPct     Decimal               @map("discount_pct") @db.Decimal(5, 2)
+  reason          String                @db.Text
+  status          PricingApprovalStatus @default(PENDING)
+  decidedAt       DateTime?             @map("decided_at")
+  decisionNote    String?               @map("decision_note") @db.Text
+  createdAt       DateTime              @default(now()) @map("created_at")
+  updatedAt       DateTime              @updatedAt @map("updated_at")
+
+  lead      Lead  @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  requester User  @relation("PricingRequester", fields: [requesterUserId], references: [id])
+  approver  User? @relation("PricingApprover", fields: [approverUserId], references: [id])
+
+  @@index([leadId])
+  @@index([status])
+  @@map("pricing_approvals")
+}

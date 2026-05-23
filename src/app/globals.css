@@ -1,0 +1,111 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Gateway brand palette — keep in sync with tailwind.config.ts */
+    --gtn-navy: #0F0E2E;
+    --gtn-navy-2: #1A1840;
+    --gtn-purple: #5B4FCF;
+    --gtn-purple-2: #6A5ACD;
+    --gtn-purple-3: #8B7FE8;
+    --gtn-lavender: #EFEEFB;
+    --gtn-lavender-2: #E4E1F8;
+    --gtn-grey: #4A4A4A;
+    --gtn-grey-2: #6B6B6B;
+    --gtn-grey-3: #ABABAB;
+    --gtn-green: #2BB673;
+    --gtn-green-bg: #E6F8EF;
+    --gtn-amber: #E89422;
+    --gtn-red: #D03A2E;
+    --gtn-text: #1F1F2D;
+
+    /* shadcn semantic tokens mapped onto Gateway palette */
+    --background: 240 30% 99%;
+    --foreground: 240 18% 15%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 18% 15%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 18% 15%;
+    --primary: 244 36% 12%;            /* navy */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 245 70% 96%;          /* lavender */
+    --secondary-foreground: 244 36% 12%;
+    --muted: 245 70% 96%;
+    --muted-foreground: 240 6% 42%;
+    --accent: 249 58% 56%;             /* purple */
+    --accent-foreground: 0 0% 100%;
+    --destructive: 4 67% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 246 33% 92%;
+    --input: 246 33% 92%;
+    --ring: 249 58% 56%;
+    --radius: 0.5rem;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html, body {
+    @apply bg-background text-foreground antialiased;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    font-family: var(--font-inter), system-ui, sans-serif;
+    color: var(--gtn-text);
+  }
+
+  /* Tap targets ≥ 44pt on mobile */
+  @media (max-width: 768px) {
+    button, a[role="button"], [data-tap-target] {
+      min-height: 44px;
+    }
+  }
+}
+
+@layer components {
+  .gtn-card {
+    @apply rounded-lg bg-card border shadow-card;
+  }
+
+  .gtn-callout {
+    @apply rounded-md px-4 py-3 border-l-4;
+  }
+
+  .gtn-callout--info {
+    @apply bg-gtn-lavender border-gtn-purple text-gtn-navy;
+  }
+
+  .gtn-callout--success {
+    @apply bg-gtn-green-bg border-gtn-green text-gtn-navy;
+  }
+
+  .gtn-callout--warning {
+    background-color: #FEF3E2;
+    @apply border-gtn-amber text-gtn-navy;
+  }
+
+  .gtn-callout--error {
+    background-color: #FBE9E7;
+    @apply border-gtn-red text-gtn-navy;
+  }
+
+  .gtn-code-pill {
+    @apply inline-flex items-center rounded-sm bg-gtn-navy px-1.5 py-0.5 font-mono text-xs text-white;
+  }
+
+  .gtn-stage-chip {
+    @apply inline-flex items-center rounded-full bg-gtn-purple px-3 py-1 text-xs font-medium text-white;
+  }
+
+  .gtn-score-badge {
+    @apply inline-flex items-center justify-center rounded-md px-2.5 py-1 font-mono text-sm font-semibold;
+  }
+
+  .gtn-score-badge--green { @apply bg-gtn-green-bg text-gtn-green; }
+  .gtn-score-badge--amber { background-color: #FEF3E2; color: var(--gtn-amber); }
+  .gtn-score-badge--red   { background-color: #FBE9E7; color: var(--gtn-red); }
+}

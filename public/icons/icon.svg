@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#0F0E2E"/>
+  <text x="60" y="280" font-family="Inter, system-ui, sans-serif" font-style="italic" font-weight="700" font-size="160" fill="#fff">Gw</text>
+  <text x="60" y="380" font-family="Inter, system-ui, sans-serif" font-weight="600" font-size="48" letter-spacing="18" fill="#8B7FE8">TELNET</text>
+</svg>

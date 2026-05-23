@@ -1,0 +1,118 @@
+/**
+ * Lead research summarizer — calls Claude with a cached system prompt
+ * (Gateway's nine markets + scoring philosophy) and a per-Lead user block.
+ *
+ * Returns a structured `{ summary, suggestedQuestions[], risks[] }` shape
+ * parsed from JSON output. Falls back to free-form text when JSON parse fails.
+ */
+
+import { claudeCompletion } from "@/lib/ai/anthropic";
+
+const SYSTEM_PROMPT = `You are a sales research analyst for Gateway TelNet, a Southern-California managed-services provider.
+
+Gateway's nine target markets: Medical, Legal, Federal Contracting, Manufacturing, Hospitality, Financial Services, Professional Services, Education, Nonprofit.
+
+Service lines: Managed IT, Cybersecurity, NIST Assessment & Compliance, AI Advisory, VoIP, Cabling/Build-out, Access Control, Video Surveillance, vCIO Retainer.
+
+Gateway scores leads on three axes (Services fit, Customer fit, blended Deal Quality) so the salesperson knows whether to invest. Be specific, brief, and prioritize signals that change the deal score.
+
+Your job: read Lead context and any gathered artifacts (website, LinkedIn, Google Business) and produce a tight briefing for the salesperson before her next conversation.
+
+Output strictly as a single JSON object with this shape:
+{
+  "summary": "3-5 sentence narrative about who they are, what they do, and the most relevant tech context",
+  "suggestedQuestions": ["question 1", "question 2", ...],
+  "risks": ["red flag 1", ...],
+  "fitSignals": ["signal that supports a Gateway fit", ...]
+}
+
+Never invent facts not in the provided context. When context is thin, say so in the summary and keep arrays empty.`;
+
+export type ResearchSummaryInput = {
+  lead: {
+    businessName: string;
+    industry: string;
+    seatCount: number | null;
+    siteCount: number;
+    addressCity: string | null;
+    addressState: string | null;
+    websiteUrl: string | null;
+    linkedinCompanyUrl: string | null;
+    googleBusinessUrl: string | null;
+    primaryContactName: string | null;
+    primaryContactTitle: string | null;
+    executiveSponsorName: string | null;
+    currentMspName: string | null;
+    currentMspSatisfaction: string;
+    complianceDrivers: string[];
+    researchSummary: string | null;
+  };
+  artifacts: Array<{
+    type: string;
+    sourceUrl: string | null;
+    payload: unknown;
+  }>;
+};
+
+export type ResearchSummaryOutput = {
+  summary: string;
+  suggestedQuestions: string[];
+  risks: string[];
+  fitSignals: string[];
+  raw: string;
+};
+
+function artifactExcerpt(a: ResearchSummaryInput["artifacts"][number]): string {
+  const p = a.payload as Record<string, unknown> | null;
+  if (!p) return `[${a.type}] (no payload)`;
+  const title = typeof p.title === "string" ? p.title : "";
+  const text = typeof p.plainText === "string" ? p.plainText.slice(0, 1500) : "";
+  const meta = typeof p.metaTags === "object" && p.metaTags
+    ? Object.entries(p.metaTags as Record<string, string>).slice(0, 6).map(([k, v]) => `${k}=${v}`).join(" | ")
+    : "";
+  return `--- ${a.type} (${a.sourceUrl ?? "no-url"})\nTITLE: ${title}\nMETA: ${meta}\nTEXT: ${text}`;
+}
+
+export async function summarizeResearch(input: ResearchSummaryInput): Promise<ResearchSummaryOutput> {
+  const lead = input.lead;
+  const ctxLines = [
+    `Business: ${lead.businessName}`,
+    `Industry: ${lead.industry}`,
+    lead.seatCount ? `Employees/seats: ${lead.seatCount}` : null,
+    `Locations: ${lead.siteCount}`,
+    lead.addressCity || lead.addressState ? `Location: ${[lead.addressCity, lead.addressState].filter(Boolean).join(", ")}` : null,
+    lead.websiteUrl ? `Website: ${lead.websiteUrl}` : null,
+    lead.linkedinCompanyUrl ? `LinkedIn: ${lead.linkedinCompanyUrl}` : null,
+    lead.googleBusinessUrl ? `Google Business: ${lead.googleBusinessUrl}` : null,
+    lead.primaryContactName ? `Primary contact: ${lead.primaryContactName}${lead.primaryContactTitle ? `, ${lead.primaryContactTitle}` : ""}` : null,
+    lead.executiveSponsorName ? `Executive sponsor: ${lead.executiveSponsorName}` : null,
+    lead.currentMspName ? `Current MSP: ${lead.currentMspName} (${lead.currentMspSatisfaction})` : null,
+    lead.complianceDrivers.length > 0 ? `Compliance drivers: ${lead.complianceDrivers.join(", ")}` : null,
+    lead.researchSummary ? `Existing notes: ${lead.researchSummary}` : null,
+  ].filter(Boolean).join("\n");
+
+  const artifactBlock = input.artifacts.length === 0
+    ? "(no gathered artifacts yet — work from Lead context only)"
+    : input.artifacts.map(artifactExcerpt).join("\n\n");
+
+  const user = `LEAD CONTEXT\n${ctxLines}\n\nGATHERED ARTIFACTS\n${artifactBlock}`;
+  const responseHint = `Return ONLY the JSON object — no markdown, no commentary.`;
+
+  const { text } = await claudeCompletion({ system: SYSTEM_PROMPT, user, responseHint, maxTokens: 1200 });
+
+  let parsed: { summary?: string; suggestedQuestions?: string[]; risks?: string[]; fitSignals?: string[] } = {};
+  try {
+    const cleaned = text.trim().replace(/^```(json)?/i, "").replace(/```$/, "").trim();
+    parsed = JSON.parse(cleaned) as typeof parsed;
+  } catch {
+    parsed = { summary: text };
+  }
+
+  return {
+    summary: parsed.summary ?? "",
+    suggestedQuestions: Array.isArray(parsed.suggestedQuestions) ? parsed.suggestedQuestions : [],
+    risks: Array.isArray(parsed.risks) ? parsed.risks : [],
+    fitSignals: Array.isArray(parsed.fitSignals) ? parsed.fitSignals : [],
+    raw: text,
+  };
+}
