@@ -295,6 +295,9 @@ model User {
   discoveryCreated  DiscoveryAssessment[] @relation("DiscoveryCreator")
   onboardingTasks   OnboardingTask[]      @relation("OnboardingTaskOwner")
   signedDocsUploaded SignedDocument[]     @relation("SignedDocUploader")
+  qualificationScores QualificationScorecard[] @relation("QualificationScorer")
+  discoveryCallsConducted DiscoveryCallNote[]  @relation("DiscoveryCallConductor")
+  objectionsRaised  ObjectionLog[]        @relation("ObjectionRaiser")
 
   @@map("users")
 }
@@ -400,6 +403,9 @@ model Lead {
   pricingApprovals    PricingApproval[]
   customer            Customer?
   signedDocuments     SignedDocument[]
+  qualification       QualificationScorecard?
+  discoveryCallNotes  DiscoveryCallNote[]
+  objectionLogs       ObjectionLog[]
 
   @@index([ownerUserId])
   @@index([pipelineStage])
@@ -964,4 +970,135 @@ model SignedDocument {
   @@index([customerId])
   @@index([type, status])
   @@map("signed_documents")
+}
+
+// ============================================================================
+// SALES PLAYBOOK (v2.2)
+// ============================================================================
+
+enum QualificationVerdict {
+  LIGHTHOUSE       // 80+ — strategic fit, fast-track
+  STRONG_FIT       // 60-79 — pursue
+  MARGINAL         // 40-59 — pursue with caution
+  REFER            // 20-39 — refer to partner / referral network
+  DECLINE          // <20 — politely decline
+}
+
+model QualificationScorecard {
+  id               String               @id @default(uuid()) @db.Uuid
+  leadId           String               @unique @map("lead_id") @db.Uuid
+  industryFit      Int                  @default(0) @map("industry_fit")        // 0-15
+  sizeFit          Int                  @default(0) @map("size_fit")            // 0-15
+  geography        Int                  @default(0)                              // 0-10
+  growthPosture    Int                  @default(0) @map("growth_posture")     // 0-10
+  authority        Int                  @default(0)                              // 0-15
+  budget           Int                  @default(0)                              // 0-15
+  timeline         Int                  @default(0)                              // 0-10
+  complianceDriver Int                  @default(0) @map("compliance_driver")  // 0-10
+  total            Int                  @default(0)
+  verdict          QualificationVerdict?
+  reasonCodes      String[]             @default([]) @map("reason_codes")
+  notes            String?              @db.Text
+  scoredByUserId   String?              @map("scored_by_user_id") @db.Uuid
+  scoredAt         DateTime?            @map("scored_at")
+  createdAt        DateTime             @default(now()) @map("created_at")
+  updatedAt        DateTime             @updatedAt @map("updated_at")
+
+  lead     Lead  @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  scoredBy User? @relation("QualificationScorer", fields: [scoredByUserId], references: [id])
+
+  @@index([verdict])
+  @@map("qualification_scorecards")
+}
+
+model DiscoveryCallNote {
+  id                 String    @id @default(uuid()) @db.Uuid
+  leadId             String    @map("lead_id") @db.Uuid
+  conductedAt        DateTime  @map("conducted_at")
+  conductedByUserId  String    @map("conducted_by_user_id") @db.Uuid
+  durationMinutes    Int?      @map("duration_minutes")
+  // 6-section structured notes per 02_Discovery_Call_Script
+  openingNotes       String?   @map("opening_notes") @db.Text
+  businessNotes      String?   @map("business_notes") @db.Text
+  techNotes          String?   @map("tech_notes") @db.Text
+  decisionNotes      String?   @map("decision_notes") @db.Text
+  miniPitchNotes     String?   @map("mini_pitch_notes") @db.Text
+  closeNotes         String?   @map("close_notes") @db.Text
+  // Outputs
+  nextStep           String?   @map("next_step")
+  nextStepDueAt      DateTime? @map("next_step_due_at")
+  commitments        Json      @default("[]")   // [{ text, ownerName, dueAt? }]
+  redFlags           Json      @default("[]") @map("red_flags") // [{ text, severity }]
+  preCallChecklist   Json      @default("{}") @map("pre_call_checklist") // { researchDone, decisionMakerConfirmed, agendaSent, ... }
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  lead         Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  conductedBy  User @relation("DiscoveryCallConductor", fields: [conductedByUserId], references: [id])
+
+  @@index([leadId, conductedAt])
+  @@map("discovery_call_notes")
+}
+
+model ObjectionTemplate {
+  id        String   @id @default(uuid()) @db.Uuid
+  category  String                                   // e.g. PRICE / TIMING / AUTHORITY / INCUMBENT / TRUST
+  industry  Industry?                                // null = applies to all
+  trigger   String                                   // short label / "when you hear…"
+  rebuttal  String   @db.Text
+  source    String?                                  // citation for sourcing back to playbook
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  logs ObjectionLog[]
+
+  @@index([category])
+  @@index([industry])
+  @@map("objection_templates")
+}
+
+model ObjectionLog {
+  id              String    @id @default(uuid()) @db.Uuid
+  leadId          String    @map("lead_id") @db.Uuid
+  templateId      String?   @map("template_id") @db.Uuid
+  category        String
+  text            String    @db.Text                  // the actual objection raised
+  rebuttalUsed    String?   @map("rebuttal_used") @db.Text
+  outcome         String?                              // e.g. RESOLVED / ESCALATED / OPEN
+  raisedByUserId  String    @map("raised_by_user_id") @db.Uuid
+  raisedAt        DateTime  @default(now()) @map("raised_at")
+
+  lead     Lead              @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  template ObjectionTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  raisedBy User              @relation("ObjectionRaiser", fields: [raisedByUserId], references: [id])
+
+  @@index([leadId, raisedAt])
+  @@map("objection_logs")
+}
+
+enum OutreachCategory {
+  INTRO
+  FOLLOW_UP
+  POST_ASSESSMENT
+  PROPOSAL
+  NURTURE
+}
+
+model OutreachTemplate {
+  id           String           @id @default(uuid()) @db.Uuid
+  name         String           @unique
+  category     OutreachCategory
+  industry     Industry?                              // optional vertical filter
+  trigger      String?                                // optional trigger event filter
+  subject      String
+  body         String           @db.Text
+  placeholders String[]         @default([])          // auto-detected {{var}} list
+  active       Boolean          @default(true)
+  createdAt    DateTime         @default(now()) @map("created_at")
+  updatedAt    DateTime         @updatedAt @map("updated_at")
+
+  @@index([category])
+  @@index([industry])
+  @@map("outreach_templates")
 }

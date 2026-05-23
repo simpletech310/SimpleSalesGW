@@ -5,7 +5,8 @@ import { prisma } from "@/lib/prisma";
 import { ApiError, getAuditContext, jsonError, requireSessionUser } from "@/lib/api";
 import { can } from "@/lib/rbac";
 import { writeAudit } from "@/lib/audit";
-import { approvalTier, discountPercent } from "@/lib/pricing";
+import { discountPercent } from "@/lib/pricing";
+import { decideAuthority } from "@/lib/pricing/authority-matrix";
 import { loadCatalog } from "@/lib/pricing/loader";
 import { computeSticker, isBelowFloor } from "@/lib/pricing/catalog";
 
@@ -20,6 +21,8 @@ const schema = z.object({
   /** One-time onboarding fee (optional — CUSTOM scope-by-engagement leaves these null). */
   stickerOneTime: z.coerce.number().nonnegative().optional(),
   proposedOneTime: z.coerce.number().nonnegative().optional(),
+  /** True when the engagement is committed for >12 months — escalates to COO. */
+  multiYear: z.boolean().optional(),
   reason: z.string().min(1).max(2000),
 });
 
@@ -78,6 +81,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       belowFloor = isBelowFloor(sticker, data.proposedMrr);
     }
 
+    // Authority matrix (v2.2) — decides who approves and whether the requester
+    // can self-approve under the 5% lane.
+    const decision = decideAuthority({
+      discountPct: pct,
+      belowFloor,
+      multiYear: data.multiYear ?? false,
+    });
+    const autoApprove = decision.autoApprove;
+
     const approval = await prisma.pricingApproval.create({
       data: {
         leadId: id,
@@ -91,7 +103,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         belowFloor,
         discountPct: new Prisma.Decimal(pct),
         reason: data.reason,
-        status: PricingApprovalStatus.PENDING,
+        status: autoApprove ? PricingApprovalStatus.APPROVED : PricingApprovalStatus.PENDING,
+        approverUserId: autoApprove ? user.id : null,
+        decidedAt: autoApprove ? new Date() : null,
+        decisionNote: autoApprove ? decision.reason : null,
       },
     });
 
@@ -100,31 +115,36 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         leadId: id,
         actorUserId: user.id,
         type: "PROPOSAL_SENT",
-        subject: `Pricing approval requested (${pct.toFixed(1)}% off MRR${belowFloor ? ", below floor" : ""})`,
-        body: data.reason,
+        subject: autoApprove
+          ? `Pricing self-approved (${pct.toFixed(1)}% off MRR)`
+          : `Pricing approval requested (${pct.toFixed(1)}% off MRR${belowFloor ? ", below floor" : ""})`,
+        body: `${data.reason}\n\n— ${decision.reason}`,
       },
     });
-
-    // Effective routing tier — below-floor always escalates to COO.
-    const tier = belowFloor ? "COO" : approvalTier(pct);
 
     await writeAudit({
       actorUserId: user.id,
       entityType: "PricingApproval",
       entityId: approval.id,
-      action: "CREATE",
+      action: autoApprove ? "APPROVE" : "CREATE",
       after: {
         leadId: id,
         bundleId: data.bundleId ?? null,
         seatCount: data.seatCount ?? null,
         discountPct: pct,
         belowFloor,
-        tier,
+        multiYear: data.multiYear ?? false,
+        tier: decision.tier,
+        autoApproved: autoApprove,
+        reason: decision.reason,
       },
       ...getAuditContext(req),
     });
 
-    return NextResponse.json({ approval, tier, belowFloor }, { status: 201 });
+    return NextResponse.json(
+      { approval, tier: decision.tier, belowFloor, autoApproved: autoApprove, reason: decision.reason },
+      { status: 201 },
+    );
   } catch (err) {
     return jsonError(err);
   }

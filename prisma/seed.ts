@@ -198,6 +198,67 @@ async function main() {
   });
 
   // eslint-disable-next-line no-console
+  console.log("→ Seeding objections library (v2.2)...");
+  const { DEFAULT_OBJECTIONS } = await import("../src/lib/objections/defaults");
+  for (const o of DEFAULT_OBJECTIONS) {
+    const existing = await prisma.objectionTemplate.findFirst({
+      where: { trigger: o.trigger, category: o.category, industry: o.industry ?? null },
+    });
+    if (existing) {
+      await prisma.objectionTemplate.update({
+        where: { id: existing.id },
+        data: {
+          rebuttal: o.rebuttal,
+          source: o.source ?? null,
+          active: true,
+        },
+      });
+    } else {
+      await prisma.objectionTemplate.create({
+        data: {
+          category: o.category,
+          industry: o.industry ?? null,
+          trigger: o.trigger,
+          rebuttal: o.rebuttal,
+          source: o.source ?? null,
+          active: true,
+        },
+      });
+    }
+  }
+
+  // eslint-disable-next-line no-console
+  console.log("→ Seeding outreach templates (v2.2)...");
+  const { DEFAULT_OUTREACH_TEMPLATES, extractPlaceholders } = await import(
+    "../src/lib/outreach/templates"
+  );
+  for (const t of DEFAULT_OUTREACH_TEMPLATES) {
+    const placeholders = extractPlaceholders(`${t.subject}\n${t.body}`);
+    await prisma.outreachTemplate.upsert({
+      where: { name: t.name },
+      update: {
+        category: t.category,
+        industry: t.industry ?? null,
+        trigger: t.trigger ?? null,
+        subject: t.subject,
+        body: t.body,
+        placeholders,
+        active: true,
+      },
+      create: {
+        name: t.name,
+        category: t.category,
+        industry: t.industry ?? null,
+        trigger: t.trigger ?? null,
+        subject: t.subject,
+        body: t.body,
+        placeholders,
+        active: true,
+      },
+    });
+  }
+
+  // eslint-disable-next-line no-console
   console.log("✓ Seed complete.");
   // eslint-disable-next-line no-console
   console.log(`  Login (magic-link OR password "${DEV_PW}"):`);

@@ -54,6 +54,7 @@ export function PricingCard({ leadId, role, suggestedBundle, seatCount }: Props)
   const initialSeats = seatCount && seatCount > 0 ? seatCount : 75;
   const [bundleId, setBundleId] = useState<ServiceBundle>(initialBundle);
   const [seats, setSeats] = useState<number>(initialSeats);
+  const [multiYear, setMultiYear] = useState(false);
   const [proposedMrr, setProposedMrr] = useState<string>("");
   const [proposedOneTime, setProposedOneTime] = useState<string>("");
   const [reason, setReason] = useState("");
@@ -100,7 +101,14 @@ export function PricingCard({ leadId, role, suggestedBundle, seatCount }: Props)
   const proposedOneTimeN = Number(proposedOneTime) || 0;
   const pct = sticker ? discountPercent(sticker.monthlyMrr, proposedMrrN) : 0;
   const below = sticker ? isBelowFloor(sticker, proposedMrrN) : false;
-  const tier = below ? "COO" : approvalTier(pct);
+  // v2.2 4-bucket preview that mirrors decideAuthority server-side.
+  const previewTier: "NONE" | "SELF" | "MANAGER" | "COO" =
+    below ? "COO"
+      : multiYear && pct > 0 ? "COO"
+      : pct <= 0 ? "NONE"
+      : pct <= 5 ? "SELF"
+      : pct <= 20 ? "MANAGER"
+      : "COO";
   const isCustom = bundleId === ServiceBundle.CUSTOM;
 
   async function submit(e: React.FormEvent) {
@@ -118,15 +126,20 @@ export function PricingCard({ leadId, role, suggestedBundle, seatCount }: Props)
           proposedMrr: proposedMrrN,
           stickerOneTime: sticker.onboardingTotal || undefined,
           proposedOneTime: proposedOneTimeN || undefined,
+          multiYear,
           reason,
         }),
       });
       const data = await res.json();
       if (!res.ok) toast.error(data?.error ?? "Failed");
       else {
-        toast.success(`Sent to ${data.tier === "MANAGER" ? "Sales Manager" : "COO"}${data.belowFloor ? " (below-floor)" : ""}`);
+        if (data.autoApproved) {
+          toast.success("Self-approved per Playbook — proposal ready");
+        } else {
+          toast.success(`Sent to ${data.tier === "MANAGER" ? "Sales Manager" : "COO"}${data.belowFloor ? " (below-floor)" : ""}`);
+        }
         setOpen(false);
-        setProposedMrr(""); setProposedOneTime(""); setReason("");
+        setProposedMrr(""); setProposedOneTime(""); setReason(""); setMultiYear(false);
         await refresh();
         router.refresh();
       }
@@ -256,15 +269,31 @@ export function PricingCard({ leadId, role, suggestedBundle, seatCount }: Props)
             </div>
           </div>
 
+          {/* Multi-year + reason */}
+          <label className="flex items-center gap-2 text-xs">
+            <input
+              type="checkbox"
+              checked={multiYear}
+              onChange={(e) => setMultiYear(e.target.checked)}
+            />
+            <span>Multi-year commit (locked pricing &gt; 12 months) — escalates to COO regardless of %</span>
+          </label>
+
           {/* Live routing summary */}
           {sticker && (
             <div className="rounded-md border border-gtn-lavender-2 p-3 text-sm space-y-1">
               <p>
                 Discount on MRR: <span className="font-mono">{pct.toFixed(1)}%</span>
-                {pct > 0 && tier !== "NONE" && (
-                  <> · routes to <strong>{tier === "MANAGER" ? "Sales Manager" : "COO"}</strong></>
+                {previewTier === "SELF" && (
+                  <> · <strong className="text-gtn-green">self-approves on submit</strong> (≤5% lane)</>
                 )}
-                {pct === 0 && proposedOneTimeN < (sticker.onboardingTotal) && (
+                {previewTier === "MANAGER" && (
+                  <> · routes to <strong>Sales Manager</strong></>
+                )}
+                {previewTier === "COO" && (
+                  <> · routes to <strong>COO</strong></>
+                )}
+                {previewTier === "NONE" && pct === 0 && proposedOneTimeN < sticker.onboardingTotal && (
                   <> · onboarding discount only — routes to <strong>Sales Manager</strong></>
                 )}
               </p>
@@ -272,6 +301,11 @@ export function PricingCard({ leadId, role, suggestedBundle, seatCount }: Props)
                 <p className="text-gtn-red font-medium">
                   ⚠ Proposed MRR is below the floor {canSeeFloor ? `(${fmtUsd(sticker.monthlyFloor)}/mo)` : ""} —
                   approval forced to COO.
+                </p>
+              )}
+              {multiYear && pct > 0 && !below && (
+                <p className="text-gtn-amber text-xs">
+                  Multi-year commit overrides the {previewTier === "COO" ? "" : "% bracket and "}routes to COO.
                 </p>
               )}
             </div>

@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { LeadTabs } from "./LeadTabs";
 import { PricingCard } from "./PricingCard";
+import { QualificationCard } from "./QualificationCard";
 import { CloseDealButtons } from "./CloseDealButtons";
 import { HandoffCard } from "./HandoffCard";
 import { ScoreOverrideButton } from "./ScoreOverrideButton";
@@ -87,6 +88,11 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
               <Link href={`/leads/${lead.id}/outreach`}>Send outreach</Link>
             </Button>
           )}
+          {(lead.ownerUserId === session.user.id || can(session.user.role, "lead:edit:any")) && (
+            <Button asChild variant="secondary">
+              <Link href={`/leads/${lead.id}/discovery-call`}>Discovery call</Link>
+            </Button>
+          )}
           {can(session.user.role, "handoff:initiate") && (
             <Button asChild>
               <Link href={`/leads/${lead.id}/handoff`}>Handoff to Ops</Link>
@@ -135,6 +141,11 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
           )}
         </div>
       )}
+
+      <QualificationCard
+        leadId={lead.id}
+        canEdit={lead.ownerUserId === session.user.id || can(session.user.role, "lead:edit:any")}
+      />
 
       <PricingCard
         leadId={lead.id}
