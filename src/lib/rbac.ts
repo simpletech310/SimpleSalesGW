@@ -1,4 +1,4 @@
-import { Role } from "@prisma/client";
+import { PipelineStage, Role, type Prisma } from "@prisma/client";
 
 export type PermissionKey =
   | "lead:view:own"
@@ -102,4 +102,34 @@ export class RbacError extends Error {
     super(message);
     this.name = "RbacError";
   }
+}
+
+/** Pipeline stages that vCIO is allowed to see. */
+export const VCIO_VISIBLE_STAGES: PipelineStage[] = [
+  PipelineStage.PRE_SALES,
+  PipelineStage.PROPOSAL,
+  PipelineStage.NEGOTIATION,
+  PipelineStage.CLOSED_WON,
+  PipelineStage.CLOSED_LOST,
+];
+
+/**
+ * Central visibility helper — returns a Prisma where-input fragment that
+ * captures the role's view scope. Compose with other `where` predicates.
+ */
+export function leadVisibilityFilter(role: Role, userId: string): Prisma.LeadWhereInput {
+  if (role === Role.VCIO) {
+    return { pipelineStage: { in: VCIO_VISIBLE_STAGES } };
+  }
+  if (!can(role, "lead:view:all")) {
+    return { ownerUserId: userId };
+  }
+  return {};
+}
+
+/** True if the role+stage combination is visible to this user/lead. */
+export function leadIsVisible(role: Role, userId: string, ownerUserId: string, stage: PipelineStage): boolean {
+  if (role === Role.VCIO) return VCIO_VISIBLE_STAGES.includes(stage);
+  if (can(role, "lead:view:all")) return true;
+  return ownerUserId === userId;
 }

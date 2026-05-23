@@ -5,16 +5,16 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { PipelineBoard } from "@/components/pipeline/PipelineBoard";
 import { STRINGS } from "@/lib/strings";
-import { can } from "@/lib/rbac";
+import { leadVisibilityFilter } from "@/lib/rbac";
 import { PipelineStage } from "@prisma/client";
+import { redirect } from "next/navigation";
 
 export default async function HomePage() {
   const session = await auth();
-  const role = session?.user?.role ?? null;
-  const viewAll = can(role, "lead:view:all");
+  if (!session?.user) redirect("/login");
 
   const leads = await prisma.lead.findMany({
-    where: viewAll ? {} : { ownerUserId: session!.user.id },
+    where: leadVisibilityFilter(session.user.role, session.user.id),
     orderBy: [{ pipelineStage: "asc" }, { dealQualityScore: "desc" }, { updatedAt: "desc" }],
     select: {
       id: true,

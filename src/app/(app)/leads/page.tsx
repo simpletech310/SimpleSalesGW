@@ -1,18 +1,19 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { can } from "@/lib/rbac";
+import { can, leadVisibilityFilter } from "@/lib/rbac";
 import { STRINGS } from "@/lib/strings";
 import { Button } from "@/components/ui/Button";
 import { scoreBadgeClass, formatScore } from "@/lib/utils";
 
 export default async function LeadsPage() {
   const session = await auth();
-  const role = session?.user?.role ?? null;
-  const viewAll = can(role, "lead:view:all");
+  if (!session?.user) redirect("/login");
+  const exportAllowed = can(session.user.role, "data:export");
 
   const leads = await prisma.lead.findMany({
-    where: viewAll ? {} : { ownerUserId: session!.user.id },
+    where: leadVisibilityFilter(session.user.role, session.user.id),
     orderBy: { updatedAt: "desc" },
     include: { owner: { select: { name: true } } },
   });
@@ -24,9 +25,18 @@ export default async function LeadsPage() {
           <h1 className="text-2xl font-bold text-gtn-navy">Leads</h1>
           <p className="text-sm text-gtn-grey-2">{leads.length} total</p>
         </div>
-        <Button asChild>
-          <Link href="/leads/new">+ New Lead</Link>
-        </Button>
+        <div className="flex gap-2">
+          {exportAllowed && (
+            <Button asChild variant="secondary">
+              <a href="/api/export/leads.csv" download>Export CSV</a>
+            </Button>
+          )}
+          {can(session.user.role, "lead:create") && (
+            <Button asChild>
+              <Link href="/leads/new">+ New Lead</Link>
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="gtn-card overflow-hidden p-0">

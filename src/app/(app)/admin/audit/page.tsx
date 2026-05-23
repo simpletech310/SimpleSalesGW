@@ -30,7 +30,16 @@ export default async function AuditLogPage({ searchParams }: { searchParams: Pro
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-bold text-gtn-navy">Audit log</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-gtn-navy">Audit log</h1>
+        <a
+          href="/api/export/audit-log.csv"
+          download
+          className="inline-flex items-center justify-center h-9 rounded-md border border-gtn-navy bg-white px-3 text-sm font-medium text-gtn-navy hover:bg-gtn-lavender"
+        >
+          Export CSV
+        </a>
+      </div>
       <AuditFilter defaultQuery={q ?? ""} />
       <Card className="p-0 overflow-hidden">
         <table className="w-full text-sm">

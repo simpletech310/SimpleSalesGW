@@ -3,7 +3,7 @@ import { z } from "zod";
 import { Industry, LeadSource, type Prisma, type PipelineStage } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { writeAudit } from "@/lib/audit";
-import { can } from "@/lib/rbac";
+import { can, leadVisibilityFilter } from "@/lib/rbac";
 import { ApiError, getAuditContext, jsonError, requireSessionUser } from "@/lib/api";
 
 const createSchema = z.object({
@@ -30,13 +30,12 @@ const createSchema = z.object({
 export async function GET(req: Request) {
   try {
     const user = await requireSessionUser();
-    const viewAll = can(user.role, "lead:view:all");
     const url = new URL(req.url);
     const q = url.searchParams.get("q")?.trim();
     const stage = url.searchParams.get("stage");
 
     const where: Prisma.LeadWhereInput = {
-      ...(viewAll ? {} : { ownerUserId: user.id }),
+      ...leadVisibilityFilter(user.role, user.id),
       ...(stage ? { pipelineStage: stage as PipelineStage } : {}),
       ...(q
         ? {

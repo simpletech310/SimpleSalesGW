@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { can } from "@/lib/rbac";
+import { can, leadIsVisible } from "@/lib/rbac";
 import { STRINGS } from "@/lib/strings";
 import { scoreBadgeClass, formatScore } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
@@ -10,6 +10,9 @@ import { Card } from "@/components/ui/Card";
 import { LeadTabs } from "./LeadTabs";
 import { PricingCard } from "./PricingCard";
 import { CloseDealButtons } from "./CloseDealButtons";
+import { HandoffCard } from "./HandoffCard";
+import { ScoreOverrideButton } from "./ScoreOverrideButton";
+import { DeleteLeadButton } from "./DeleteLeadButton";
 
 export default async function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
@@ -38,7 +41,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
     },
   });
   if (!lead) notFound();
-  if (lead.ownerUserId !== session.user.id && !can(session.user.role, "lead:view:all")) {
+  if (!leadIsVisible(session.user.role, session.user.id, lead.ownerUserId, lead.pipelineStage)) {
     return (
       <Card>
         <h2 className="text-lg font-semibold text-gtn-navy">{STRINGS.auth.notAuthorized}</h2>
@@ -74,15 +77,24 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button asChild variant="secondary">
-            <Link href={`/leads/${lead.id}/assessment/start`}>Run assessment</Link>
-          </Button>
-          <Button asChild variant="secondary">
-            <Link href={`/leads/${lead.id}/outreach`}>Send outreach</Link>
-          </Button>
-          <Button asChild>
-            <Link href={`/leads/${lead.id}/handoff`}>Handoff to Ops</Link>
-          </Button>
+          {can(session.user.role, "assessment:run") && (
+            <Button asChild variant="secondary">
+              <Link href={`/leads/${lead.id}/assessment/start`}>Run assessment</Link>
+            </Button>
+          )}
+          {can(session.user.role, "outreach:send") && (
+            <Button asChild variant="secondary">
+              <Link href={`/leads/${lead.id}/outreach`}>Send outreach</Link>
+            </Button>
+          )}
+          {can(session.user.role, "handoff:initiate") && (
+            <Button asChild>
+              <Link href={`/leads/${lead.id}/handoff`}>Handoff to Ops</Link>
+            </Button>
+          )}
+          {can(session.user.role, "lead:delete") && (
+            <DeleteLeadButton leadId={lead.id} businessName={lead.businessName} />
+          )}
         </div>
       </div>
 
@@ -98,7 +110,21 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
       <div className="grid grid-cols-3 gap-3">
         <ScoreTile label={STRINGS.scoring.services} value={lead.servicesScore} />
         <ScoreTile label={STRINGS.scoring.customer} value={lead.customerScore} />
-        <ScoreTile label={STRINGS.scoring.dealQuality} value={lead.dealQualityScore} primary />
+        <ScoreTile
+          label={STRINGS.scoring.dealQuality}
+          value={lead.dealQualityScore}
+          primary
+          override={
+            can(session.user.role, "score:override") ? (
+              <ScoreOverrideButton
+                leadId={lead.id}
+                initialServices={lead.servicesScore}
+                initialCustomer={lead.customerScore}
+                initialDealQuality={lead.dealQualityScore}
+              />
+            ) : null
+          }
+        />
       </div>
 
       {lead.nonStrategicFlag && (
@@ -112,6 +138,8 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
 
       <PricingCard leadId={lead.id} role={session.user.role} />
 
+      <HandoffCard leadId={lead.id} role={session.user.role} />
+
       <LeadTabs
         lead={lead as never}
         canEdit={lead.ownerUserId === session.user.id || can(session.user.role, "lead:edit:any")}
@@ -121,12 +149,15 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
   );
 }
 
-function ScoreTile({ label, value, primary }: { label: string; value: number; primary?: boolean }) {
+function ScoreTile({ label, value, primary, override }: { label: string; value: number; primary?: boolean; override?: React.ReactNode }) {
   return (
     <div className={primary ? "gtn-card p-4 bg-gtn-navy text-white" : "gtn-card p-4"}>
-      <p className={primary ? "text-xs uppercase tracking-wide text-white/70" : "text-xs uppercase tracking-wide text-gtn-grey-2"}>
-        {label}
-      </p>
+      <div className="flex items-center justify-between gap-2">
+        <p className={primary ? "text-xs uppercase tracking-wide text-white/70" : "text-xs uppercase tracking-wide text-gtn-grey-2"}>
+          {label}
+        </p>
+        {override}
+      </div>
       {primary ? (
         <p className="text-3xl font-mono font-bold mt-1">{formatScore(value)}</p>
       ) : (

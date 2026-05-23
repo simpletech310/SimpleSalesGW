@@ -3,7 +3,7 @@ import { z } from "zod";
 import { Industry, LeadSource, PipelineStage } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ApiError, getAuditContext, jsonError, requireSessionUser } from "@/lib/api";
-import { can } from "@/lib/rbac";
+import { can, leadIsVisible } from "@/lib/rbac";
 import { writeAudit, diffForAudit } from "@/lib/audit";
 
 const updateSchema = z.object({
@@ -57,7 +57,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       },
     });
     if (!lead) throw new ApiError(404, "Lead not found");
-    if (lead.ownerUserId !== user.id && !can(user.role, "lead:view:all")) {
+    if (!leadIsVisible(user.role, user.id, lead.ownerUserId, lead.pipelineStage)) {
       throw new ApiError(403, "Forbidden");
     }
     return NextResponse.json({ lead });
@@ -104,6 +104,17 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     const user = await requireSessionUser();
     if (!can(user.role, "lead:delete")) throw new ApiError(403, "Forbidden");
     const { id } = await params;
+
+    // Reason is required per PRD §10. Accept it in body or as ?reason= query.
+    let reason: string | undefined;
+    try {
+      const body = (await req.json()) as { reason?: string } | null;
+      reason = body?.reason?.trim();
+    } catch {
+      reason = new URL(req.url).searchParams.get("reason")?.trim() ?? undefined;
+    }
+    if (!reason) throw new ApiError(400, "Deletion reason is required.");
+
     const before = await prisma.lead.findUnique({ where: { id } });
     if (!before) throw new ApiError(404, "Not found");
     await prisma.lead.delete({ where: { id } });
@@ -112,7 +123,10 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
       entityType: "Lead",
       entityId: id,
       action: "DELETE",
-      before: before as unknown as Record<string, unknown>,
+      before: {
+        ...(before as unknown as Record<string, unknown>),
+        deletionReason: reason,
+      },
       ...getAuditContext(req),
     });
     return NextResponse.json({ ok: true });
