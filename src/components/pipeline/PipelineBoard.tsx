@@ -39,7 +39,7 @@ export function PipelineBoard({ leads }: { leads: LeadCardData[] }) {
   const [optimistic, setOptimistic] = useState(leads);
   const [, startTransition] = useTransition();
 
-  async function moveLead(id: string, toStage: PipelineStage) {
+  async function moveLead(id: string, toStage: PipelineStage, acknowledgeWarnings = false) {
     const prev = optimistic.find((l) => l.id === id)?.pipelineStage;
     if (!prev || prev === toStage) return;
     setOptimistic((cur) => cur.map((l) => (l.id === id ? { ...l, pipelineStage: toStage } : l)));
@@ -47,8 +47,25 @@ export function PipelineBoard({ leads }: { leads: LeadCardData[] }) {
       const res = await fetch(`/api/leads/${id}/stage`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ stage: toStage }),
+        body: JSON.stringify({ stage: toStage, acknowledgeWarnings }),
       });
+      if (res.status === 409) {
+        // Gate warnings — let the salesperson decide.
+        const data = await res.json();
+        const warnings: string[] = data.warnings ?? [];
+        const ok = window.confirm(
+          `Phase gate warning before moving to ${STRINGS.pipeline.stages[toStage]}:\n\n` +
+          warnings.map((w) => `• ${w}`).join("\n") +
+          "\n\nProceed anyway?",
+        );
+        if (ok) {
+          await moveLead(id, toStage, true);
+          return;
+        } else {
+          setOptimistic((cur) => cur.map((l) => (l.id === id ? { ...l, pipelineStage: prev } : l)));
+          return;
+        }
+      }
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data?.error ?? "Stage change failed");

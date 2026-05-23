@@ -1,22 +1,23 @@
 import { NextResponse } from "next/server";
-import { z } from "zod";
-import { ActivityType, HandoffStatus } from "@prisma/client";
+import { ActivityType, HandoffStatus, Prisma } from "@prisma/client";
+import type { InputJsonValue } from "@prisma/client/runtime/library";
 import { prisma } from "@/lib/prisma";
 import { ApiError, getAuditContext, jsonError, requireSessionUser } from "@/lib/api";
 import { can } from "@/lib/rbac";
 import { writeAudit } from "@/lib/audit";
+import { handoffInitiateSchema } from "@/lib/handoff/schema";
 
-const schema = z.object({
-  leadId: z.string().uuid(),
-  payload: z.record(z.unknown()),
-  notes: z.string().max(20_000).optional(),
-});
-
+/**
+ * POST /api/handoff — initiate a structured handoff (v2.3).
+ *
+ * Replaces the old freeform `payload` JSON with the paper-fidelity 60-field
+ * checklist. All structured columns live on the Handoff model directly.
+ */
 export async function POST(req: Request) {
   try {
     const user = await requireSessionUser();
     if (!can(user.role, "handoff:initiate")) throw new ApiError(403, "Forbidden");
-    const data = schema.parse(await req.json());
+    const data = handoffInitiateSchema.parse(await req.json());
 
     const lead = await prisma.lead.findUnique({ where: { id: data.leadId } });
     if (!lead) throw new ApiError(404, "Lead not found");
@@ -26,7 +27,17 @@ export async function POST(req: Request) {
         leadId: data.leadId,
         initiatorUserId: user.id,
         status: HandoffStatus.INITIATED,
-        payload: data.payload as never,
+        dealValue: data.dealValue !== undefined ? new Prisma.Decimal(data.dealValue) : null,
+        bundleId: data.bundleId ?? null,
+        complianceOverlay: data.complianceOverlay ?? [],
+        contractsSigned: data.contractsSigned ?? [],
+        decisionMakers: (data.decisionMakers ?? []) as object,
+        hardCommitments: (data.hardCommitments ?? []) as object,
+        softCommitments: (data.softCommitments ?? []) as object,
+        objectionsAndSkeptics: (data.objectionsAndSkeptics ?? []) as object,
+        stakeholderContext: data.stakeholderContext ?? null,
+        budgetSnapshot: (data.budgetSnapshot ?? Prisma.JsonNull) as unknown as InputJsonValue,
+        successCriteria: (data.successCriteria ?? []) as object,
         notes: data.notes ?? null,
         initiatedAt: new Date(),
       },
@@ -47,7 +58,14 @@ export async function POST(req: Request) {
       entityType: "Handoff",
       entityId: handoff.id,
       action: "CREATE",
-      after: { leadId: data.leadId, status: HandoffStatus.INITIATED },
+      after: {
+        leadId: data.leadId,
+        status: HandoffStatus.INITIATED,
+        dealValue: data.dealValue ?? null,
+        bundleId: data.bundleId ?? null,
+        decisionMakerCount: data.decisionMakers?.length ?? 0,
+        hardCommitmentCount: data.hardCommitments?.length ?? 0,
+      },
       ...getAuditContext(req),
     });
 

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Home, Users, Plus, Bell, User, Layers, Briefcase } from "lucide-react";
+import { Home, Users, Plus, Bell, User, Layers, Briefcase, CheckSquare } from "lucide-react";
 import { GatewayLogo } from "@/components/brand/GatewayLogo";
 import { STRINGS } from "@/lib/strings";
 import type { Role } from "@prisma/client";
@@ -22,6 +22,7 @@ const navItems = [
 const desktopExtraItems = [
   { href: "/pipeline", label: STRINGS.nav.pipeline, icon: Layers },
   { href: "/accounts", label: STRINGS.nav.accounts, icon: Briefcase },
+  { href: "/my-tasks", label: STRINGS.nav.myTasks, icon: CheckSquare },
 ];
 
 export function AppShell({ user, children }: Props) {

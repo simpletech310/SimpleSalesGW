@@ -42,18 +42,34 @@ export function CloseDealButtons({ leadId, currentStage }: { leadId: string; cur
     }
     setBusy(true);
     try {
-      const res = await fetch(`/api/leads/${leadId}/stage`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ stage, reason }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        toast.error(data?.error ?? "Failed");
+      let acknowledgeWarnings = false;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const res = await fetch(`/api/leads/${leadId}/stage`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ stage, reason, acknowledgeWarnings }),
+        });
+        if (res.status === 409) {
+          const data = await res.json();
+          const warnings: string[] = data.warnings ?? [];
+          const ok = window.confirm(
+            `Phase gate warning before moving to ${TERMINAL_LABELS[stage] ?? stage}:\n\n` +
+            warnings.map((w) => `• ${w}`).join("\n") +
+            "\n\nProceed anyway?",
+          );
+          if (!ok) return;
+          acknowledgeWarnings = true;
+          continue;
+        }
+        const data = await res.json();
+        if (!res.ok) {
+          toast.error(data?.error ?? "Failed");
+          return;
+        }
+        toast.success(`Moved to ${TERMINAL_LABELS[stage] ?? stage}`);
+        router.refresh();
         return;
       }
-      toast.success(`Moved to ${TERMINAL_LABELS[stage] ?? stage}`);
-      router.refresh();
     } finally {
       setBusy(false);
     }

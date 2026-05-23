@@ -14,7 +14,6 @@ export default async function HandoffPage({ params }: { params: Promise<{ id: st
     where: { id },
     include: {
       owner: { select: { name: true, email: true } },
-      serviceMatches: { where: { recommended: true } },
     },
   });
   if (!lead) notFound();

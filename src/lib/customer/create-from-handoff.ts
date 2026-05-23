@@ -46,6 +46,7 @@ export async function createCustomerFromHandoff(opts: {
         templateKey: t.key,
         dueAt,
         status: OnboardingTaskStatus.PENDING,
+        ownerRole: t.defaultRole ?? null,
       };
     });
     await tx.onboardingTask.createMany({ data: taskRows });

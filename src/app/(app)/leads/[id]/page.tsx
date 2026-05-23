@@ -7,6 +7,7 @@ import { STRINGS } from "@/lib/strings";
 import { scoreBadgeClass, formatScore } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { StageTimeline } from "@/components/process/StageTimeline";
 import { LeadTabs } from "./LeadTabs";
 import { PricingCard } from "./PricingCard";
 import { QualificationCard } from "./QualificationCard";
@@ -103,6 +104,9 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
           )}
         </div>
       </div>
+
+      {/* 14-stage unified process timeline (v2.3) */}
+      <StageTimeline leadId={lead.id} />
 
       {/* Close-deal controls — terminal stages aren't on the Kanban */}
       <div className="flex items-center justify-between gap-3 flex-wrap">

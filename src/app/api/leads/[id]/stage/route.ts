@@ -5,14 +5,20 @@ import { prisma } from "@/lib/prisma";
 import { ApiError, getAuditContext, jsonError, requireSessionUser } from "@/lib/api";
 import { can } from "@/lib/rbac";
 import { writeAudit } from "@/lib/audit";
+import { evaluateGate } from "@/lib/pipeline/gates";
 
-const schema = z.object({ stage: z.nativeEnum(PipelineStage), reason: z.string().optional() });
+const schema = z.object({
+  stage: z.nativeEnum(PipelineStage),
+  reason: z.string().optional(),
+  /** When true, the client has acknowledged any gate warnings and wants to proceed. */
+  acknowledgeWarnings: z.boolean().optional(),
+});
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const user = await requireSessionUser();
     const { id } = await params;
-    const { stage, reason } = schema.parse(await req.json());
+    const { stage, reason, acknowledgeWarnings } = schema.parse(await req.json());
 
     const lead = await prisma.lead.findUnique({ where: { id } });
     if (!lead) throw new ApiError(404, "Lead not found");
@@ -41,6 +47,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     }
 
     const before = lead.pipelineStage;
+
+    // v2.3 — phase gate (warning style). Server reports unmet requirements
+    // but lets the client retry with acknowledgeWarnings=true.
+    const { warnings } = await evaluateGate(id, before, stage);
+    if (warnings.length > 0 && !acknowledgeWarnings) {
+      return NextResponse.json({ ok: false, warnings, stage, before }, { status: 409 });
+    }
+
     // Persist close date + reason when entering a terminal state.
     const terminalUpdate: Record<string, unknown> = { pipelineStage: stage };
     if (stage === PipelineStage.CLOSED_WON || stage === PipelineStage.CLOSED_LOST) {
@@ -56,7 +70,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         actorUserId: user.id,
         type: ActivityType.STAGE_CHANGE,
         subject: `Stage: ${before} → ${stage}`,
-        body: reason ?? null,
+        body: [reason, warnings.length > 0 ? `Proceeded past gate warnings: ${warnings.join(" | ")}` : null]
+          .filter(Boolean).join("\n\n") || null,
       },
     });
     await writeAudit({
@@ -65,10 +80,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       entityId: id,
       action: "UPDATE",
       before: { pipelineStage: before },
-      after: { pipelineStage: stage },
+      after: { pipelineStage: stage, gateWarnings: warnings.length > 0 ? warnings : undefined },
       ...getAuditContext(req),
     });
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, warnings });
   } catch (err) {
     return jsonError(err);
   }

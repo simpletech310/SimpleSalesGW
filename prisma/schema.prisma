@@ -522,7 +522,20 @@ model Handoff {
   initiatorUserId String        @map("initiator_user_id") @db.Uuid
   acceptorUserId  String?       @map("acceptor_user_id") @db.Uuid
   status          HandoffStatus @default(DRAFT)
-  payload         Json
+
+  // v2.3 — structured 60-field handoff checklist (replaces freeform `payload`)
+  dealValue            Decimal?      @map("deal_value") @db.Decimal(12, 2)
+  bundleId             ServiceBundle? @map("bundle_id")
+  complianceOverlay    String[]      @default([]) @map("compliance_overlay")
+  contractsSigned      String[]      @default([]) @map("contracts_signed")
+  decisionMakers       Json          @default("[]") @map("decision_makers")        // up to 5 [{ name, role, authority, temperature, comms }]
+  hardCommitments      Json          @default("[]") @map("hard_commitments")        // [{ text, sowRef, deadline }]
+  softCommitments      Json          @default("[]") @map("soft_commitments")
+  objectionsAndSkeptics Json         @default("[]") @map("objections_and_skeptics") // [{ name, concern, status }]
+  stakeholderContext   String?       @map("stakeholder_context") @db.Text
+  budgetSnapshot       Json?         @map("budget_snapshot")                        // { status, range, notes }
+  successCriteria      Json          @default("[]") @map("success_criteria")        // [{ metric, target, owner }]
+
   notes           String?       @db.Text
   initiatedAt     DateTime?     @map("initiated_at")
   acceptedAt      DateTime?     @map("accepted_at")
@@ -686,6 +699,7 @@ model OnboardingTask {
   title       String
   description String?              @db.Text
   ownerUserId String?              @map("owner_user_id") @db.Uuid
+  ownerRole   Role?                @map("owner_role")   // v2.3 — default role for unassigned tasks
   status      OnboardingTaskStatus @default(PENDING)
   dueAt       DateTime?            @map("due_at")
   completedAt DateTime?            @map("completed_at")
@@ -699,6 +713,7 @@ model OnboardingTask {
 
   @@index([customerId, phase, position])
   @@index([ownerUserId, status])
+  @@index([ownerRole, status])
   @@map("onboarding_tasks")
 }
 

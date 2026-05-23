@@ -17,6 +17,13 @@ type HandoffRow = {
   acceptedAt: string | null;
   rejectedAt: string | null;
   createdAt: string;
+  dealValue: string | null;
+  bundleId: string | null;
+  complianceOverlay: string[];
+  contractsSigned: string[];
+  decisionMakers: unknown;
+  hardCommitments: unknown;
+  successCriteria: unknown;
   initiator: { name: string };
   acceptor: { name: string } | null;
 };
@@ -92,6 +99,36 @@ export function HandoffCard({ leadId, role }: { leadId: string; role: Role }) {
                   <Button size="sm" variant="destructive" disabled={busy} onClick={() => decide(h.id, "reject")}>
                     Reject
                   </Button>
+                </div>
+              )}
+            </div>
+
+            {/* Structured highlights */}
+            <div className="text-xs text-gtn-grey-2 space-y-0.5">
+              {h.dealValue && (
+                <p>Deal value: <span className="font-mono text-gtn-navy">${Number(h.dealValue).toLocaleString()}</span>
+                  {h.bundleId && <> · Bundle: <strong className="text-gtn-navy">{h.bundleId.replace(/_/g, " ")}</strong></>}
+                </p>
+              )}
+              {(Array.isArray(h.decisionMakers) ? h.decisionMakers.length : 0) > 0 && (
+                <p>
+                  {(h.decisionMakers as unknown[]).length} decision maker{(h.decisionMakers as unknown[]).length === 1 ? "" : "s"} ·
+                  {" "}{(Array.isArray(h.hardCommitments) ? h.hardCommitments.length : 0)} hard commit{(h.hardCommitments as unknown[])?.length === 1 ? "" : "s"} ·
+                  {" "}{(Array.isArray(h.successCriteria) ? h.successCriteria.length : 0)} success criteria
+                </p>
+              )}
+              {h.complianceOverlay.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {h.complianceOverlay.map((c) => (
+                    <span key={c} className="text-[10px] bg-gtn-lavender text-gtn-purple rounded px-1.5 py-0.5">{c}</span>
+                  ))}
+                </div>
+              )}
+              {h.contractsSigned.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {h.contractsSigned.map((c) => (
+                    <span key={c} className="text-[10px] bg-gtn-green-bg text-gtn-green rounded px-1.5 py-0.5">✓ {c}</span>
+                  ))}
                 </div>
               )}
             </div>
