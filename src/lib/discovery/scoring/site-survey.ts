@@ -4,6 +4,8 @@
  * the expanded ~120-question template.
  */
 
+import { SITE_SURVEY_QUESTIONS } from "../site-survey-questions";
+
 export type SiteSurveyScorecard = {
   kind: "SITE_SURVEY";
   summary: string;
@@ -42,7 +44,7 @@ export function scoreSiteSurvey(answers: Record<string, unknown>): SiteSurveySco
   const risks: SiteSurveyScorecard["risks"] = [];
   const actions: string[] = [];
 
-  const totalQuestions = 120;
+  const totalQuestions = SITE_SURVEY_QUESTIONS.length || 1;
   let answered = 0;
   for (const v of Object.values(answers)) {
     if (v === null || v === undefined) continue;

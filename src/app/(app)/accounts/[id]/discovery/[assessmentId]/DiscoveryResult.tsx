@@ -57,7 +57,13 @@ function SiteSurveyView({ card }: { card: SiteSurveyScorecard }) {
   return (
     <>
       <Card>
-        <h2 className="text-sm font-semibold mb-2">Summary</h2>
+        <div className="flex items-start justify-between flex-wrap gap-2 mb-2">
+          <h2 className="text-sm font-semibold">Summary</h2>
+          <div className="text-right">
+            <p className="text-[10px] uppercase tracking-wide text-gtn-grey-2">Coverage</p>
+            <p className="text-lg font-mono font-semibold text-gtn-navy">{card.coveragePct}%</p>
+          </div>
+        </div>
         <p className="text-sm">{card.summary}</p>
         {card.findings.length > 0 && (
           <div className="mt-4">
@@ -91,34 +97,77 @@ function SiteSurveyView({ card }: { card: SiteSurveyScorecard }) {
 }
 
 function AiReadinessView({ card }: { card: AiReadinessScorecard }) {
+  const tierColor = (s: number) =>
+    s >= 3 ? "text-gtn-green" : s >= 2 ? "text-gtn-navy" : s >= 1 ? "text-gtn-amber" : "text-gtn-red";
+
   return (
     <>
       <Card>
         <h2 className="text-sm font-semibold mb-2">Overall maturity</h2>
-        <p className="text-3xl font-mono font-bold text-gtn-navy">{card.overall.toFixed(1)} <span className="text-base text-gtn-grey-2">/ 4</span></p>
-        <div className="mt-4 grid sm:grid-cols-2 gap-3">
-          {card.pillars.map((p) => (
-            <div key={p.name} className="rounded border border-gtn-lavender-2 p-3">
-              <p className="text-xs uppercase tracking-wide text-gtn-grey-2">{p.name}</p>
-              <p className="text-lg font-mono font-semibold text-gtn-navy mt-1">{p.score.toFixed(1)}</p>
+        <div className="flex items-baseline gap-6 flex-wrap">
+          <p className={`text-4xl font-mono font-bold ${tierColor(card.overall)}`}>
+            {card.overall.toFixed(1)} <span className="text-base text-gtn-grey-2">/ 4</span>
+          </p>
+          <div className="text-xs text-gtn-grey-2">
+            <p>Governance: <span className={`font-mono font-semibold ${tierColor(card.governanceScore)}`}>{card.governanceScore.toFixed(1)}</span></p>
+            <p>Data foundations: <span className={`font-mono font-semibold ${tierColor(card.dataScore)}`}>{card.dataScore.toFixed(1)}</span></p>
+          </div>
+        </div>
+        <div className="mt-4 grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {card.dimensions.map((d) => (
+            <div key={d.id} className="rounded border border-gtn-lavender-2 p-3">
+              <p className="text-[10px] font-mono text-gtn-grey-2">{d.id}</p>
+              <p className="text-xs uppercase tracking-wide text-gtn-grey-2">{d.label}</p>
+              <p className={`text-lg font-mono font-semibold mt-1 ${tierColor(d.score)}`}>{d.score.toFixed(1)}</p>
             </div>
           ))}
         </div>
       </Card>
+
+      {card.useCases.length > 0 && (
+        <Card>
+          <h2 className="text-sm font-semibold mb-3">Use-case matrix (Impact × Feasibility)</h2>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead className="text-left text-gtn-grey-2">
+                <tr className="border-b border-gtn-lavender-2">
+                  <th className="py-2 pr-2 font-medium">Department</th>
+                  <th className="py-2 pr-2 font-medium">Summary</th>
+                  <th className="py-2 pr-2 font-medium text-center">Impact</th>
+                  <th className="py-2 pr-2 font-medium text-center">Feasibility</th>
+                  <th className="py-2 pr-2 font-medium text-center">Priority</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...card.useCases].sort((a, b) => b.priorityScore - a.priorityScore).map((u) => (
+                  <tr key={u.department} className="border-b border-gtn-lavender-2 last:border-0">
+                    <td className="py-2 pr-2 font-medium text-gtn-navy">{u.department}</td>
+                    <td className="py-2 pr-2 text-gtn-grey-2">{u.summary ?? "—"}</td>
+                    <td className="py-2 pr-2 text-center font-mono">{u.impactScore}</td>
+                    <td className="py-2 pr-2 text-center font-mono">{u.feasibilityScore}</td>
+                    <td className="py-2 pr-2 text-center font-mono font-semibold text-gtn-purple">{u.priorityScore}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {card.topUseCases.length > 0 && (
+            <p className="text-xs text-gtn-grey-2 mt-3">
+              Top quick wins: <span className="font-medium text-gtn-navy">{card.topUseCases.map((u) => u.department).join(" · ")}</span>
+            </p>
+          )}
+        </Card>
+      )}
+
       <Card>
-        <h2 className="text-sm font-semibold mb-2">Use cases + roadmap</h2>
-        {card.topUseCases.length > 0 && (
-          <p className="text-xs text-gtn-grey-2 mb-3">
-            Ready departments: {card.topUseCases.join(", ")}
-          </p>
-        )}
+        <h2 className="text-sm font-semibold mb-2">Roadmap</h2>
         {card.highestValueProcess && (
-          <p className="text-sm mb-3"><strong>Highest-value process:</strong> {card.highestValueProcess}</p>
+          <p className="text-sm mb-2"><strong>Highest-value process:</strong> {card.highestValueProcess}</p>
         )}
         {card.stalledInitiatives && (
           <p className="text-sm mb-3"><strong>Stalled initiative:</strong> {card.stalledInitiatives}</p>
         )}
-        <div className="grid md:grid-cols-3 gap-3 mt-4">
+        <div className="grid md:grid-cols-3 gap-3 mt-2">
           <PhaseList label="0–30 days" items={card.rollout.days_0_30} />
           <PhaseList label="31–90 days" items={card.rollout.days_31_90} />
           <PhaseList label="91–365 days" items={card.rollout.days_91_365} />
@@ -129,26 +178,89 @@ function AiReadinessView({ card }: { card: AiReadinessScorecard }) {
 }
 
 function NistCsfView({ card }: { card: NistCsfScorecard }) {
+  const tierColor = (t: number) =>
+    t >= 3 ? "text-gtn-green" : t >= 2 ? "text-gtn-navy" : t >= 1 ? "text-gtn-amber" : "text-gtn-red";
+
   return (
     <>
       <Card>
         <h2 className="text-sm font-semibold mb-2">Tier summary</h2>
-        <p className="text-sm">
-          Current overall Tier: <strong>{card.overallCurrentTier.toFixed(1)}</strong> · Target Tier: <strong>{card.targetTier}</strong>
-        </p>
+        <div className="flex items-baseline gap-4 flex-wrap">
+          <p className={`text-4xl font-mono font-bold ${tierColor(card.overallCurrentTier)}`}>
+            {card.overallCurrentTier.toFixed(1)} <span className="text-base text-gtn-grey-2">/ 4</span>
+          </p>
+          <p className="text-sm text-gtn-grey-2">Target Tier <strong className="text-gtn-navy">{card.targetTier}</strong></p>
+        </div>
         <div className="mt-4 grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {card.functions.map((f) => (
             <div key={f.name} className="rounded border border-gtn-lavender-2 p-3">
-              <p className="text-xs uppercase tracking-wide text-gtn-grey-2">{f.name}</p>
-              <p className="text-lg font-mono font-semibold text-gtn-navy mt-1">{f.currentTier.toFixed(1)}</p>
-              {f.gap > 0 && <p className="text-[10px] text-gtn-amber">gap {f.gap.toFixed(1)}</p>}
+              <div className="flex items-center justify-between">
+                <p className="text-xs uppercase tracking-wide font-semibold text-gtn-navy">{f.name}</p>
+                <p className="text-[10px] font-mono text-gtn-grey-2">{f.coverage}%</p>
+              </div>
+              <p className={`text-lg font-mono font-semibold mt-1 ${tierColor(f.currentTier)}`}>
+                {f.currentTier.toFixed(1)}
+              </p>
+              <p className="text-[10px] text-gtn-grey-2">
+                {f.answered}/{f.subcategoryCount} subcategories
+                {f.gap > 0 ? ` · gap ${f.gap.toFixed(1)}` : ""}
+              </p>
             </div>
           ))}
         </div>
       </Card>
+
+      <Card>
+        <h2 className="text-sm font-semibold mb-3">Per-Category rollup</h2>
+        <div className="space-y-3">
+          {card.functions.map((f) => (
+            <details key={f.name} className="border border-gtn-lavender-2 rounded">
+              <summary className="px-3 py-2 cursor-pointer text-sm font-medium text-gtn-navy flex items-center justify-between">
+                <span>{f.name}</span>
+                <span className={`text-xs font-mono ${tierColor(f.currentTier)}`}>{f.currentTier.toFixed(1)}</span>
+              </summary>
+              <table className="w-full text-xs">
+                <tbody>
+                  {f.categories.map((c) => (
+                    <tr key={c.name} className="border-t border-gtn-lavender-2">
+                      <td className="px-3 py-1.5 text-gtn-navy">{c.name}</td>
+                      <td className="px-3 py-1.5 text-right text-gtn-grey-2">
+                        {c.answered}/{c.subcategoryCount}
+                      </td>
+                      <td className={`px-3 py-1.5 text-right font-mono font-semibold ${tierColor(c.currentTier)}`}>
+                        {c.currentTier.toFixed(1)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </details>
+          ))}
+        </div>
+      </Card>
+
+      {card.highRiskSubcategories.length > 0 && (
+        <Card>
+          <h2 className="text-sm font-semibold mb-2">
+            High-risk Subcategories <span className="text-gtn-red">({card.highRiskSubcategories.length})</span>
+          </h2>
+          <p className="text-xs text-gtn-grey-2 mb-2">Answered Tier 1 — highest-priority remediation targets.</p>
+          <div className="flex flex-wrap gap-1.5">
+            {card.highRiskSubcategories.map((sub) => (
+              <span
+                key={sub}
+                className="text-[11px] font-mono bg-[#FBE9E7] text-gtn-red rounded px-2 py-0.5"
+              >
+                {sub}
+              </span>
+            ))}
+          </div>
+        </Card>
+      )}
+
       {card.gaps.length > 0 && (
         <Card>
-          <h2 className="text-sm font-semibold mb-2">Gaps</h2>
+          <h2 className="text-sm font-semibold mb-2">Function-level gaps</h2>
           <ul className="text-sm space-y-2">
             {card.gaps.map((g, i) => (
               <li key={i}><SeverityPill s={g.severity} /> {g.description}</li>
@@ -156,6 +268,7 @@ function NistCsfView({ card }: { card: NistCsfScorecard }) {
           </ul>
         </Card>
       )}
+
       <Card>
         <h2 className="text-sm font-semibold mb-2">Remediation roadmap</h2>
         <div className="grid md:grid-cols-3 gap-3">

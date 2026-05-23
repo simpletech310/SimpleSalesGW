@@ -57,14 +57,40 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const fields = INVENTORY_FIELDS[entity];
     const body = (await req.json()) as Record<string, unknown>;
 
-    // Build the create data payload from defined fields only.
+    // 1. Validate raw input presence first (don't let coercion mask absence).
+    for (const f of fields) {
+      if (!f.required) continue;
+      const raw = body[f.key];
+      const missing =
+        raw === undefined ||
+        raw === null ||
+        (typeof raw === "string" && raw.trim() === "") ||
+        (Array.isArray(raw) && raw.length === 0);
+      if (missing) {
+        throw new ApiError(400, `${f.label} is required`);
+      }
+    }
+
+    // 2. Coerce + sanity-check the result. Numeric/decimal fields that parsed
+    //    to NaN, or date fields that parsed to Invalid Date, are reported.
     const data: Record<string, unknown> = { customerId: id };
     for (const f of fields) {
-      if (body[f.key] !== undefined) data[f.key] = coerceForWrite(f, body[f.key]);
+      if (body[f.key] === undefined) continue;
+      const coerced = coerceForWrite(f, body[f.key]);
+      if ((f.type === "number" || f.type === "decimal") && typeof coerced === "number" && Number.isNaN(coerced)) {
+        throw new ApiError(400, `${f.label} must be a number`);
+      }
+      if (f.type === "decimal" && coerced && typeof coerced === "object" && "d" in (coerced as object) === false && f.required) {
+        // Prisma.Decimal sanity — fall through; Prisma will throw if shape is bad.
+      }
+      if (f.type === "date" && coerced instanceof Date && Number.isNaN(coerced.getTime())) {
+        throw new ApiError(400, `${f.label} must be a valid date`);
+      }
+      data[f.key] = coerced;
     }
-    // Required-field check
+    // 3. Defensive re-check: required fields must be non-null post-coercion.
     for (const f of fields) {
-      if (f.required && (data[f.key] === null || data[f.key] === undefined || data[f.key] === "")) {
+      if (f.required && (data[f.key] === null || data[f.key] === undefined)) {
         throw new ApiError(400, `${f.label} is required`);
       }
     }

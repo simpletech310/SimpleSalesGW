@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { upload } from "@vercel/blob/client";
 import { SignedDocStatus, SignedDocType } from "@prisma/client";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -45,6 +46,12 @@ export function DocumentsPanel({
   const [items, setItems] = useState<Doc[] | null>(null);
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadedUrl, setUploadedUrl] = useState<string | null>(null);
+  const [uploadedName, setUploadedName] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const urlInputRef = useRef<HTMLInputElement>(null);
+  const titleInputRef = useRef<HTMLInputElement>(null);
   const baseUrl = scope === "lead"
     ? `/api/leads/${parentId}/documents`
     : `/api/accounts/${parentId}/documents`;
@@ -56,6 +63,36 @@ export function DocumentsPanel({
   }, [baseUrl]);
 
   useEffect(() => { void refresh(); }, [refresh]);
+
+  async function handleFile(file: File) {
+    setUploading(true);
+    try {
+      const blob = await upload(file.name, file, {
+        access: "public",
+        handleUploadUrl: "/api/documents/upload",
+        clientPayload: JSON.stringify({ scope, parentId }),
+      });
+      setUploadedUrl(blob.url);
+      setUploadedName(file.name);
+      if (urlInputRef.current) urlInputRef.current.value = blob.url;
+      if (titleInputRef.current && !titleInputRef.current.value) {
+        // Auto-suggest a title from the filename
+        titleInputRef.current.value = file.name.replace(/\.[^.]+$/, "");
+      }
+      toast.success("File uploaded — fill in metadata and save");
+    } catch (err) {
+      toast.error((err as Error).message || "Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  function resetForm(form: HTMLFormElement) {
+    form.reset();
+    setUploadedUrl(null);
+    setUploadedName(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
 
   async function create(form: HTMLFormElement) {
     setSaving(true);
@@ -82,7 +119,7 @@ export function DocumentsPanel({
       else {
         toast.success("Document added");
         setOpen(false);
-        form.reset();
+        resetForm(form);
         await refresh();
         router.refresh();
       }
@@ -151,7 +188,7 @@ export function DocumentsPanel({
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Title *</Label>
-              <Input name="title" required maxLength={200} />
+              <Input name="title" ref={titleInputRef} required maxLength={200} />
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Status</Label>
@@ -161,9 +198,32 @@ export function DocumentsPanel({
                 ))}
               </select>
             </div>
-            <div className="space-y-1">
-              <Label className="text-xs">File / public URL (optional)</Label>
-              <Input name="publicUrl" type="url" placeholder="https://…" />
+            <div className="space-y-1 sm:col-span-2">
+              <Label className="text-xs">File (optional — uploads to secure storage)</Label>
+              <div className="flex items-center gap-2 flex-wrap">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  disabled={uploading}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) void handleFile(file);
+                  }}
+                  className="text-xs"
+                />
+                {uploading && <span className="text-xs text-gtn-grey-2">Uploading…</span>}
+                {uploadedUrl && !uploading && (
+                  <span className="text-xs text-gtn-green">✓ {uploadedName}</span>
+                )}
+              </div>
+              <Label className="text-xs mt-2">Or paste a public URL</Label>
+              <Input
+                name="publicUrl"
+                ref={urlInputRef}
+                type="url"
+                placeholder="https://…"
+                defaultValue={uploadedUrl ?? ""}
+              />
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Signed by (name)</Label>
@@ -187,7 +247,9 @@ export function DocumentsPanel({
             <Textarea name="notes" rows={2} />
           </div>
           <div className="flex justify-end">
-            <Button type="submit" disabled={saving}>{saving ? "Saving…" : "Add document"}</Button>
+            <Button type="submit" disabled={saving || uploading}>
+              {saving ? "Saving…" : uploading ? "Wait — uploading file…" : "Add document"}
+            </Button>
           </div>
         </form>
       )}
