@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { format } from "date-fns";
+import { Briefcase } from "lucide-react";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { customerVisibilityFilter } from "@/lib/rbac";
-import { Card } from "@/components/ui/Card";
+import { EmptyState } from "@/components/help/EmptyState";
 
 export const dynamic = "force-dynamic";
 
@@ -32,11 +33,13 @@ export default async function AccountsPage() {
       </div>
 
       {customers.length === 0 ? (
-        <Card>
-          <p className="text-sm text-gtn-grey-2">
-            No customers yet. Accounts appear here automatically when a Sales-to-Ops handoff is accepted.
-          </p>
-        </Card>
+        <EmptyState
+          Icon={Briefcase}
+          title="No customers yet"
+          body="An Account appears here the moment a Sales-to-Ops handoff is accepted. Once it does, the vCIO takes over Discovery, Inventory, QBRs, and the strategic roadmap."
+          cta={{ label: "Open notifications", href: "/notifications" }}
+          secondaryCta={{ label: "Open help center", href: "/help" }}
+        />
       ) : (
         <div className="gtn-card overflow-hidden p-0">
           <table className="w-full text-sm">

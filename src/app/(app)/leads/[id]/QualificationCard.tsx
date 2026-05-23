@@ -7,6 +7,8 @@ import { format } from "date-fns";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input, Label, Textarea } from "@/components/ui/Input";
+import { FieldHelp } from "@/components/help/FieldHelp";
+import { HELP } from "@/lib/help-copy";
 import type { QualificationVerdict } from "@prisma/client";
 import {
   MAX_TOTAL,
@@ -280,7 +282,12 @@ export function QualificationCard({
             {QUALIFICATION_DIMENSIONS.map((d) => (
               <div key={d.key} className="space-y-1">
                 <Label className="text-xs flex justify-between">
-                  <span>{d.label}</span>
+                  <span className="inline-flex items-center gap-1">
+                    {d.label}
+                    <FieldHelp>
+                      {(HELP.qualification as Record<string, string>)[d.key] ?? d.help}
+                    </FieldHelp>
+                  </span>
                   <span className="text-gtn-grey-2 font-mono">
                     {values[d.key as QualificationDimensionKey]}/{d.max}
                   </span>

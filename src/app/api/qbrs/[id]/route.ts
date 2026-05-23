@@ -43,24 +43,39 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
     const updated = await prisma.qbr.update({ where: { id }, data: updateData });
 
-    // When marking completed, materialize follow-ups as OnboardingTask rows
-    // in the STEADY_STATE phase so they're tracked in the same task system.
-    if (body.completed && body.followUps && body.followUps.length > 0) {
-      const positionOffset = await prisma.onboardingTask.count({
-        where: { customerId: existing.customerId, phase: OnboardingPhase.STEADY_STATE },
-      });
-      await prisma.onboardingTask.createMany({
-        data: body.followUps.map((f, i) => ({
-          customerId: existing.customerId,
-          phase: OnboardingPhase.STEADY_STATE,
-          title: f.description,
-          ownerUserId: f.ownerUserId ?? null,
-          dueAt: f.dueAt ? new Date(f.dueAt) : null,
-          position: positionOffset + i,
-          templateKey: `qbr-followup-${id.slice(0, 8)}-${i}`,
-          status: OnboardingTaskStatus.PENDING,
-        })),
-      });
+    // When the QBR transitions to completed, materialize every follow-up as
+    // an OnboardingTask row in STEADY_STATE phase. Uses the request's
+    // followUps when provided, otherwise falls back to whatever's already
+    // stored on the QBR. Idempotent via templateKey check.
+    const isCompletionTransition = body.completed && !existing.completedAt;
+    if (isCompletionTransition) {
+      const followUps = body.followUps
+        ?? (Array.isArray(existing.followUps) ? existing.followUps as Array<{ description: string; ownerUserId?: string | null; dueAt?: string | null }> : []);
+      if (followUps.length > 0) {
+        const templateKeyPrefix = `qbr-followup-${id.slice(0, 8)}`;
+        // Don't double-create if a prior request already materialized them.
+        const alreadyMaterialized = await prisma.onboardingTask.count({
+          where: { customerId: existing.customerId, templateKey: { startsWith: templateKeyPrefix } },
+        });
+        if (alreadyMaterialized === 0) {
+          const positionOffset = await prisma.onboardingTask.count({
+            where: { customerId: existing.customerId, phase: OnboardingPhase.STEADY_STATE },
+          });
+          await prisma.onboardingTask.createMany({
+            data: followUps.map((f, i) => ({
+              customerId: existing.customerId,
+              phase: OnboardingPhase.STEADY_STATE,
+              title: f.description,
+              description: "Auto-created from QBR follow-up. Edit or reassign as needed.",
+              ownerUserId: f.ownerUserId ?? null,
+              dueAt: f.dueAt ? new Date(f.dueAt) : null,
+              position: positionOffset + i,
+              templateKey: `${templateKeyPrefix}-${i}`,
+              status: OnboardingTaskStatus.PENDING,
+            })),
+          });
+        }
+      }
     }
 
     await writeAudit({

@@ -4,6 +4,7 @@ import { format } from "date-fns";
 import { auth } from "@/auth";
 import { Card } from "@/components/ui/Card";
 import { loadNotifications } from "@/lib/notifications";
+import { HandoffRows, PricingApprovalRows } from "./NotificationsClient";
 
 export const dynamic = "force-dynamic";
 
@@ -47,35 +48,21 @@ export default async function NotificationsPage() {
         ))}
       </Section>
 
-      <Section title="Pricing approvals waiting on you" empty="No pricing requests in your queue.">
-        {data.pricingApprovalsPending.map((p) => (
-          <Link key={p.id} href={`/leads/${p.leadId}`} className="block px-4 py-3 hover:bg-gtn-lavender/40 border-t border-gtn-lavender-2 first:border-0">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-medium text-gtn-navy">
-                  {p.leadName} · <span className="font-mono">{p.discountPct.toFixed(1)}% off</span>
-                </p>
-                <p className="text-xs text-gtn-grey-2">${p.proposedPrice.toFixed(2)} vs sticker ${p.stickerPrice.toFixed(2)} · requested by {p.requesterName}</p>
-              </div>
-              <span className="text-xs text-gtn-grey-3 whitespace-nowrap">{format(new Date(p.createdAt), "PPp")}</span>
-            </div>
-          </Link>
-        ))}
-      </Section>
+      {/* v2.6 — inline approve/reject; approval buttons gated by role */}
+      <Card className="p-0 overflow-hidden">
+        <div className="px-4 py-3 bg-gtn-lavender text-xs uppercase tracking-wide font-semibold text-gtn-navy">
+          Pricing approvals waiting on you
+        </div>
+        <PricingApprovalRows rows={data.pricingApprovalsPending} role={session.user.role} />
+      </Card>
 
-      <Section title="Handoffs to accept" empty="No handoffs waiting.">
-        {data.handoffsAwaiting.map((h) => (
-          <Link key={h.id} href={`/leads/${h.leadId}`} className="block px-4 py-3 hover:bg-gtn-lavender/40 border-t border-gtn-lavender-2 first:border-0">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-medium text-gtn-navy">{h.leadName}</p>
-                <p className="text-xs text-gtn-grey-2">initiated by {h.initiatorName}</p>
-              </div>
-              <span className="text-xs text-gtn-grey-3 whitespace-nowrap">{format(new Date(h.initiatedAt), "PPp")}</span>
-            </div>
-          </Link>
-        ))}
-      </Section>
+      {/* v2.6 — inline accept/reject for handoffs */}
+      <Card className="p-0 overflow-hidden">
+        <div className="px-4 py-3 bg-gtn-lavender text-xs uppercase tracking-wide font-semibold text-gtn-navy">
+          Handoffs to accept
+        </div>
+        <HandoffRows rows={data.handoffsAwaiting} role={session.user.role} />
+      </Card>
 
       <Section title="Overdue onboarding tasks" empty="No overdue onboarding tasks.">
         {data.overdueOnboarding.map((t) => (

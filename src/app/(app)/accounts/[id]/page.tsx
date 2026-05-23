@@ -3,10 +3,11 @@ import { notFound, redirect } from "next/navigation";
 import { format } from "date-fns";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { canSeeCustomer } from "@/lib/rbac";
+import { can, canSeeCustomer } from "@/lib/rbac";
 import { Card } from "@/components/ui/Card";
 import { PageHeaderBand } from "@/components/brand";
 import { AccountTabs } from "./AccountTabs";
+import { ArchiveButton } from "./ArchiveButton";
 
 export const dynamic = "force-dynamic";
 
@@ -61,6 +62,13 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
             {lead.seatCount && <span className="text-gtn-grey-2">· {lead.seatCount} seats</span>}
           </div>
         </div>
+        {can(session.user.role, "customer:archive") && (
+          <ArchiveButton
+            customerId={customer.id}
+            customerName={lead.businessName}
+            alreadyArchived={Boolean(customer.archivedAt)}
+          />
+        )}
       </div>
 
       {/* Quick stats */}

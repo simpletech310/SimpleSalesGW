@@ -648,6 +648,8 @@ model Customer {
   qbrFrequencyDays      Int             @default(90) @map("qbr_frequency_days")
   nextQbrAt             DateTime?       @map("next_qbr_at")
   strategicRoadmap      Json?           @map("strategic_roadmap")
+  archivedAt            DateTime?       @map("archived_at")
+  archivedReason        String?         @map("archived_reason") @db.Text
   createdAt             DateTime        @default(now()) @map("created_at")
   updatedAt             DateTime        @updatedAt @map("updated_at")
 

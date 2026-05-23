@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ApiError, getAuditContext, jsonError, requireSessionUser } from "@/lib/api";
 import { can } from "@/lib/rbac";
@@ -33,12 +34,18 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       }
     }
 
+    // v2.6 — vCIO notes are automatically tagged as scope notes (pinned + prefix)
+    // so the rest of the team knows where the context came from.
+    const isVcioScopeNote = user.role === Role.VCIO;
+    const bodyToStore = isVcioScopeNote && !data.body.startsWith("[vCIO scope]")
+      ? `[vCIO scope] ${data.body}`
+      : data.body;
     const note = await prisma.note.create({
       data: {
         leadId: id,
         actorUserId: user.id,
-        body: data.body,
-        pinned: data.pinned,
+        body: bodyToStore,
+        pinned: data.pinned || isVcioScopeNote,
         clientId: clientId ?? null,
       },
     });

@@ -8,6 +8,9 @@ import { ServiceBundle, type Role } from "@prisma/client";
 import { Button } from "@/components/ui/Button";
 import { Input, Label, Textarea } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
+import { FieldHelp } from "@/components/help/FieldHelp";
+import { GlossaryTerm } from "@/components/help/GlossaryTerm";
+import { HELP } from "@/lib/help-copy";
 import { discountPercent, approvalTier } from "@/lib/pricing";
 import {
   bundleIncludesNormalized,
@@ -196,7 +199,10 @@ export function PricingCard({ leadId, role, suggestedBundle, seatCount }: Props)
           {/* Bundle + seats */}
           <div className="grid md:grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label className="text-xs">Bundle</Label>
+              <div className="flex items-center gap-1">
+                <Label className="text-xs">Bundle</Label>
+                <FieldHelp>{HELP.pricing.bundle}</FieldHelp>
+              </div>
               <select
                 value={bundleId}
                 onChange={(e) => {
@@ -214,7 +220,10 @@ export function PricingCard({ leadId, role, suggestedBundle, seatCount }: Props)
               </select>
             </div>
             <div className="space-y-1">
-              <Label className="text-xs">Seats</Label>
+              <div className="flex items-center gap-1">
+                <Label className="text-xs">Seats</Label>
+                <FieldHelp>{HELP.pricing.seats}</FieldHelp>
+              </div>
               <Input
                 type="number"
                 min={1}
@@ -339,7 +348,8 @@ export function PricingCard({ leadId, role, suggestedBundle, seatCount }: Props)
               checked={multiYear}
               onChange={(e) => setMultiYear(e.target.checked)}
             />
-            <span>Multi-year commit (locked pricing &gt; 12 months) — escalates to COO regardless of %</span>
+            <span>Multi-year commit (locked pricing &gt; 12 months) — escalates to <GlossaryTerm term="below-floor pricing">COO regardless of %</GlossaryTerm></span>
+            <FieldHelp>{HELP.pricing.multiYear}</FieldHelp>
           </label>
 
           {/* Live routing summary */}
@@ -376,7 +386,10 @@ export function PricingCard({ leadId, role, suggestedBundle, seatCount }: Props)
 
           {/* Reason */}
           <div className="space-y-1">
-            <Label className="text-xs">Reason *</Label>
+            <div className="flex items-center gap-1">
+              <Label className="text-xs">Reason *</Label>
+              <FieldHelp>{HELP.pricing.reason}</FieldHelp>
+            </div>
             <Textarea value={reason} onChange={(e) => setReason(e.target.value)} required rows={3} placeholder="Why is this discount warranted?" />
           </div>
 

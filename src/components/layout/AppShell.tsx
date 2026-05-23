@@ -4,6 +4,7 @@ import { GatewayLogo } from "@/components/brand/GatewayLogo";
 import { BrandedFooter } from "@/components/brand/BrandedFooter";
 import { STRINGS } from "@/lib/strings";
 import type { Role } from "@prisma/client";
+import { can } from "@/lib/rbac";
 import { SignOutButton } from "./SignOutButton";
 import { OfflineQueueBanner } from "./OfflineQueueBanner";
 import { OnboardingTrigger } from "@/components/onboarding/OnboardingTrigger";
@@ -49,7 +50,7 @@ export function AppShell({ user, children }: Props) {
                 {item.label}
               </Link>
             ))}
-            {(user.role === "SUPERADMIN" || user.role === "COO") && (
+            {(can(user.role, "user:manage") || can(user.role, "audit:view") || can(user.role, "system:config")) && (
               <Link
                 href="/admin"
                 className="px-3 py-2 rounded-md text-sm font-medium text-white/90 hover:bg-gtn-navy-2 hover:text-white"

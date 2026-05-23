@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";
+import { GlossaryTerm } from "@/components/help/GlossaryTerm";
 import type {
   AiReadinessScorecard,
   NistCsfScorecard,
@@ -307,7 +308,9 @@ function NistSp800171View({ card }: { card: NistSp800171Scorecard }) {
   return (
     <>
       <Card>
-        <h2 className="text-sm font-semibold mb-2">SPRS Score</h2>
+        <h2 className="text-sm font-semibold mb-2">
+          <GlossaryTerm term="SPRS">SPRS</GlossaryTerm> Score
+        </h2>
         <p className={`text-4xl font-mono font-bold ${sprsClass}`}>
           {card.sprsScore} <span className="text-base text-gtn-grey-2">/ {card.sprsBaseline}</span>
         </p>
@@ -317,7 +320,7 @@ function NistSp800171View({ card }: { card: NistSp800171Scorecard }) {
           </p>
         )}
         <p className="text-xs text-gtn-grey-2 mt-2">
-          Scoring per NIST 800-171A: start at 110, subtract per-control deductions. SPRS reflects current posture; the POAM below describes the path to 110.
+          Scoring per <GlossaryTerm term="NIST 800-171">NIST 800-171</GlossaryTerm>A: start at 110, subtract per-control deductions. <GlossaryTerm term="SPRS">SPRS</GlossaryTerm> reflects current posture; the <GlossaryTerm term="POAM">POAM</GlossaryTerm> below describes the path to 110.
         </p>
       </Card>
 
@@ -342,7 +345,9 @@ function NistSp800171View({ card }: { card: NistSp800171Scorecard }) {
 
       {card.poam.length > 0 && (
         <Card>
-          <h2 className="text-sm font-semibold mb-3">POAM register ({card.poam.length} items)</h2>
+          <h2 className="text-sm font-semibold mb-3">
+            <GlossaryTerm term="POAM">POAM</GlossaryTerm> register ({card.poam.length} items)
+          </h2>
           <ul className="text-xs space-y-2 max-h-96 overflow-y-auto">
             {card.poam.map((p) => (
               <li key={p.controlId} className="border-t border-gtn-lavender-2 pt-2 first:border-0 first:pt-0">
@@ -361,7 +366,9 @@ function NistSp800171View({ card }: { card: NistSp800171Scorecard }) {
       )}
 
       <Card>
-        <h2 className="text-sm font-semibold mb-3">SSP draft</h2>
+        <h2 className="text-sm font-semibold mb-3">
+          <GlossaryTerm term="SSP">SSP</GlossaryTerm> draft
+        </h2>
         <p className="text-xs text-gtn-grey-2 mb-3">
           Auto-generated narrative per family from evidence + control status. Edit and export for submission to your assessor.
         </p>

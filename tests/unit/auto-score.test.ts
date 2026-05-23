@@ -95,7 +95,7 @@ describe("autoScoreQualification — timeline", () => {
 
 describe("autoScoreQualification — compliance", () => {
   it("multiple active drivers = strong score", () => {
-    expect(autoScoreQualification({ complianceDrivers: [ComplianceDriver.HIPAA, ComplianceDriver.PCI_DSS, ComplianceDriver.SOC2] }).complianceDriver).toBeGreaterThanOrEqual(10);
+    expect(autoScoreQualification({ complianceDrivers: [ComplianceDriver.HIPAA, ComplianceDriver.PCI, ComplianceDriver.SEC] }).complianceDriver).toBeGreaterThanOrEqual(10);
   });
   it("one driver = moderate", () => {
     expect(autoScoreQualification({ complianceDrivers: [ComplianceDriver.HIPAA] }).complianceDriver).toBeGreaterThanOrEqual(5);
@@ -136,7 +136,7 @@ describe("autoScoreQualification — full payload + rationale", () => {
       executiveSponsorName: "Dr. Sarah Chen",
       currentMspSatisfaction: MspSatisfaction.LEAVING,
       cyberInsuranceRenewalDate: new Date(Date.now() + 30 * 86_400_000),
-      complianceDrivers: [ComplianceDriver.HIPAA, ComplianceDriver.SOC2],
+      complianceDrivers: [ComplianceDriver.HIPAA, ComplianceDriver.SEC],
     });
     const total = r.industryFit + r.sizeFit + r.geography + r.growthPosture
       + r.authority + r.budget + r.timeline + r.complianceDriver;

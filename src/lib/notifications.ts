@@ -39,6 +39,9 @@ export type NotificationsPayload = {
     proposedPrice: number;
     stickerPrice: number;
     requesterName: string;
+    belowFloor: boolean;
+    /** "MANAGER" or "COO" — drives which RBAC permission the row needs. */
+    tier: "MANAGER" | "COO";
     createdAt: string;
   }>;
   handoffsAwaiting: Array<{
@@ -198,6 +201,8 @@ export async function loadNotifications(user: { id: string; role: Role }): Promi
       proposedPrice: Number(p.proposedPrice),
       stickerPrice: Number(p.stickerPrice),
       requesterName: p.requester.name,
+      belowFloor: p.belowFloor,
+      tier: (p.belowFloor ? "COO" : approvalTier(Number(p.discountPct))) as "MANAGER" | "COO",
       createdAt: p.createdAt.toISOString(),
     })),
     handoffsAwaiting: handoffsAwaiting.map((h) => ({
