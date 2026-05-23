@@ -1,12 +1,14 @@
 import Link from "next/link";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { PipelineBoard } from "@/components/pipeline/PipelineBoard";
+import { EmptyState } from "@/components/help/EmptyState";
+import { HeroBand } from "@/components/brand";
 import { STRINGS } from "@/lib/strings";
 import { leadVisibilityFilter } from "@/lib/rbac";
 import { PipelineStage } from "@prisma/client";
+import { Inbox } from "lucide-react";
 import { redirect } from "next/navigation";
 
 export default async function HomePage() {
@@ -41,37 +43,50 @@ export default async function HomePage() {
   ];
   const active = leads.filter((l) => activeStages.includes(l.pipelineStage));
 
+  const firstName = session.user.name?.split(" ")[0] ?? "there";
+  const closedWon = leads.filter((l) => l.pipelineStage === PipelineStage.CLOSED_WON).length;
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-gtn-navy">Pipeline</h1>
-          <p className="text-sm text-gtn-grey-2">
-            {leads.length} {leads.length === 1 ? "lead" : "leads"} · {active.length} active
-          </p>
+      <HeroBand
+        eyebrow="DASHBOARD"
+        title={`Welcome back, ${firstName}`}
+        subtitle="Your pipeline at a glance. Use the +New button to add a lead, or jump straight into one below."
+        actions={
+          <>
+            <Button asChild variant="secondary">
+              <Link href="/leads">{STRINGS.nav.leads}</Link>
+            </Button>
+            <Button asChild>
+              <Link href="/leads/new">+ New Lead</Link>
+            </Button>
+          </>
+        }
+      >
+        <div className="grid grid-cols-3 gap-4 max-w-lg">
+          <div>
+            <p className="gtn-eyebrow">All leads</p>
+            <p className="text-2xl font-bold text-white">{leads.length}</p>
+          </div>
+          <div>
+            <p className="gtn-eyebrow">Active</p>
+            <p className="text-2xl font-bold text-white">{active.length}</p>
+          </div>
+          <div>
+            <p className="gtn-eyebrow">Closed won</p>
+            <p className="text-2xl font-bold text-white">{closedWon}</p>
+          </div>
         </div>
-        <div className="flex gap-2">
-          <Button asChild variant="secondary">
-            <Link href="/leads">{STRINGS.nav.leads}</Link>
-          </Button>
-          <Button asChild>
-            <Link href="/leads/new">+ New Lead</Link>
-          </Button>
-        </div>
-      </div>
+      </HeroBand>
 
       {leads.length === 0 ? (
-        <Card>
-          <h2 className="text-lg font-semibold text-gtn-navy">No leads yet</h2>
-          <p className="text-sm text-gtn-grey-2 mt-1">
-            Create your first lead to start tracking the pipeline.
-          </p>
-          <div className="mt-4">
-            <Button asChild>
-              <Link href="/leads/new">+ Create lead</Link>
-            </Button>
-          </div>
-        </Card>
+        <EmptyState
+          Icon={Inbox}
+          title="No leads yet"
+          body="Add your first lead and the portal scores it the moment you save. From there you'll see the deal-quality, services-fit and customer-fit scores update as you fill in more info."
+          cta={{ label: "Add a lead", href: "/leads/new" }}
+          secondaryCta={{ label: "Open help center", href: "/help" }}
+        />
       ) : (
         <PipelineBoard leads={leads} />
       )}

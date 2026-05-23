@@ -1,9 +1,17 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { Carlito, Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "sonner";
 import { AuthSessionProvider } from "@/components/SessionProvider";
 
+// v2.4 — Carlito is the Gateway brand body font (Calibri-compatible per the
+// PDF spec). Inter remains loaded as a fallback. JetBrains Mono is the code font.
+const carlito = Carlito({
+  subsets: ["latin"],
+  weight: ["400", "700"],
+  variable: "--font-carlito",
+  display: "swap",
+});
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
 const jetbrains = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jetbrains", display: "swap" });
 
@@ -25,7 +33,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${inter.variable} ${jetbrains.variable}`}>
+    <html lang="en" className={`${carlito.variable} ${inter.variable} ${jetbrains.variable}`}>
       <body className="min-h-dvh bg-background text-gtn-text">
         <AuthSessionProvider>{children}</AuthSessionProvider>
         <Toaster richColors position="top-center" />

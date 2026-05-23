@@ -16,18 +16,24 @@ const config: Config = {
     },
     extend: {
       fontFamily: {
-        sans: ["var(--font-inter)", "system-ui", "sans-serif"],
+        sans: ["var(--font-carlito)", "var(--font-inter)", "system-ui", "sans-serif"],
+        carlito: ["var(--font-carlito)", "system-ui", "sans-serif"],
+        inter: ["var(--font-inter)", "system-ui", "sans-serif"],
         mono: ["var(--font-jetbrains)", "ui-monospace", "monospace"],
       },
       colors: {
-        // Gateway brand tokens
+        // Gateway brand tokens (v2.4 extended)
         "gtn-navy": "var(--gtn-navy)",
         "gtn-navy-2": "var(--gtn-navy-2)",
+        "gtn-navy-3": "var(--gtn-navy-3)",
         "gtn-purple": "var(--gtn-purple)",
         "gtn-purple-2": "var(--gtn-purple-2)",
         "gtn-purple-3": "var(--gtn-purple-3)",
+        "gtn-lilac": "var(--gtn-lilac)",
+        "gtn-eyebrow": "var(--gtn-eyebrow)",
         "gtn-lavender": "var(--gtn-lavender)",
         "gtn-lavender-2": "var(--gtn-lavender-2)",
+        "gtn-callout-bg": "var(--gtn-callout-bg)",
         "gtn-grey": "var(--gtn-grey)",
         "gtn-grey-2": "var(--gtn-grey-2)",
         "gtn-grey-3": "var(--gtn-grey-3)",

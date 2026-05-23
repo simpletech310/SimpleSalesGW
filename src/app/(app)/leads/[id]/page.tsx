@@ -7,6 +7,7 @@ import { STRINGS } from "@/lib/strings";
 import { scoreBadgeClass, formatScore } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { PageHeaderBand } from "@/components/brand";
 import { StageTimeline } from "@/components/process/StageTimeline";
 import { LeadTabs } from "./LeadTabs";
 import { PricingCard } from "./PricingCard";
@@ -62,6 +63,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
 
   return (
     <div className="space-y-6">
+      <PageHeaderBand pageTitle={`Lead · ${lead.businessName}`} />
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">

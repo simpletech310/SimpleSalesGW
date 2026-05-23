@@ -15,6 +15,7 @@ export const STRINGS = {
     handoff: "Handoff",
     accounts: "Accounts",
     myTasks: "My tasks",
+    help: "Help",
   },
   auth: {
     title: "Sign in to Gateway",

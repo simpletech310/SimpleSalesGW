@@ -1,10 +1,13 @@
 import Link from "next/link";
-import { Home, Users, Plus, Bell, User, Layers, Briefcase, CheckSquare } from "lucide-react";
+import { Home, Users, Plus, Bell, User, Layers, Briefcase, CheckSquare, HelpCircle } from "lucide-react";
 import { GatewayLogo } from "@/components/brand/GatewayLogo";
+import { BrandedFooter } from "@/components/brand/BrandedFooter";
 import { STRINGS } from "@/lib/strings";
 import type { Role } from "@prisma/client";
 import { SignOutButton } from "./SignOutButton";
 import { OfflineQueueBanner } from "./OfflineQueueBanner";
+import { OnboardingTrigger } from "@/components/onboarding/OnboardingTrigger";
+import { HelpButton } from "@/components/help/HelpButton";
 
 type Props = {
   user: { name: string; email: string; role: Role };
@@ -23,6 +26,7 @@ const desktopExtraItems = [
   { href: "/pipeline", label: STRINGS.nav.pipeline, icon: Layers },
   { href: "/accounts", label: STRINGS.nav.accounts, icon: Briefcase },
   { href: "/my-tasks", label: STRINGS.nav.myTasks, icon: CheckSquare },
+  { href: "/help", label: STRINGS.nav.help, icon: HelpCircle },
 ];
 
 export function AppShell({ user, children }: Props) {
@@ -67,6 +71,12 @@ export function AppShell({ user, children }: Props) {
       {/* Main content */}
       <main className="flex-1 container pb-24 md:pb-8 pt-6">{children}</main>
 
+      {/* v2.4 — first-run onboarding modal (one-time per user) */}
+      <OnboardingTrigger role={user.role} />
+
+      {/* v2.4 — floating Help button */}
+      <HelpButton />
+
       {/* Mobile bottom nav */}
       <nav
         className="md:hidden fixed bottom-0 inset-x-0 bg-white border-t border-gtn-lavender-2 z-40 flex justify-around items-center pb-[env(safe-area-inset-bottom)]"
@@ -101,13 +111,16 @@ export function AppShell({ user, children }: Props) {
         })}
       </nav>
 
-      {/* Footer — lavender to mirror PDF */}
-      <footer className="bg-gtn-lavender border-t border-gtn-lavender-2 hidden md:block">
-        <div className="container py-6 text-sm text-gtn-grey-2 flex items-center justify-between">
-          <span>© Gateway TelNet</span>
-          <span>{STRINGS.brand.tagline}</span>
+      {/* v2.4 — branded footer band matching the SOP PDFs */}
+      <div className="bg-white pt-6 pb-4 hidden md:block">
+        <div className="container">
+          <BrandedFooter
+            versionLabel="V2.4 — 2026"
+            centerLabel="GATEWAY TELNET"
+            rightLabel={STRINGS.brand.tagline}
+          />
         </div>
-      </footer>
+      </div>
     </div>
   );
 }

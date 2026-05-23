@@ -7,6 +7,8 @@ import { Industry, LeadSource } from "@prisma/client";
 import { Button } from "@/components/ui/Button";
 import { Input, Label, Textarea } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
+import { FieldHelp } from "@/components/help/FieldHelp";
+import { HELP } from "@/lib/help-copy";
 
 const INDUSTRY_LABELS: Record<Industry, string> = {
   MEDICAL: "Medical / Healthcare",
@@ -73,7 +75,10 @@ export function NewLeadForm() {
             <Input id="businessName" name="businessName" required maxLength={200} />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="industry">Industry *</Label>
+            <div className="flex items-center gap-1">
+              <Label htmlFor="industry">Industry *</Label>
+              <FieldHelp>{HELP.lead.industry}</FieldHelp>
+            </div>
             <select
               id="industry"
               name="industry"
@@ -100,11 +105,17 @@ export function NewLeadForm() {
             </select>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="seatCount">Seat count</Label>
+            <div className="flex items-center gap-1">
+              <Label htmlFor="seatCount">Seat count</Label>
+              <FieldHelp>{HELP.lead.seatCount}</FieldHelp>
+            </div>
             <Input id="seatCount" name="seatCount" type="number" min={0} />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="siteCount">Sites</Label>
+            <div className="flex items-center gap-1">
+              <Label htmlFor="siteCount">Sites</Label>
+              <FieldHelp>{HELP.lead.siteCount}</FieldHelp>
+            </div>
             <Input id="siteCount" name="siteCount" type="number" min={1} defaultValue={1} />
           </div>
           <div className="space-y-2">
@@ -116,7 +127,10 @@ export function NewLeadForm() {
             <Input id="addressState" name="addressState" maxLength={2} />
           </div>
           <div className="space-y-2 md:col-span-2">
-            <Label htmlFor="websiteUrl">Website</Label>
+            <div className="flex items-center gap-1">
+              <Label htmlFor="websiteUrl">Website</Label>
+              <FieldHelp>{HELP.lead.websiteUrl}</FieldHelp>
+            </div>
             <Input id="websiteUrl" name="websiteUrl" type="url" placeholder="https://" />
           </div>
         </div>

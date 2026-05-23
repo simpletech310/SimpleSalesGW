@@ -298,6 +298,7 @@ model User {
   qualificationScores QualificationScorecard[] @relation("QualificationScorer")
   discoveryCallsConducted DiscoveryCallNote[]  @relation("DiscoveryCallConductor")
   objectionsRaised  ObjectionLog[]        @relation("ObjectionRaiser")
+  preferences       UserPreference?
 
   @@map("users")
 }
@@ -1116,4 +1117,21 @@ model OutreachTemplate {
   @@index([category])
   @@index([industry])
   @@map("outreach_templates")
+}
+
+// ============================================================================
+// USER PREFERENCES (v2.4 — per-role onboarding)
+// ============================================================================
+
+model UserPreference {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @unique @map("user_id") @db.Uuid
+  onboardingSeen  String[] @default([]) @map("onboarding_seen") // dismissed flow keys
+  preferences     Json     @default("{}")                       // future-proof bag
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_preferences")
 }
