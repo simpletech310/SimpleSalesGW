@@ -26,7 +26,10 @@ export default async function NotificationsPage() {
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-sm font-medium text-gtn-navy">{a.nextAction}</p>
-                <p className="text-xs text-gtn-grey-2">{a.leadName}</p>
+                <p className="text-xs text-gtn-grey-2">
+                  {a.leadName}
+                  {a.actorName && <span className="text-gtn-grey-3"> · {a.actorName}</span>}
+                </p>
               </div>
               <span className="text-xs text-gtn-grey-3 whitespace-nowrap">{format(new Date(a.dueAt), "PPp")}</span>
             </div>

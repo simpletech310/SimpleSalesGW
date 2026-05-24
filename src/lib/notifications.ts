@@ -23,6 +23,8 @@ export type NotificationsPayload = {
     leadName: string;
     nextAction: string;
     dueAt: string;
+    /** v2.9 — actor when viewing as a manager (own actions for ICs). */
+    actorName?: string;
   }>;
   assessmentsAwaiting: Array<{
     id: string;
@@ -80,6 +82,9 @@ export async function loadNotifications(user: { id: string; role: Role }): Promi
 
   const thirtyDaysOut = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
   const isVcio = can(user.role, "onboarding:manage") || user.role === "VCIO";
+  // v2.9 — Sales Manager + COO + Superadmin see team-wide overdue next-actions,
+  // not just their own. Salespeople still see only their own queue.
+  const seesAllLeads = can(user.role, "lead:view:all");
 
   const [
     openActions,
@@ -92,12 +97,15 @@ export async function loadNotifications(user: { id: string; role: Role }): Promi
   ] = await Promise.all([
     prisma.activity.findMany({
       where: {
-        actorUserId: user.id,
+        ...(seesAllLeads ? {} : { actorUserId: user.id }),
         nextActionCompleted: false,
         nextActionDueAt: { not: null, lte: sevenDaysOut },
       },
       orderBy: { nextActionDueAt: "asc" },
-      include: { lead: { select: { id: true, businessName: true } } },
+      include: {
+        lead: { select: { id: true, businessName: true } },
+        actor: { select: { id: true, name: true } },
+      },
       take: 30,
     }),
     prisma.assessment.findMany({
@@ -183,6 +191,7 @@ export async function loadNotifications(user: { id: string; role: Role }): Promi
         leadName: a.lead.businessName,
         nextAction: a.nextAction!,
         dueAt: a.nextActionDueAt!.toISOString(),
+        actorName: seesAllLeads && a.actor?.id !== user.id ? a.actor?.name : undefined,
       })),
     assessmentsAwaiting: assessments
       .filter((a) => a.mode === "SELF_SERVICE_LINK" || a.mode === "HYBRID")
