@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/Card";
 import { PageHeaderBand } from "@/components/brand";
 import { AccountTabs } from "./AccountTabs";
 import { ArchiveButton } from "./ArchiveButton";
+import { AccountManagerPicker } from "./AccountManagerPicker";
 
 export const dynamic = "force-dynamic";
 
@@ -73,7 +74,17 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
 
       {/* Quick stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-        <StatTile label="Account manager" value={customer.accountManager?.name ?? "Unassigned"} />
+        <StatTile
+          label="Account manager"
+          value={
+            <AccountManagerPicker
+              customerId={customer.id}
+              currentManagerId={customer.accountManagerId}
+              currentManagerName={customer.accountManager?.name ?? null}
+              canEdit={can(session.user.role, "onboarding:manage")}
+            />
+          }
+        />
         <StatTile
           label="Onboarding started"
           value={customer.onboardingStartedAt ? format(new Date(customer.onboardingStartedAt), "PPP") : "—"}
@@ -110,11 +121,11 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
   );
 }
 
-function StatTile({ label, value }: { label: string; value: string }) {
+function StatTile({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="gtn-card p-3">
       <p className="text-[10px] uppercase tracking-wide text-gtn-grey-2">{label}</p>
-      <p className="text-sm font-medium text-gtn-navy mt-1">{value}</p>
+      <div className="text-sm font-medium text-gtn-navy mt-1">{value}</div>
     </div>
   );
 }
