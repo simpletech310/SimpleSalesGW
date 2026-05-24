@@ -18,10 +18,45 @@ export default async function AccountsPage() {
     include: {
       lead: { select: { id: true, businessName: true, industry: true } },
       accountManager: { select: { name: true } },
+      // v2.14 — health needs done-vs-total task count + last completed QBR
+      onboardingTasks: { select: { status: true } },
+      qbrs: {
+        orderBy: { scheduledAt: "desc" },
+        take: 1,
+        select: { scheduledAt: true, completedAt: true },
+      },
       _count: { select: { onboardingTasks: true, qbrs: true } },
     },
     orderBy: { createdAt: "desc" },
   });
+
+  // v2.14 — derive a simple health signal per customer.
+  // Green  = onboarding ≥80% OR a QBR has happened in the last 90 days
+  // Amber  = onboarding 40–79% AND no recent QBR
+  // Red    = onboarding <40% AND >30 days since creation, or no QBR for 120+ days
+  type Health = "green" | "amber" | "red";
+  const now = Date.now();
+  const NINETY_DAYS = 90 * 24 * 60 * 60 * 1000;
+  const ONE_TWENTY_DAYS = 120 * 24 * 60 * 60 * 1000;
+  const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
+  const healthByCustomer = new Map<string, { dot: Health; onboardingPct: number; daysSinceQbr: number | null }>();
+  for (const c of customers) {
+    const total = c.onboardingTasks.length;
+    const done = c.onboardingTasks.filter((t) => t.status === "DONE" || t.status === "SKIPPED").length;
+    const pct = total === 0 ? 0 : Math.round((done / total) * 100);
+    const lastQbr = c.qbrs[0]?.completedAt ?? null;
+    const daysSinceQbr = lastQbr
+      ? Math.floor((now - new Date(lastQbr).getTime()) / (24 * 60 * 60 * 1000))
+      : null;
+    const ageMs = now - new Date(c.createdAt).getTime();
+    let dot: Health = "amber";
+    if (pct >= 80 || (lastQbr && now - new Date(lastQbr).getTime() < NINETY_DAYS)) {
+      dot = "green";
+    } else if ((pct < 40 && ageMs > THIRTY_DAYS) || (lastQbr && now - new Date(lastQbr).getTime() > ONE_TWENTY_DAYS)) {
+      dot = "red";
+    }
+    healthByCustomer.set(c.id, { dot, onboardingPct: pct, daysSinceQbr });
+  }
 
   return (
     <div className="space-y-4">
@@ -46,6 +81,7 @@ export default async function AccountsPage() {
             <thead className="bg-gtn-lavender text-left text-xs uppercase tracking-wide text-gtn-grey-2">
               <tr>
                 <th className="px-4 py-3">Business</th>
+                <th className="px-4 py-3 text-center" title="Customer health · green/amber/red">Health</th>
                 <th className="px-4 py-3 hidden md:table-cell">Status</th>
                 <th className="px-4 py-3 hidden md:table-cell">Phase</th>
                 <th className="px-4 py-3 hidden lg:table-cell">Account manager</th>
@@ -54,13 +90,20 @@ export default async function AccountsPage() {
               </tr>
             </thead>
             <tbody>
-              {customers.map((c) => (
+              {customers.map((c) => {
+                const h = healthByCustomer.get(c.id);
+                return (
                 <tr key={c.id} className="border-t border-gtn-lavender-2 hover:bg-gtn-lavender/40">
                   <td className="px-4 py-3">
                     <Link href={`/accounts/${c.id}`} className="text-gtn-navy font-medium hover:underline">
                       {c.lead.businessName}
                     </Link>
                     <p className="text-xs text-gtn-grey-3">{c.lead.industry.replace(/_/g, " ")}</p>
+                  </td>
+                  <td className="px-4 py-3 text-center" title={
+                    h ? `${h.onboardingPct}% onboarding · ${h.daysSinceQbr === null ? "no QBR yet" : `${h.daysSinceQbr}d since last QBR`}` : ""
+                  }>
+                    <HealthDot dot={h?.dot ?? "amber"} />
                   </td>
                   <td className="px-4 py-3 hidden md:table-cell">
                     <StatusBadge status={c.status} />
@@ -74,13 +117,14 @@ export default async function AccountsPage() {
                     {c.accountManager?.name ?? "—"}
                   </td>
                   <td className="px-4 py-3 text-right font-mono text-xs text-gtn-grey-2">
-                    {c._count.onboardingTasks} tasks
+                    {h?.onboardingPct ?? 0}% · {c._count.onboardingTasks} tasks
                   </td>
                   <td className="px-4 py-3 hidden md:table-cell text-xs text-gtn-grey-3">
                     {c.onboardingStartedAt ? format(new Date(c.onboardingStartedAt), "PPP") : "—"}
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -97,6 +141,12 @@ export default async function AccountsPage() {
       </p>
     </div>
   );
+}
+
+function HealthDot({ dot }: { dot: "green" | "amber" | "red" }) {
+  const cls =
+    dot === "green" ? "bg-gtn-green" : dot === "red" ? "bg-gtn-red" : "bg-gtn-amber";
+  return <span className={`inline-block h-2.5 w-2.5 rounded-full ${cls}`} aria-label={`Health: ${dot}`} />;
 }
 
 function StatusBadge({ status }: { status: string }) {

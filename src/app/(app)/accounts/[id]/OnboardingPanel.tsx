@@ -87,8 +87,61 @@ export function OnboardingPanel({ customerId, currentPhase }: { customerId: stri
 
   if (loading) return <p className="text-sm text-gtn-grey-2">Loading…</p>;
 
+  // v2.14 — phase progress bar. Calculates % done per phase based on
+  // task completion. Gives the vCIO an at-a-glance "where is this
+  // customer in the onboarding lifecycle?" without scrolling.
+  const phaseProgress = PHASES.map((p) => {
+    const inPhase = tasks.filter((t) => t.phase === p);
+    const done = inPhase.filter((t) => t.status === "DONE" || t.status === "SKIPPED").length;
+    return {
+      phase: p,
+      pct: inPhase.length === 0 ? 0 : Math.round((done / inPhase.length) * 100),
+      total: inPhase.length,
+      done,
+    };
+  });
+
   return (
     <div className="space-y-3">
+      {/* Phase progress bar */}
+      <Card>
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-sm font-semibold text-gtn-navy">Onboarding progress</h3>
+          <p className="text-xs text-gtn-grey-2">
+            Current phase: <strong className="text-gtn-purple">{PHASE_LABEL[currentPhase]}</strong>
+          </p>
+        </div>
+        <div className="grid grid-cols-5 gap-2">
+          {phaseProgress.map((p) => {
+            const isCurrent = p.phase === currentPhase;
+            const complete = p.pct === 100 && p.total > 0;
+            const bgClass = complete
+              ? "bg-gtn-green"
+              : isCurrent
+              ? "bg-gtn-purple"
+              : p.done > 0
+              ? "bg-gtn-purple/50"
+              : "bg-gtn-lavender-2";
+            return (
+              <div key={p.phase} className="text-center">
+                <div className="h-2 rounded-full bg-gtn-lavender-2 overflow-hidden">
+                  <div
+                    className={`h-full ${bgClass}`}
+                    style={{ width: `${Math.max(p.pct, p.total === 0 ? 0 : 4)}%` }}
+                  />
+                </div>
+                <p className="text-[10px] uppercase tracking-wide text-gtn-grey-2 mt-1 truncate">
+                  {p.phase.replace(/_/g, " ").toLowerCase()}
+                </p>
+                <p className="text-xs font-mono text-gtn-navy">
+                  {p.done}/{p.total}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <AddTaskInline customerId={customerId} onCreated={refresh} />
         <a

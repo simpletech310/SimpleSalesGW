@@ -1,22 +1,71 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { PipelineStage } from "@prisma/client";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { can, leadVisibilityFilter } from "@/lib/rbac";
 import { STRINGS } from "@/lib/strings";
 import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
 import { scoreBadgeClass, formatScore } from "@/lib/utils";
+
+export const dynamic = "force-dynamic";
+
+const ACTIVE_STAGES: PipelineStage[] = [
+  PipelineStage.LEAD,
+  PipelineStage.QUALIFIED,
+  PipelineStage.DISCOVERY,
+  PipelineStage.PRE_SALES,
+  PipelineStage.PROPOSAL,
+  PipelineStage.NEGOTIATION,
+];
 
 export default async function LeadsPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
   const exportAllowed = can(session.user.role, "data:export");
+  const seesAllLeads = can(session.user.role, "lead:view:all");
 
   const leads = await prisma.lead.findMany({
     where: leadVisibilityFilter(session.user.role, session.user.id),
     orderBy: { updatedAt: "desc" },
-    include: { owner: { select: { name: true } } },
+    include: { owner: { select: { id: true, name: true } } },
   });
+
+  // v2.14 — team scorecard band for users with team-wide visibility
+  // (Sales Manager, COO, Superadmin). Counts per owner across the same
+  // visibility filter so the totals exactly match what's in the table below.
+  type TeamRow = {
+    ownerId: string;
+    ownerName: string;
+    active: number;
+    closedWon: number;
+    avgDq: number;
+  };
+  let teamRows: TeamRow[] = [];
+  if (seesAllLeads && leads.length > 0) {
+    const byOwner = new Map<string, { name: string; active: number; closedWon: number; dqSum: number; dqCount: number }>();
+    for (const l of leads) {
+      const key = l.owner.id;
+      const row = byOwner.get(key) ?? { name: l.owner.name ?? "—", active: 0, closedWon: 0, dqSum: 0, dqCount: 0 };
+      if (ACTIVE_STAGES.includes(l.pipelineStage)) {
+        row.active += 1;
+        row.dqSum += l.dealQualityScore;
+        row.dqCount += 1;
+      }
+      if (l.pipelineStage === PipelineStage.CLOSED_WON) row.closedWon += 1;
+      byOwner.set(key, row);
+    }
+    teamRows = Array.from(byOwner.entries())
+      .map(([ownerId, r]) => ({
+        ownerId,
+        ownerName: r.name,
+        active: r.active,
+        closedWon: r.closedWon,
+        avgDq: r.dqCount > 0 ? Math.round(r.dqSum / r.dqCount) : 0,
+      }))
+      .sort((a, b) => b.active - a.active);
+  }
 
   return (
     <div className="space-y-4">
@@ -38,6 +87,34 @@ export default async function LeadsPage() {
           )}
         </div>
       </div>
+
+      {/* v2.14 — Team scorecard band for managers + above */}
+      {teamRows.length > 0 && (
+        <Card>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold text-gtn-navy">Team scorecard</h2>
+            <p className="text-xs text-gtn-grey-2">Active in pipeline · Closed-won · Avg DQ</p>
+          </div>
+          <div className="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+            {teamRows.map((r) => (
+              <div key={r.ownerId} className="rounded-md border border-gtn-lavender-2 p-3">
+                <p className="text-sm font-semibold text-gtn-navy truncate">{r.ownerName}</p>
+                <div className="flex items-center gap-3 mt-1 text-xs text-gtn-grey-2">
+                  <span>
+                    <span className="font-mono text-gtn-navy font-semibold">{r.active}</span> active
+                  </span>
+                  <span>
+                    <span className="font-mono text-gtn-green font-semibold">{r.closedWon}</span> won
+                  </span>
+                  <span>
+                    avg DQ <span className={scoreBadgeClass(r.avgDq)}>{formatScore(r.avgDq)}</span>
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
 
       <div className="gtn-card overflow-hidden p-0">
         <table className="w-full text-sm">

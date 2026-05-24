@@ -44,6 +44,25 @@ export default async function MyTasksPage({
     },
   });
 
+  // v2.14 — bucket counts for the focus chips above the list.
+  const now = Date.now();
+  const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
+  const FOURTEEN_DAYS = 14 * 24 * 60 * 60 * 1000;
+  let overdueCount = 0;
+  let dueThisWeekCount = 0;
+  let dueNext14Count = 0;
+  let laterCount = 0;
+  let noDueCount = 0;
+  for (const t of tasks) {
+    if (t.status === OnboardingTaskStatus.DONE || t.status === OnboardingTaskStatus.SKIPPED) continue;
+    if (!t.dueAt) { noDueCount++; continue; }
+    const due = new Date(t.dueAt).getTime();
+    if (due < now) overdueCount++;
+    else if (due < now + SEVEN_DAYS) dueThisWeekCount++;
+    else if (due < now + FOURTEEN_DAYS) dueNext14Count++;
+    else laterCount++;
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-3 flex-wrap">
@@ -62,6 +81,19 @@ export default async function MyTasksPage({
           Print my checklist →
         </a>
       </div>
+      {/* v2.14 — at-a-glance focus chips. Tasks themselves stay in the
+          MyTasksView list below; this just gives users an immediate read
+          on what needs attention before they scan the table. */}
+      {tasks.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          <Chip label="Overdue" count={overdueCount} tone="red" />
+          <Chip label="Due this week" count={dueThisWeekCount} tone="amber" />
+          <Chip label="Next 14 days" count={dueNext14Count} tone="purple" />
+          <Chip label="Later" count={laterCount} tone="grey" />
+          {noDueCount > 0 && <Chip label="No due date" count={noDueCount} tone="grey" />}
+        </div>
+      )}
+
       <MyTasksView
         initialTasks={tasks as never}
         userRole={session.user.role}
@@ -69,5 +101,22 @@ export default async function MyTasksPage({
         includeDone={includeDone}
       />
     </div>
+  );
+}
+
+function Chip({ label, count, tone }: { label: string; count: number; tone: "red" | "amber" | "purple" | "grey" }) {
+  const cls =
+    tone === "red"
+      ? "bg-[#FBE9E7] text-gtn-red"
+      : tone === "amber"
+      ? "bg-[#FEF3E2] text-gtn-amber"
+      : tone === "purple"
+      ? "bg-gtn-lavender text-gtn-purple"
+      : "bg-gtn-lavender-2 text-gtn-grey-2";
+  return (
+    <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${cls}`}>
+      {label}
+      <span className="font-mono">{count}</span>
+    </span>
   );
 }
