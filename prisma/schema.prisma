@@ -207,6 +207,11 @@ enum DiscoveryKind {
   AI_READINESS
   NIST_CSF
   NIST_800_171
+  // v2.17 — lightweight pre-sale scoping banks (~25 Q each), used on
+  // Leads before the deal closes. SITE_SURVEY also runs pre-sale.
+  VOICE_SCOPING
+  CCTV_SCOPING
+  ACCESS_CONTROL_SCOPING
 }
 
 enum SignedDocType {
@@ -428,6 +433,8 @@ model Lead {
   qualification       QualificationScorecard?
   discoveryCallNotes  DiscoveryCallNote[]
   objectionLogs       ObjectionLog[]
+  // v2.17 — pre-sale technical scoping (voice / CCTV / access / IT)
+  preSaleAssessments  DiscoveryAssessment[]
 
   @@index([ownerUserId])
   @@index([pipelineStage])
@@ -699,7 +706,12 @@ model Customer {
 
 model DiscoveryAssessment {
   id              String          @id @default(uuid()) @db.Uuid
-  customerId      String          @map("customer_id") @db.Uuid
+  // v2.17 — customerId nullable so the same model handles pre-sale
+  // (on Lead) and post-sale (on Customer). Auto-migrates from
+  // lead-only → both-set when the handoff is accepted; leadId stays
+  // for traceability. App-level invariant: at least one must be set.
+  customerId      String?         @map("customer_id") @db.Uuid
+  leadId          String?         @map("lead_id") @db.Uuid
   kind            DiscoveryKind
   status          DiscoveryStatus @default(NOT_STARTED)
   startedAt       DateTime?       @map("started_at")
@@ -710,10 +722,12 @@ model DiscoveryAssessment {
   createdAt       DateTime        @default(now()) @map("created_at")
   updatedAt       DateTime        @updatedAt @map("updated_at")
 
-  customer  Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  createdBy User     @relation("DiscoveryCreator", fields: [createdByUserId], references: [id])
+  customer  Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  lead      Lead?     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  createdBy User      @relation("DiscoveryCreator", fields: [createdByUserId], references: [id])
 
   @@index([customerId, kind])
+  @@index([leadId, kind])
   @@map("discovery_assessments")
 }
 

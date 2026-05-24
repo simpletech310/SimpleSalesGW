@@ -74,6 +74,18 @@ export type NotificationsPayload = {
     kind: string;
     startedAt: string;
   }>;
+  // v2.17 — pre-sale scoping requests (DiscoveryAssessment with leadId set
+  // and status not COMPLETED). Visible to VCIO + SUPERADMIN so the vCIO
+  // knows when Lin needs scoping help to size a deal.
+  preSaleAssessments: Array<{
+    id: string;
+    leadId: string;
+    leadName: string;
+    kind: string;
+    status: string;
+    requestedByName: string;
+    requestedAt: string;
+  }>;
 };
 
 export async function loadNotifications(user: { id: string; role: Role }): Promise<NotificationsPayload> {
@@ -93,6 +105,7 @@ export async function loadNotifications(user: { id: string; role: Role }): Promi
     handoffsAwaiting,
     overdueTasks,
     upcomingQbrs,
+    preSaleAssessmentsRaw,
     inProgressDiscovery,
   ] = await Promise.all([
     prisma.activity.findMany({
@@ -161,10 +174,28 @@ export async function loadNotifications(user: { id: string; role: Role }): Promi
           take: 30,
         })
       : Promise.resolve([]),
+    // v2.17 — pre-sale discovery requests (lead-scoped, NOT_STARTED or
+    // IN_PROGRESS). vCIO gets pulled into deal scoping before the close.
+    isVcio
+      ? prisma.discoveryAssessment.findMany({
+          where: {
+            leadId: { not: null },
+            status: { in: [DiscoveryStatus.NOT_STARTED, DiscoveryStatus.IN_PROGRESS] },
+          },
+          orderBy: { createdAt: "desc" },
+          include: {
+            lead: { select: { id: true, businessName: true } },
+            createdBy: { select: { name: true } },
+          },
+          take: 30,
+        })
+      : Promise.resolve([]),
     // In-progress discovery assessments (vCIO's queue).
     isVcio
       ? prisma.discoveryAssessment.findMany({
-          where: { status: DiscoveryStatus.IN_PROGRESS },
+          // v2.17 — explicitly customer-scoped (the pre-sale bucket lives
+          // on Leads and gets its own notifications section).
+          where: { status: DiscoveryStatus.IN_PROGRESS, customerId: { not: null } },
           orderBy: { startedAt: "desc" },
           include: { customer: { include: { lead: { select: { businessName: true } } } } },
           take: 30,
@@ -235,13 +266,31 @@ export async function loadNotifications(user: { id: string; role: Role }): Promi
       customerName: q.customer.lead.businessName,
       scheduledAt: q.scheduledAt.toISOString(),
     })),
-    inProgressDiscovery: inProgressDiscovery.map((d) => ({
-      id: d.id,
-      customerId: d.customerId,
-      customerName: d.customer.lead.businessName,
-      kind: d.kind,
-      startedAt: (d.startedAt ?? d.createdAt).toISOString(),
-    })),
+    // v2.17 — filter belt-and-suspenders: query already guards `customerId:
+    // { not: null }` and `customer` is included, so the `!` assertions are
+    // safe. Pre-sale (lead-scoped) discoveries live in the separate
+    // preSaleAssessments bucket added below.
+    inProgressDiscovery: inProgressDiscovery
+      .filter((d) => d.customer != null && d.customerId != null)
+      .map((d) => ({
+        id: d.id,
+        customerId: d.customerId!,
+        customerName: d.customer!.lead.businessName,
+        kind: d.kind,
+        startedAt: (d.startedAt ?? d.createdAt).toISOString(),
+      })),
+    // v2.17 — pre-sale scoping queue (lead-scoped DiscoveryAssessments).
+    preSaleAssessments: preSaleAssessmentsRaw
+      .filter((d) => d.lead != null && d.leadId != null)
+      .map((d) => ({
+        id: d.id,
+        leadId: d.leadId!,
+        leadName: d.lead!.businessName,
+        kind: d.kind,
+        status: d.status,
+        requestedByName: d.createdBy?.name ?? "—",
+        requestedAt: d.createdAt.toISOString(),
+      })),
   };
   payload.total =
     payload.openActions.length +
@@ -250,6 +299,7 @@ export async function loadNotifications(user: { id: string; role: Role }): Promi
     payload.handoffsAwaiting.length +
     payload.overdueOnboarding.length +
     payload.upcomingQbrs.length +
-    payload.inProgressDiscovery.length;
+    payload.inProgressDiscovery.length +
+    payload.preSaleAssessments.length;
   return payload;
 }

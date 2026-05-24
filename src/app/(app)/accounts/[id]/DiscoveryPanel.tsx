@@ -23,6 +23,13 @@ const KIND_LABEL: Record<DiscoveryKind, string> = {
   AI_READINESS: "AI Readiness Questionnaire",
   NIST_CSF: "NIST CSF 2.0 Self-Assessment",
   NIST_800_171: "NIST 800-171 / CMMC Readiness",
+  // v2.17 — pre-sale scoping kinds. Labels here are for completeness; the
+  // DiscoveryPanel on /accounts/[id] currently only surfaces the post-handoff
+  // four (see `kinds` array below), so these are mostly cosmetic for any
+  // pre-sale assessments that auto-migrated from a Lead.
+  VOICE_SCOPING: "Voice Pre-Sale Scoping (from Lead)",
+  CCTV_SCOPING: "CCTV Pre-Sale Scoping (from Lead)",
+  ACCESS_CONTROL_SCOPING: "Access Control Pre-Sale Scoping (from Lead)",
 };
 
 const KIND_BLURB: Record<DiscoveryKind, string> = {
@@ -30,6 +37,9 @@ const KIND_BLURB: Record<DiscoveryKind, string> = {
   AI_READINESS: "Org readiness 0-4 scorecard plus a prioritized use-case catalog and 30/60/90 roadmap.",
   NIST_CSF: "All 106 NIST CSF 2.0 Subcategories scored Tier 1-4 with rolled-up Category + Function summary, gap list, and remediation roadmap.",
   NIST_800_171: "110 NIST 800-171 Rev 2 controls × 14 families. Produces SPRS score, POAM register, and SSP draft for CMMC Level 2/3 readiness.",
+  VOICE_SCOPING: "Pre-sale voice scoping that ran on the lead — captured extension counts, hardware needs, install context.",
+  CCTV_SCOPING: "Pre-sale CCTV scoping that ran on the lead — camera count, retention, NVR sizing.",
+  ACCESS_CONTROL_SCOPING: "Pre-sale access-control scoping that ran on the lead — door count, hardware, cardholder roster.",
 };
 
 export function DiscoveryPanel({

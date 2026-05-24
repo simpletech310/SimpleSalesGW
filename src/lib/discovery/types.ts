@@ -31,6 +31,14 @@ export type DiscoveryQuestion = {
 };
 
 export type DiscoveryBank = {
-  kind: "SITE_SURVEY" | "AI_READINESS" | "NIST_CSF" | "NIST_800_171";
+  // v2.17 — adds the three lightweight pre-sale scoping banks.
+  kind:
+    | "SITE_SURVEY"
+    | "AI_READINESS"
+    | "NIST_CSF"
+    | "NIST_800_171"
+    | "VOICE_SCOPING"
+    | "CCTV_SCOPING"
+    | "ACCESS_CONTROL_SCOPING";
   questions: ReadonlyArray<DiscoveryQuestion>;
 };

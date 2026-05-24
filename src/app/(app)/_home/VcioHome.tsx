@@ -55,7 +55,9 @@ export async function VcioHome({
     }),
     loadNotifications({ id: user.id, role: user.role }),
     prisma.discoveryAssessment.findMany({
-      where: { status: DiscoveryStatus.IN_PROGRESS },
+      // v2.17 — vCIO home rail shows post-handoff discoveries only.
+      // Pre-sale (lead-scoped) shows up under preSaleAssessments on /notifications.
+      where: { status: DiscoveryStatus.IN_PROGRESS, customerId: { not: null } },
       include: { customer: { select: { id: true, lead: { select: { businessName: true } } } } },
       orderBy: { startedAt: "desc" },
       take: 6,
@@ -191,13 +193,15 @@ export async function VcioHome({
               </p>
             ) : (
               <ul className="mt-2 space-y-2 text-sm">
-                {activeDiscoveries.map((d) => (
+                {activeDiscoveries
+                  .filter((d) => d.customer != null)
+                  .map((d) => (
                   <li key={d.id} className="flex items-start justify-between gap-2">
                     <Link
-                      href={`/accounts/${d.customer.id}`}
+                      href={`/accounts/${d.customer!.id}`}
                       className="text-gtn-navy hover:text-gtn-purple truncate"
                     >
-                      {d.customer.lead.businessName}
+                      {d.customer!.lead.businessName}
                     </Link>
                     <span className="text-xs text-gtn-grey-3 flex-shrink-0">
                       {d.kind.replace(/_/g, " ").toLowerCase()} ·{" "}

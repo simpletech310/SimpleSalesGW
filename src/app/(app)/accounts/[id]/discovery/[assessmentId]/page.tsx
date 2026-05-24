@@ -17,7 +17,9 @@ export default async function DiscoveryAssessmentPage({ params }: { params: Prom
     where: { id: assessmentId },
     include: { customer: { include: { lead: { select: { businessName: true, ownerUserId: true } } } } },
   });
-  if (!assessment || assessment.customerId !== id) notFound();
+  // v2.17 — customer is now nullable on the model; explicitly guard so TS
+  // narrows for the rest of this server component.
+  if (!assessment || !assessment.customer || assessment.customerId !== id) notFound();
   if (!canSeeCustomer(session.user.role, session.user.id, assessment.customer.lead.ownerUserId)) {
     return <p className="text-sm text-gtn-grey-2">Not authorized.</p>;
   }

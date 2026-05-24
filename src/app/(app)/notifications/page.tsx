@@ -11,8 +11,9 @@ export const dynamic = "force-dynamic";
 // v2.14 — server-side filter so URLs are bookmarkable and deep-linkable
 // (e.g. /notifications?filter=handoffs). Keeps the page a pure SSR
 // component without forcing a client-state rewrite.
-type FilterKey = "all" | "actions" | "assessments" | "approvals" | "handoffs" | "onboarding" | "qbrs" | "discovery";
-const VALID_FILTERS: FilterKey[] = ["all", "actions", "assessments", "approvals", "handoffs", "onboarding", "qbrs", "discovery"];
+// v2.17 — added "presale" filter chip for pre-sale scoping requests.
+type FilterKey = "all" | "actions" | "assessments" | "approvals" | "handoffs" | "onboarding" | "qbrs" | "discovery" | "presale";
+const VALID_FILTERS: FilterKey[] = ["all", "actions", "assessments", "approvals", "handoffs", "onboarding", "qbrs", "discovery", "presale"];
 
 export default async function NotificationsPage({
   searchParams,
@@ -35,6 +36,7 @@ export default async function NotificationsPage({
     { key: "handoffs", label: "Handoffs", count: data.handoffsAwaiting.length },
     { key: "onboarding", label: "Onboarding", count: data.overdueOnboarding.length },
     { key: "qbrs", label: "QBRs", count: data.upcomingQbrs.length },
+    { key: "presale", label: "Pre-sale scoping", count: data.preSaleAssessments.length },
     { key: "discovery", label: "Discovery", count: data.inProgressDiscovery.length },
     { key: "assessments", label: "Assessments", count: data.assessmentsAwaiting.length },
   ];
@@ -167,6 +169,32 @@ export default async function NotificationsPage({
                 <p className="text-xs text-gtn-grey-2">{d.kind.replace(/_/g, " ")}</p>
               </div>
               <span className="text-xs text-gtn-grey-3 whitespace-nowrap">started {format(new Date(d.startedAt), "PP")}</span>
+            </div>
+          </Link>
+        ))}
+      </Section>
+      )}
+
+      {/* v2.17 — Pre-sale scoping queue: vCIO gets pulled in by sales to
+          size deals before they close. Lives on the Lead. */}
+      {show("presale") && (
+      <Section title="Pre-sale scoping requests" empty="No pre-sale scoping requests waiting.">
+        {data.preSaleAssessments.map((p) => (
+          <Link
+            key={p.id}
+            href={`/leads/${p.leadId}/discovery/${p.id}`}
+            className="block px-4 py-3 hover:bg-gtn-lavender/40 border-t border-gtn-lavender-2 first:border-0"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium text-gtn-navy">{p.leadName}</p>
+                <p className="text-xs text-gtn-grey-2">
+                  {p.kind.replace(/_/g, " ")} · requested by {p.requestedByName}
+                </p>
+              </div>
+              <span className="text-xs text-gtn-grey-3 whitespace-nowrap">
+                {p.status === "NOT_STARTED" ? "awaiting start" : "in progress"} · {format(new Date(p.requestedAt), "PP")}
+              </span>
             </div>
           </Link>
         ))}

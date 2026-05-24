@@ -82,6 +82,16 @@ export async function createCustomerFromHandoff(opts: {
     });
     await tx.onboardingTask.createMany({ data: taskRows });
 
+    // v2.17 — migrate any pre-sale DiscoveryAssessments (lead-only) to also
+    // reference the new Customer. We KEEP leadId for traceability so audit
+    // queries can trace back to the originating lead. vCIO now sees the
+    // pre-sale work they already did on /accounts/[customer], not just
+    // on /leads/[id].
+    await tx.discoveryAssessment.updateMany({
+      where: { leadId: opts.leadId, customerId: null },
+      data: { customerId: created.id },
+    });
+
     return created;
   });
 

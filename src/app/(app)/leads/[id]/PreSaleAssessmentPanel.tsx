@@ -1,0 +1,254 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { format } from "date-fns";
+import { ClipboardCheck, Loader2, Plus } from "lucide-react";
+import { DealKind, DiscoveryKind, DiscoveryStatus, Role } from "@prisma/client";
+import { Card } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
+import { discoveryTitle, isPreSaleKind } from "@/lib/discovery/banks";
+import type { LineItem } from "@/lib/pricing/deal-kinds";
+
+/**
+ * v2.17 — Pre-sale technical assessment panel on the Lead detail page.
+ *
+ * - Lists existing pre-sale DiscoveryAssessments (leadId-scoped) with status
+ * - "Request vCIO scoping" button → modal with 4 kind options
+ * - When an assessment is COMPLETED with recommendedLineItems, shows an
+ *   "Adopt N items into quote" button that merges into Lead.dealLineItems
+ */
+
+const REQUESTABLE_KINDS: ReadonlyArray<{ kind: DiscoveryKind; label: string; tagline: string }> = [
+  { kind: "SITE_SURVEY", label: "IT Site Survey", tagline: "Full IT discovery — sites, networks, identity, endpoints, security." },
+  { kind: "VOICE_SCOPING", label: "Voice / Phone scoping", tagline: "Lightweight ~25 Q to size extensions, hardware, install labor." },
+  { kind: "CCTV_SCOPING", label: "CCTV / video scoping", tagline: "Camera count, retention, NVR sizing, remote viewing." },
+  { kind: "ACCESS_CONTROL_SCOPING", label: "Access control scoping", tagline: "Door count, credentials, software licensing." },
+];
+
+type AssessmentRow = {
+  id: string;
+  kind: DiscoveryKind;
+  status: DiscoveryStatus;
+  startedAt: string | null;
+  completedAt: string | null;
+  scorecard: { recommendedLineItems?: LineItem[] } | null;
+  createdBy: { name: string };
+};
+
+export function PreSaleAssessmentPanel({
+  leadId,
+  dealKind,
+  canEdit,
+  canRunDiscovery,
+}: {
+  leadId: string;
+  dealKind: DealKind;
+  canEdit: boolean;
+  /** True for VCIO + SUPERADMIN — they can complete (run) the assessment. */
+  canRunDiscovery: boolean;
+}) {
+  const router = useRouter();
+  const [items, setItems] = useState<AssessmentRow[] | null>(null);
+  const [picking, setPicking] = useState(false);
+  const [creating, setCreating] = useState<DiscoveryKind | null>(null);
+  const [adopting, setAdopting] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    const res = await fetch(`/api/leads/${leadId}/discovery`);
+    if (!res.ok) return;
+    const data = await res.json();
+    setItems(data.assessments);
+  }, [leadId]);
+
+  useEffect(() => { void refresh(); }, [refresh]);
+
+  async function request(kind: DiscoveryKind) {
+    setCreating(kind);
+    try {
+      const res = await fetch(`/api/leads/${leadId}/discovery`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data?.error ?? "Failed");
+        return;
+      }
+      toast.success("Request sent — vCIO will see it on /notifications.");
+      setPicking(false);
+      await refresh();
+      router.refresh();
+    } finally {
+      setCreating(null);
+    }
+  }
+
+  async function adoptIntoQuote(a: AssessmentRow) {
+    const lineItems = a.scorecard?.recommendedLineItems ?? [];
+    if (lineItems.length === 0) {
+      toast.message("No recommended items to adopt.");
+      return;
+    }
+    setAdopting(a.id);
+    try {
+      // Fetch current Lead.dealLineItems so we can merge instead of overwrite.
+      const leadRes = await fetch(`/api/leads/${leadId}`);
+      const leadData = await leadRes.json();
+      const existingLines: LineItem[] = (leadData?.lead?.dealLineItems as { lines?: LineItem[] })?.lines ?? [];
+
+      const merged = [...existingLines, ...lineItems];
+      const patchRes = await fetch(`/api/leads/${leadId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dealLineItems: { lines: merged } }),
+      });
+      const patchData = await patchRes.json();
+      if (!patchRes.ok) {
+        toast.error(patchData?.error ?? "Could not adopt items");
+        return;
+      }
+      toast.success(`Added ${lineItems.length} item${lineItems.length === 1 ? "" : "s"} to the quote.`);
+      router.refresh();
+    } finally {
+      setAdopting(null);
+    }
+  }
+
+  if (items === null) {
+    return (
+      <Card>
+        <p className="text-sm text-gtn-grey-2">Loading pre-sale assessments…</p>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <div className="flex items-start justify-between gap-3 mb-3 flex-wrap">
+        <div>
+          <h3 className="text-sm font-semibold text-gtn-navy">Pre-sale technical assessment</h3>
+          <p className="text-xs text-gtn-grey-2 mt-0.5">
+            Request vCIO scoping before the deal closes. Findings auto-fill the quote when complete.
+          </p>
+        </div>
+        {canEdit && !picking && (
+          <Button variant="secondary" size="sm" onClick={() => setPicking(true)}>
+            <Plus className="h-3.5 w-3.5 mr-1" />
+            Request vCIO scoping
+          </Button>
+        )}
+      </div>
+
+      {picking && (
+        <div className="border border-gtn-lavender-2 rounded-md p-3 mb-3 space-y-2">
+          <p className="text-xs text-gtn-grey-2 mb-2">What kind of scoping does this deal need?</p>
+          <div className="grid sm:grid-cols-2 gap-2">
+            {REQUESTABLE_KINDS.map((k) => (
+              <button
+                type="button"
+                key={k.kind}
+                disabled={creating != null}
+                onClick={() => request(k.kind)}
+                className="text-left rounded border border-gtn-lavender-2 p-3 hover:border-gtn-purple/40 hover:bg-gtn-lavender/30 disabled:opacity-60"
+              >
+                <p className="text-sm font-semibold text-gtn-navy flex items-center gap-2">
+                  {creating === k.kind && <Loader2 className="h-3 w-3 animate-spin" />}
+                  {k.label}
+                </p>
+                <p className="text-xs text-gtn-grey-2 mt-0.5">{k.tagline}</p>
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={() => setPicking(false)}
+            className="text-xs text-gtn-grey-2 hover:text-gtn-navy mt-1"
+          >
+            cancel
+          </button>
+        </div>
+      )}
+
+      {items.length === 0 ? (
+        <p className="text-xs text-gtn-grey-2">
+          No pre-sale assessments yet. Click <strong>Request vCIO scoping</strong> if you need help sizing what to quote.
+        </p>
+      ) : (
+        <ul className="divide-y divide-gtn-lavender-2">
+          {items.map((a) => {
+            const recCount = a.scorecard?.recommendedLineItems?.length ?? 0;
+            const isCompleted = a.status === DiscoveryStatus.COMPLETED;
+            const showAdopt =
+              isCompleted &&
+              recCount > 0 &&
+              isPreSaleKind(a.kind) &&
+              canEdit &&
+              dealKind !== DealKind.MANAGED_IT_BUNDLE;
+            return (
+              <li key={a.id} className="py-3 flex items-start justify-between gap-3 flex-wrap">
+                <div>
+                  <p className="text-sm font-medium text-gtn-navy flex items-center gap-2">
+                    <StatusBadge status={a.status} />
+                    {discoveryTitle(a.kind)}
+                  </p>
+                  <p className="text-xs text-gtn-grey-3 mt-1">
+                    Requested by {a.createdBy.name}
+                    {a.completedAt && ` · completed ${format(new Date(a.completedAt), "MMM d")}`}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {showAdopt && (
+                    <Button
+                      size="sm"
+                      onClick={() => adoptIntoQuote(a)}
+                      disabled={adopting === a.id}
+                    >
+                      {adopting === a.id ? (
+                        <><Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> Adopting…</>
+                      ) : (
+                        <><ClipboardCheck className="h-3.5 w-3.5 mr-1" /> Adopt {recCount} item{recCount === 1 ? "" : "s"} into quote</>
+                      )}
+                    </Button>
+                  )}
+                  <Button asChild size="sm" variant="secondary">
+                    <Link href={`/leads/${leadId}/discovery/${a.id}`}>
+                      {isCompleted ? "View result" : canRunDiscovery ? "Continue" : "Open"}
+                    </Link>
+                  </Button>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      {/* Hint when there's at least one IN_PROGRESS and the viewer is the salesperson */}
+      {items.some((a) => a.status !== DiscoveryStatus.COMPLETED) && !canRunDiscovery && (
+        <p className="text-xs text-gtn-grey-2 mt-3">
+          The vCIO will see this on <strong>/notifications</strong> and run it when convenient.
+        </p>
+      )}
+    </Card>
+  );
+}
+
+function StatusBadge({ status }: { status: DiscoveryStatus }) {
+  const cls =
+    status === DiscoveryStatus.COMPLETED ? "bg-gtn-green-bg text-gtn-green"
+      : status === DiscoveryStatus.IN_PROGRESS ? "bg-[#FEF3E2] text-gtn-amber"
+      : "bg-gtn-lavender text-gtn-grey-2";
+  const label = status === DiscoveryStatus.NOT_STARTED ? "Awaiting vCIO" : status.replace(/_/g, " ");
+  return (
+    <span className={`text-[10px] font-semibold uppercase tracking-wide rounded-full px-2 py-0.5 ${cls}`}>
+      {label}
+    </span>
+  );
+}
+
+// Role is imported but unused in the component itself; keep the import for
+// potential future role-aware rendering and silence the lint warning.
+void Role;

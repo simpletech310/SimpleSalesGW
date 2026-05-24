@@ -6,13 +6,20 @@ import type {
   NistCsfScorecard,
   NistSp800171Scorecard,
   SiteSurveyScorecard,
+  VoiceScopingScorecard,
+  CctvScopingScorecard,
+  AccessControlScopingScorecard,
 } from "@/lib/discovery/scoring";
+import { fmtUsd } from "@/lib/pricing/catalog";
+
+type ScopingScorecard = VoiceScopingScorecard | CctvScopingScorecard | AccessControlScopingScorecard;
 
 type Scorecard =
   | SiteSurveyScorecard
   | AiReadinessScorecard
   | NistCsfScorecard
   | NistSp800171Scorecard
+  | ScopingScorecard
   | null;
 
 export function DiscoveryResult({
@@ -21,22 +28,30 @@ export function DiscoveryResult({
   customerId,
   assessmentId,
   scorecard,
+  backHref,
+  printHref,
 }: {
   title: string;
   customerName: string;
   customerId: string;
   assessmentId: string;
   scorecard: Scorecard;
+  // v2.17 — parameterized for lead-scoped pre-sale runs. Defaults preserve
+  // historical customer-scoped behavior.
+  backHref?: string;
+  printHref?: string;
 }) {
+  const backUrl = backHref ?? `/accounts/${customerId}`;
+  const printUrl = printHref ?? `/accounts/${customerId}/discovery/${assessmentId}/print`;
   return (
     <div className="max-w-3xl mx-auto space-y-4">
       <div className="flex items-start justify-between flex-wrap gap-2">
         <div>
-          <Link className="text-sm text-gtn-purple underline" href={`/accounts/${customerId}`}>← {customerName}</Link>
+          <Link className="text-sm text-gtn-purple underline" href={backUrl}>← {customerName}</Link>
           <h1 className="text-2xl font-bold text-gtn-navy mt-2">{title} — result</h1>
         </div>
         <a
-          href={`/accounts/${customerId}/discovery/${assessmentId}/print`}
+          href={printUrl}
           target="_blank"
           rel="noreferrer"
           className="text-sm text-gtn-purple underline self-end"
@@ -49,8 +64,112 @@ export function DiscoveryResult({
       {scorecard?.kind === "AI_READINESS" && <AiReadinessView card={scorecard} />}
       {scorecard?.kind === "NIST_CSF" && <NistCsfView card={scorecard} />}
       {scorecard?.kind === "NIST_800_171" && <NistSp800171View card={scorecard} />}
+      {(scorecard?.kind === "VOICE_SCOPING"
+        || scorecard?.kind === "CCTV_SCOPING"
+        || scorecard?.kind === "ACCESS_CONTROL_SCOPING") && (
+        <ScopingResultView card={scorecard as ScopingScorecard} />
+      )}
       {!scorecard && <Card><p className="text-sm text-gtn-grey-2">No scorecard data.</p></Card>}
     </div>
+  );
+}
+
+/**
+ * v2.17 — render path for pre-sale scoping scorecards. Same shape across
+ * voice / CCTV / access control: summary band + recommendedLineItems table
+ * (the salesperson's quote skeleton) + findings/risks/actions.
+ */
+function ScopingResultView({ card }: { card: ScopingScorecard }) {
+  const lineTotal = card.recommendedLineItems.reduce(
+    (acc, l) => ({ mrr: acc.mrr + l.qty * l.perUnitMrr, oneTime: acc.oneTime + l.qty * l.perUnitOneTime }),
+    { mrr: 0, oneTime: 0 },
+  );
+  return (
+    <>
+      <Card>
+        <h2 className="text-sm font-semibold mb-1">Summary</h2>
+        <p className="text-sm text-gtn-grey-2">{card.summary}</p>
+        <p className="text-xs text-gtn-grey-3 mt-2">Coverage: {card.coveragePct}%</p>
+      </Card>
+
+      {card.recommendedLineItems.length > 0 && (
+        <Card>
+          <div className="flex items-start justify-between mb-2 flex-wrap gap-2">
+            <h2 className="text-sm font-semibold">Recommended quote items</h2>
+            <div className="text-right text-xs">
+              <p>
+                <span className="text-gtn-grey-2">MRR </span>
+                <span className="font-mono font-semibold text-gtn-navy">{fmtUsd(lineTotal.mrr)}</span>
+                <span className="text-gtn-grey-2">/mo</span>
+              </p>
+              <p>
+                <span className="text-gtn-grey-2">One-time </span>
+                <span className="font-mono font-semibold text-gtn-navy">{fmtUsd(lineTotal.oneTime)}</span>
+              </p>
+            </div>
+          </div>
+          <table className="w-full text-xs">
+            <thead className="text-left uppercase tracking-wide text-gtn-grey-2">
+              <tr>
+                <th className="py-1">Item</th>
+                <th className="py-1 w-16 text-right">Qty</th>
+                <th className="py-1 w-24 text-right">$/mo each</th>
+                <th className="py-1 w-24 text-right">One-time each</th>
+              </tr>
+            </thead>
+            <tbody>
+              {card.recommendedLineItems.map((l, i) => (
+                <tr key={i} className="border-t border-gtn-lavender-2">
+                  <td className="py-1.5">{l.label}</td>
+                  <td className="py-1.5 text-right font-mono">{l.qty}</td>
+                  <td className="py-1.5 text-right font-mono">{fmtUsd(l.perUnitMrr)}</td>
+                  <td className="py-1.5 text-right font-mono">{fmtUsd(l.perUnitOneTime)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="text-xs text-gtn-grey-2 mt-2 italic">
+            Adopt these into the salesperson&apos;s quote from the lead detail &mdash; the &ldquo;Adopt N recommended items into quote&rdquo; button there merges them into the ServiceQuoteCard.
+          </p>
+        </Card>
+      )}
+
+      {card.findings.length > 0 && (
+        <Card>
+          <h2 className="text-sm font-semibold mb-2">Findings</h2>
+          <ul className="text-sm text-gtn-grey-2 space-y-1 list-disc list-inside">
+            {card.findings.map((f, i) => <li key={i}>{f}</li>)}
+          </ul>
+        </Card>
+      )}
+
+      {card.risks.length > 0 && (
+        <Card>
+          <h2 className="text-sm font-semibold mb-2">Risks</h2>
+          <ul className="text-sm space-y-1">
+            {card.risks.map((r, i) => (
+              <li key={i} className="flex items-start gap-2">
+                <span className={`text-[10px] font-semibold uppercase rounded-full px-2 py-0.5 ${
+                  r.severity === "high" ? "bg-[#FBE9E7] text-gtn-red"
+                  : r.severity === "medium" ? "bg-[#FEF3E2] text-gtn-amber"
+                  : "bg-gtn-lavender text-gtn-grey-2"
+                }`}>{r.severity}</span>
+                <span className="text-gtn-grey-2">{r.description}</span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+
+      {card.recommendedActions.length > 0 && (
+        <Card>
+          <h2 className="text-sm font-semibold mb-2">Recommended actions before SOW</h2>
+          <ul className="text-sm text-gtn-grey-2 space-y-1 list-disc list-inside">
+            {card.recommendedActions.map((a, i) => <li key={i}>{a}</li>)}
+          </ul>
+        </Card>
+      )}
+    </>
   );
 }
 

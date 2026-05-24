@@ -16,7 +16,16 @@ type Props = {
   leadOwnerEmail: string;
   discoveryAssessments: Array<{
     id: string;
-    kind: "SITE_SURVEY" | "AI_READINESS" | "NIST_CSF" | "NIST_800_171";
+    // v2.17 — widened to the full DiscoveryKind union to accept migrated
+    // pre-sale assessments. DiscoveryPanel's render path is kind-agnostic.
+    kind:
+      | "SITE_SURVEY"
+      | "AI_READINESS"
+      | "NIST_CSF"
+      | "NIST_800_171"
+      | "VOICE_SCOPING"
+      | "CCTV_SCOPING"
+      | "ACCESS_CONTROL_SCOPING";
     status: "NOT_STARTED" | "IN_PROGRESS" | "COMPLETED";
     startedAt: string | null;
     completedAt: string | null;

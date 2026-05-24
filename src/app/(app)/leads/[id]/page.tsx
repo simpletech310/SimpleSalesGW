@@ -19,6 +19,7 @@ import { ScoreOverrideButton } from "./ScoreOverrideButton";
 import { DeleteLeadButton } from "./DeleteLeadButton";
 import { DealKindPicker } from "./DealKindPicker";
 import { ServiceQuoteCard } from "./ServiceQuoteCard";
+import { PreSaleAssessmentPanel } from "./PreSaleAssessmentPanel";
 import type { LineItem } from "@/lib/pricing/deal-kinds";
 import { DealKind, HandoffStatus, PipelineStage } from "@prisma/client";
 
@@ -242,6 +243,16 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
       <QualificationCard
         leadId={lead.id}
         canEdit={lead.ownerUserId === session.user.id || can(session.user.role, "lead:edit:any")}
+      />
+
+      {/* v2.17 — Pre-sale technical scoping by the vCIO. Lin requests it
+          right from here; once complete the recommended line items can be
+          adopted into the ServiceQuoteCard with one click. */}
+      <PreSaleAssessmentPanel
+        leadId={lead.id}
+        dealKind={lead.dealKind}
+        canEdit={lead.ownerUserId === session.user.id || can(session.user.role, "lead:edit:any")}
+        canRunDiscovery={can(session.user.role, "discovery:edit")}
       />
 
       {/* v2.15 — branch on deal kind: MSP bundles use the seat-tier PricingCard;

@@ -16,13 +16,29 @@ type Props = {
   assessmentId: string;
   questions: ReadonlyArray<DiscoveryQuestion>;
   initialAnswers: Record<string, unknown>;
+  /**
+   * v2.17 — Parameterize the API path so this runner can serve both
+   * customer-scoped (/api/accounts/[id]/discovery/[assessmentId]) and
+   * lead-scoped (/api/leads/[id]/discovery/[assessmentId]) flows.
+   * Defaults preserve historical customer-scoped behavior.
+   */
+  apiBase?: string;
+  /** Back-link href; defaults to /accounts/[customerId]. */
+  backHref?: string;
 };
 
 /**
- * Discovery runner — sectioned form (Site Survey / AI Readiness / NIST CSF).
- * Debounced autosave per answer; explicit "Complete" runs scoring server-side.
+ * Discovery runner — sectioned form (Site Survey / AI Readiness / NIST CSF /
+ * pre-sale Voice / CCTV / Access Control). Debounced autosave per answer;
+ * explicit "Complete" runs scoring server-side.
  */
-export function DiscoveryRunner({ title, customerName, customerId, assessmentId, questions, initialAnswers }: Props) {
+export function DiscoveryRunner({
+  title, customerName, customerId, assessmentId, questions, initialAnswers,
+  apiBase,
+  backHref,
+}: Props) {
+  const baseUrl = apiBase ?? `/api/accounts/${customerId}/discovery/${assessmentId}`;
+  const backUrl = backHref ?? `/accounts/${customerId}`;
   const router = useRouter();
   const [answers, setAnswers] = useState<Record<string, unknown>>(initialAnswers);
   const [submitting, setSubmitting] = useState(false);
@@ -42,7 +58,7 @@ export function DiscoveryRunner({ title, customerName, customerId, assessmentId,
     clearTimeout(saveTimers.current[id]);
     saveTimers.current[id] = setTimeout(async () => {
       try {
-        await fetch(`/api/accounts/${customerId}/discovery/${assessmentId}/answer`, {
+        await fetch(`${baseUrl}/answer`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ questionId: id, answerValue: val }),
@@ -83,7 +99,7 @@ export function DiscoveryRunner({ title, customerName, customerId, assessmentId,
     setSubmitting(true);
     await flush();
     try {
-      const res = await fetch(`/api/accounts/${customerId}/discovery/${assessmentId}/complete`, {
+      const res = await fetch(`${baseUrl}/complete`, {
         method: "POST",
       });
       const data = await res.json();
@@ -101,7 +117,7 @@ export function DiscoveryRunner({ title, customerName, customerId, assessmentId,
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       <div>
-        <Link className="text-sm text-gtn-purple underline" href={`/accounts/${customerId}`}>← {customerName}</Link>
+        <Link className="text-sm text-gtn-purple underline" href={backUrl}>← {customerName}</Link>
         <h1 className="text-2xl font-bold text-gtn-navy mt-2">{title}</h1>
         <p className="text-sm text-gtn-grey-2">Save as you go. Click <strong>Complete</strong> to generate the scorecard.</p>
       </div>

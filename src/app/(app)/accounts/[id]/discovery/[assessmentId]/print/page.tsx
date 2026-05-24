@@ -17,7 +17,8 @@ export default async function DiscoveryPrintPage({ params }: { params: Promise<{
     where: { id: assessmentId },
     include: { customer: { include: { lead: { select: { businessName: true, ownerUserId: true } } } } },
   });
-  if (!assessment || assessment.customerId !== id) notFound();
+  // v2.17 — customer is nullable; explicit guard narrows for the rest.
+  if (!assessment || !assessment.customer || assessment.customerId !== id) notFound();
   if (!canSeeCustomer(session.user.role, session.user.id, assessment.customer.lead.ownerUserId)) {
     return <p className="text-sm text-gtn-grey-2">Not authorized.</p>;
   }
