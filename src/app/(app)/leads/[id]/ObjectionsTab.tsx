@@ -4,10 +4,18 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { Loader2, Sparkles } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input, Label, Textarea } from "@/components/ui/Input";
 import { OBJECTION_CATEGORIES } from "@/lib/objections/defaults";
+
+/**
+ * v2.20 — Claude rebuttal payload shape (returned by
+ * POST /api/leads/[id]/objections/[logId]/coach).
+ */
+type Rebuttal = { rebuttal: string; why: string; tone: string };
+type CoachResult = { rebuttals: Rebuttal[]; ifEscalated: string };
 
 type Template = {
   id: string;
@@ -43,6 +51,9 @@ export function ObjectionsTab({ leadId, canEdit }: { leadId: string; canEdit: bo
   const [rebuttalUsed, setRebuttalUsed] = useState("");
   const [templateId, setTemplateId] = useState<string>("");
   const [saving, setSaving] = useState(false);
+  // v2.20 — per-log coaching state (which log is busy + cached result)
+  const [coachingId, setCoachingId] = useState<string | null>(null);
+  const [coachResults, setCoachResults] = useState<Record<string, CoachResult>>({});
 
   const refresh = useCallback(async () => {
     const res = await fetch(`/api/leads/${leadId}/objections`);
@@ -101,6 +112,47 @@ export function ObjectionsTab({ leadId, canEdit }: { leadId: string; canEdit: bo
       return;
     }
     setLogs((cur) => cur.map((l) => (l.id === id ? { ...l, outcome: outcome || null } : l)));
+  }
+
+  async function coach(logId: string) {
+    setCoachingId(logId);
+    try {
+      const res = await fetch(`/api/leads/${leadId}/objections/${logId}/coach`, {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        if (res.status === 429) {
+          toast.error(data?.error ?? "AI budget exceeded for this lead.");
+        } else {
+          toast.error(data?.error ?? "Coaching failed");
+        }
+        return;
+      }
+      setCoachResults((cur) => ({
+        ...cur,
+        [logId]: { rebuttals: data.rebuttals ?? [], ifEscalated: data.ifEscalated ?? "" },
+      }));
+      toast.success(`Generated ${data.rebuttals?.length ?? 0} rebuttals`);
+    } catch {
+      toast.error("Coaching failed");
+    } finally {
+      setCoachingId(null);
+    }
+  }
+
+  function applyRebuttal(logId: string, text: string) {
+    // Open the add panel pre-filled, but tie it to the same category by
+    // copying the original log's text. The salesperson can then edit
+    // and save as a new attempt OR paste into a reply.
+    const log = logs.find((l) => l.id === logId);
+    if (!log) return;
+    setCategory(log.category);
+    setText(log.text);
+    setRebuttalUsed(text);
+    setTemplateId("");
+    setAdding(true);
+    toast.success("Rebuttal copied into the form");
   }
 
   async function remove(id: string) {
@@ -192,6 +244,20 @@ export function ObjectionsTab({ leadId, canEdit }: { leadId: string; canEdit: bo
                   <div className="flex items-center gap-2 flex-shrink-0">
                     {canEdit && (
                       <>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => coach(l.id)}
+                          disabled={coachingId === l.id}
+                          className="h-7 px-2 text-xs"
+                        >
+                          {coachingId === l.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Sparkles className="h-3.5 w-3.5 mr-1" />
+                          )}
+                          {coachingId === l.id ? "Coaching…" : "Coach me"}
+                        </Button>
                         <select
                           value={l.outcome ?? ""}
                           onChange={(e) => updateOutcome(l.id, e.target.value)}
@@ -206,6 +272,50 @@ export function ObjectionsTab({ leadId, canEdit }: { leadId: string; canEdit: bo
                     )}
                   </div>
                 </div>
+                {(() => {
+                  const c = coachResults[l.id];
+                  if (!c) return null;
+                  return (
+                    <div className="mt-3 rounded-md border border-gtn-lavender-2 bg-gtn-lavender/30 p-3 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="h-3.5 w-3.5 text-gtn-purple" />
+                        <span className="text-[11px] uppercase tracking-wide font-semibold text-gtn-purple">
+                          Claude rebuttals ({c.rebuttals.length})
+                        </span>
+                      </div>
+                      <ol className="space-y-2 list-decimal list-inside">
+                        {c.rebuttals.map((r, i) => (
+                          <li key={i} className="text-sm text-gtn-navy">
+                            <span className="whitespace-pre-wrap">{r.rebuttal}</span>
+                            <div className="ml-5 mt-1 flex items-center gap-2 flex-wrap">
+                              {r.tone && (
+                                <span className="text-[10px] uppercase tracking-wide rounded-full bg-white text-gtn-grey-2 px-2 py-0.5 border border-gtn-lavender-2">
+                                  {r.tone}
+                                </span>
+                              )}
+                              {r.why && (
+                                <span className="text-[11px] italic text-gtn-grey-2">why: {r.why}</span>
+                              )}
+                              {canEdit && (
+                                <button
+                                  onClick={() => applyRebuttal(l.id, r.rebuttal)}
+                                  className="text-[11px] text-gtn-purple hover:underline"
+                                >
+                                  Use this one
+                                </button>
+                              )}
+                            </div>
+                          </li>
+                        ))}
+                      </ol>
+                      {c.ifEscalated && (
+                        <p className="text-xs text-gtn-grey-2 border-t border-gtn-lavender-2 pt-2">
+                          <strong>If they push back:</strong> {c.ifEscalated}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })()}
               </li>
             ))}
           </ul>
