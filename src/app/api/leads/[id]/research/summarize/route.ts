@@ -6,6 +6,7 @@ import { can } from "@/lib/rbac";
 import { writeAudit } from "@/lib/audit";
 import { summarizeResearch } from "@/lib/ai/research-summary";
 import { AnthropicNotConfiguredError, isAnthropicConfigured } from "@/lib/ai/anthropic";
+import { AiBudgetExceededError } from "@/lib/ai/budget";
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -24,6 +25,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     }
 
     const result = await summarizeResearch({
+      // v2.20 — second arg below is the budget context (records AiUsageLog).
       lead: {
         businessName: lead.businessName,
         industry: lead.industry,
@@ -47,7 +49,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         sourceUrl: a.sourceUrl,
         payload: a.payload,
       })),
-    });
+    }, { leadId: lead.id, userId: user.id });
 
     await prisma.$transaction([
       prisma.researchArtifact.create({
@@ -77,6 +79,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   } catch (err) {
     if (err instanceof AnthropicNotConfiguredError) {
       return NextResponse.json({ error: err.message }, { status: 400 });
+    }
+    if (err instanceof AiBudgetExceededError) {
+      return NextResponse.json(
+        { error: err.message, scope: err.scope, reason: err.reason },
+        { status: 429 },
+      );
     }
     return jsonError(err);
   }

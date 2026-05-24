@@ -6,6 +6,7 @@
  * parsed from JSON output. Falls back to free-form text when JSON parse fails.
  */
 
+import { AiFeatureKind } from "@prisma/client";
 import { claudeCompletion } from "@/lib/ai/anthropic";
 
 const SYSTEM_PROMPT = `You are a sales research analyst for Gateway TelNet, a Southern-California managed-services provider.
@@ -73,7 +74,12 @@ function artifactExcerpt(a: ResearchSummaryInput["artifacts"][number]): string {
   return `--- ${a.type} (${a.sourceUrl ?? "no-url"})\nTITLE: ${title}\nMETA: ${meta}\nTEXT: ${text}`;
 }
 
-export async function summarizeResearch(input: ResearchSummaryInput): Promise<ResearchSummaryOutput> {
+export async function summarizeResearch(
+  input: ResearchSummaryInput,
+  // v2.20 — optional budget context. When provided, the call is
+  // metered against per-lead + org caps and a usage row is written.
+  budget?: { leadId: string; userId?: string },
+): Promise<ResearchSummaryOutput> {
   const lead = input.lead;
   const ctxLines = [
     `Business: ${lead.businessName}`,
@@ -98,7 +104,15 @@ export async function summarizeResearch(input: ResearchSummaryInput): Promise<Re
   const user = `LEAD CONTEXT\n${ctxLines}\n\nGATHERED ARTIFACTS\n${artifactBlock}`;
   const responseHint = `Return ONLY the JSON object — no markdown, no commentary.`;
 
-  const { text } = await claudeCompletion({ system: SYSTEM_PROMPT, user, responseHint, maxTokens: 1200 });
+  const { text } = await claudeCompletion({
+    system: SYSTEM_PROMPT,
+    user,
+    responseHint,
+    maxTokens: 1200,
+    budget: budget
+      ? { leadId: budget.leadId, userId: budget.userId, feature: AiFeatureKind.RESEARCH_SUMMARY }
+      : undefined,
+  });
 
   let parsed: { summary?: string; suggestedQuestions?: string[]; risks?: string[]; fitSignals?: string[] } = {};
   try {

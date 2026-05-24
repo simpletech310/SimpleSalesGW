@@ -166,6 +166,23 @@ enum ResearchArtifactType {
   GOOGLE_BUSINESS_DATA
   NEWS_MENTION
   CLAUDE_SUMMARY
+  // v2.20 — cached outputs from the new AI features. Single artifact
+  // table; type drives the renderer.
+  OBJECTION_REBUTTAL
+  DISCOVERY_PREP_BRIEF
+  OUTREACH_DRAFT
+  PRESALE_NARRATIVE
+  HANDOFF_QC
+}
+
+// v2.20 — which AI feature spent a Claude call. Drives usage roll-ups + budget caps.
+enum AiFeatureKind {
+  RESEARCH_SUMMARY
+  OBJECTION_REBUTTAL
+  DISCOVERY_PREP
+  OUTREACH_PERSONALIZE
+  PRESALE_NARRATIVE
+  HANDOFF_QC
 }
 
 enum AuditAction {
@@ -314,6 +331,8 @@ model User {
   pricingApprovals  PricingApproval[] @relation("PricingApprover")
   managedCustomers  Customer[]            @relation("CustomerManager")
   discoveryCreated  DiscoveryAssessment[] @relation("DiscoveryCreator")
+  // v2.20 — Claude calls this user triggered
+  aiUsageEvents     AiUsageLog[]          @relation("AiUsageActor")
   onboardingTasks   OnboardingTask[]      @relation("OnboardingTaskOwner")
   signedDocsUploaded SignedDocument[]     @relation("SignedDocUploader")
   qualificationScores QualificationScorecard[] @relation("QualificationScorer")
@@ -435,6 +454,8 @@ model Lead {
   objectionLogs       ObjectionLog[]
   // v2.17 — pre-sale technical scoping (voice / CCTV / access / IT)
   preSaleAssessments  DiscoveryAssessment[]
+  // v2.20 — AI usage rows scoped to this lead (for per-lead budget cap)
+  aiUsageLogs         AiUsageLog[]
 
   @@index([ownerUserId])
   @@index([pipelineStage])
@@ -571,6 +592,8 @@ model Handoff {
   acceptedAt      DateTime?     @map("accepted_at")
   rejectedAt      DateTime?     @map("rejected_at")
   rejectedReason  String?       @map("rejected_reason") @db.Text
+  // v2.20 — cached AI quality-check output: { severity, issues[], suggestions[], generatedAt }
+  qcResult        Json?         @map("qc_result")
   createdAt       DateTime      @default(now()) @map("created_at")
   updatedAt       DateTime      @updatedAt @map("updated_at")
 
@@ -580,6 +603,30 @@ model Handoff {
 
   @@index([leadId])
   @@map("handoffs")
+}
+
+// v2.20 — every Claude call writes one row. Drives org + per-lead budget
+// enforcement and surfaces month-to-date spend on /admin/ai-usage.
+model AiUsageLog {
+  id                       String        @id @default(uuid()) @db.Uuid
+  leadId                   String?       @map("lead_id") @db.Uuid
+  userId                   String?       @map("user_id") @db.Uuid
+  feature                  AiFeatureKind
+  model                    String
+  inputTokens              Int           @map("input_tokens")
+  outputTokens             Int           @map("output_tokens")
+  cacheReadInputTokens     Int?          @map("cache_read_input_tokens")
+  cacheCreationInputTokens Int?          @map("cache_creation_input_tokens")
+  estimatedCostUsd         Decimal       @map("estimated_cost_usd") @db.Decimal(10, 6)
+  createdAt                DateTime      @default(now()) @map("created_at")
+
+  lead Lead? @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  user User? @relation("AiUsageActor", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([leadId, createdAt])
+  @@index([feature, createdAt])
+  @@index([createdAt])
+  @@map("ai_usage_logs")
 }
 
 model AuditLog {

@@ -9,6 +9,7 @@ import { fetchLinkedInCompany } from "@/lib/scrape/linkedin";
 import { fetchGoogleBusiness } from "@/lib/scrape/google-business";
 import { summarizeResearch } from "@/lib/ai/research-summary";
 import { isAnthropicConfigured } from "@/lib/ai/anthropic";
+import { AiBudgetExceededError } from "@/lib/ai/budget";
 
 type SourceResult = { ok: boolean; artifactId?: string; reason?: string };
 
@@ -122,7 +123,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
             sourceUrl: a.sourceUrl,
             payload: a.payload,
           })),
-        });
+        }, { leadId: id, userId: user.id });
         await prisma.$transaction([
           prisma.researchArtifact.create({
             data: {
@@ -155,6 +156,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     return NextResponse.json({ sources, summary, suggestedQuestions, risks, fitSignals });
   } catch (err) {
+    if (err instanceof AiBudgetExceededError) {
+      return NextResponse.json(
+        { error: err.message, scope: err.scope, reason: err.reason },
+        { status: 429 },
+      );
+    }
     return jsonError(err);
   }
 }
