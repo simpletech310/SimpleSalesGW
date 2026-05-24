@@ -121,12 +121,125 @@ This repo is pre-configured so every push to `main` runs migrations, seeds demo 
 
 | Var | Where it's set | Required for |
 | --- | --- | --- |
-| `AUTH_SECRET` | Vercel UI (you paste) | session signing |
+| `AUTH_SECRET` | Vercel UI (you paste) | **Required in production** (v2.14+). Without it, sessions silently invalidate on every redeploy. Generate with `openssl rand -base64 32`. |
 | `ANTHROPIC_API_KEY` | Vercel UI (you paste) | Claude research summary; AI features gracefully off without it |
 | `DATABASE_URL` | Vercel Postgres integration | everything |
-| `BLOB_READ_WRITE_TOKEN` | Vercel Blob integration | file attachments only |
-| `RESEND_API_KEY` | Vercel UI (optional) | live outreach email send |
+| `BLOB_READ_WRITE_TOKEN` | Vercel Blob integration | file attachments + signed-document uploads. **v2.14:** routes return a clean 503 when missing instead of hanging the upload client. |
+| `RESEND_API_KEY` | Vercel UI (optional) | magic-link sign-in + outreach email + new-user invite emails |
 | everything else | committed in `.env.production` | non-secret defaults |
+
+---
+
+## Day-1 setup — running your team off this tomorrow
+
+You've deployed. Now you need to take it from "fresh seed users" to
+"Marcelo runs his Tuesday morning standup off this." Six steps. ~30 minutes.
+
+### Step 1 — Verify env in production
+
+In Vercel → Project → Settings → Environment Variables → Production, confirm:
+
+- `AUTH_SECRET` is set (required in v2.14+ — `openssl rand -base64 32`)
+- `DATABASE_URL` is set (Vercel Postgres integration handles this)
+- `RESEND_API_KEY` + `EMAIL_FROM` set if you want magic-link sign-in + invite emails to your team
+- `BLOB_READ_WRITE_TOKEN` set if you want file attachments + signed-document uploads
+
+Redeploy after adding any new variable.
+
+### Step 2 — First sign-in as Marcelo (Sales Manager)
+
+Open `<your-vercel-url>/login` and sign in with:
+
+```
+Email:    salesmgr@gatewaytelnet.com
+Password: gateway123
+```
+
+You land on the **Sales Manager dashboard** (pipeline board + team
+scorecard band, new in v2.14b). The role label in the top-right confirms
+you're signed in as Sales Manager.
+
+### Step 3 — Run the first-run setup wizard
+
+Click **Admin → ⚡ First-run setup** (the purple tile at the top of the
+admin grid, new in v2.14). The wizard walks you through six steps:
+
+1. **Environment health** — green checks for `AUTH_SECRET`,
+   `RESEND_API_KEY`, `BLOB_READ_WRITE_TOKEN`. Anything red is a direct
+   instruction to set the var in Vercel.
+2. **Add your real team** — click through to `/admin/users`. Add yourself
+   with your real email + role `SUPERADMIN`, plus your COO, vCIO, and
+   each salesperson. If Resend is configured, each gets a magic-link
+   invite email automatically; otherwise the wizard tells you to share
+   the password manually.
+3. **Review pricing catalog** — click through to `/admin/pricing` (now
+   editable by Sales Manager, not just Superadmin per v2.14). Adjust
+   bundle MRRs, seat tiers, onboarding fees, or floors. Changes
+   propagate to every quote, every PricingCard, and every approval-tier
+   calc instantly.
+4. **Import 25 starter prospects** — one-click button that seeds the
+   Burbank shortlist as Leads owned by `lin@gatewaytelnet.com`.
+   Idempotent — pressing twice won't duplicate. Source manifest:
+   `docs/prospects-burbank.md`.
+5. **Customize objections + outreach** — review the seeded
+   objection-rebuttal library at `/admin/objections` and cold-outreach
+   templates at `/admin/outreach`. Edit any that don't match your tone.
+6. **Test email delivery** — sign out and sign back in via the
+   magic-link tab using your real email. If it arrives, Resend is wired.
+
+### Step 4 — Run your first end-to-end deal as a sanity check
+
+Confirm the wiring works before your team relies on it. Open four
+browser sessions (one per role — different browsers or incognito):
+
+1. **As `lin@` (Salesperson):**
+   - Open a Burbank prospect from `/leads`
+   - Fill the Qualification scorecard — auto-score updates instantly as
+     you save (v2.14 wiring fix)
+   - Move LEAD → QUALIFIED → DISCOVERY (gate warnings explain anything missing)
+   - Run a Discovery call note + an assessment
+   - PRE_SALES → request a 10% discount via PricingCard
+2. **As `salesmgr@` (you):**
+   - `/notifications` shows the pending 10% approval
+   - Use the new **Approvals** filter chip to hyperfocus
+   - Click **Approve** inline → the PricingCard flips to APPROVED with
+     your name
+3. **Back as `lin@`:**
+   - PROPOSAL → NEGOTIATION → CLOSED_WON
+   - **You'll see a yellow callout: _"This deal is closed-won but no
+     handoff is on the way yet"_** (the T-Sports fix from v2.14)
+   - Click → fill the 60-field handoff → submit
+4. **As `coo@`:**
+   - `/notifications?filter=handoffs` shows the pending handoff
+   - Click **Accept** inline → a Customer appears immediately under
+     `/accounts`, and Lin gets a notification confirming the handoff landed
+5. **As `teejay@` (vCIO):**
+   - `/accounts` shows the new customer with a green health dot
+   - Click in → OnboardingPanel shows the phase progress bar
+   - Mark Pre-Engagement tasks complete → phase advances to KICKOFF
+
+If all five steps complete without confusion or 500s, the portal is
+production-ready for your team.
+
+### Step 5 — Going live with real users
+
+Once you've verified the flow:
+
+1. Visit `/admin/users` → deactivate the 5 seed accounts (`lin@`,
+   `teejay@`, `coo@`, `salesmgr@`, `admin@gatewaytelnet.com`). They
+   remain in the audit log but can't sign in.
+2. Set a real custom domain in Vercel and update `AUTH_URL` to match.
+3. Add the team's real email addresses as authorized senders in Resend.
+4. Have each teammate bookmark the portal on their phone home screen as
+   a PWA (iPhone: Share → Add to Home Screen).
+
+### Step 6 — Day-to-day signals to watch
+
+- `/admin/audit` — every state change is recorded. Spot-check weekly.
+- Vercel logs show an integration-health banner on cold start. If any
+  line turns red, `/admin/setup` shows exactly which env var to fix.
+- The Customer health column on `/accounts` — any account that drifts
+  to amber/red is a customer the vCIO should put on the next QBR list.
 
 ---
 
