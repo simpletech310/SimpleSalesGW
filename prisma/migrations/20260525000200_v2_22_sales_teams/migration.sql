@@ -76,7 +76,11 @@ CREATE TABLE "sales_call_sessions" (
   "initiator_user_id" UUID                NOT NULL,
   "daily_room_name"   TEXT                NOT NULL,
   "daily_room_url"    TEXT                NOT NULL,
-  "kind"              "ActivityType"      NOT NULL DEFAULT 'VIDEO_CALL',
+  -- v2.22 fix — no DEFAULT for `kind` here because Postgres forbids
+  -- referencing a newly-added enum value as a literal in the same
+  -- transaction that ALTER TYPE...ADD VALUE'd it. The call-start API
+  -- always sets `kind` explicitly. Schema-level @default removed too.
+  "kind"              "ActivityType"      NOT NULL,
   "status"            "CallSessionStatus" NOT NULL DEFAULT 'ACTIVE',
   "started_at"        TIMESTAMP(3)        NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "ended_at"          TIMESTAMP(3),

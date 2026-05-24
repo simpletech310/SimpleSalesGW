@@ -1333,8 +1333,11 @@ model SalesCallSession {
   initiatorUserId   String            @map("initiator_user_id") @db.Uuid
   dailyRoomName     String            @unique @map("daily_room_name")
   dailyRoomUrl      String            @map("daily_room_url")
-  // VIDEO_CALL or AUDIO_CALL (mirrors ActivityType for filtering)
-  kind              ActivityType      @default(VIDEO_CALL)
+  // VIDEO_CALL or AUDIO_CALL (mirrors ActivityType for filtering).
+  // v2.22 — no @default; call-start API always sets explicitly. The
+  // Postgres "can't reference new enum value in same tx" rule made
+  // this required (see migration.sql comment).
+  kind              ActivityType
   status            CallSessionStatus @default(ACTIVE)
   startedAt         DateTime          @default(now()) @map("started_at")
   endedAt           DateTime?         @map("ended_at")
