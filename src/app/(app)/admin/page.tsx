@@ -8,7 +8,11 @@ export default async function AdminHomePage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
   const role = session.user.role;
-  if (!can(role, "user:manage") && !can(role, "audit:view")) redirect("/");
+  // v2.12 — admit any role that holds at least one admin permission. Today
+  // only SUPERADMIN holds all three; COO holds audit:view. Future-proof.
+  if (!can(role, "user:manage") && !can(role, "audit:view") && !can(role, "system:config")) {
+    redirect("/");
+  }
 
   return (
     <div className="space-y-4">
