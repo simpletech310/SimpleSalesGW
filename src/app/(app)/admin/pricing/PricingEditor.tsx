@@ -117,7 +117,16 @@ export function PricingEditor({
       });
       const data = await res.json();
       if (!res.ok) {
-        toast.error(data?.error ?? "Save failed");
+        // v2.20.1 — surface the first field-level Zod issue so the user can
+        // see *which* part of the catalog failed, not just "Validation failed".
+        const flatten = data?.details as { fieldErrors?: Record<string, string[]>; formErrors?: string[] } | undefined;
+        const firstFieldError = flatten?.fieldErrors
+          ? Object.entries(flatten.fieldErrors).find(([, msgs]) => msgs?.length)
+          : undefined;
+        const detail = firstFieldError
+          ? `${firstFieldError[0]}: ${firstFieldError[1][0]}`
+          : flatten?.formErrors?.[0];
+        toast.error(detail ? `${data.error}: ${detail}` : (data?.error ?? "Save failed"), { duration: 8000 });
       } else {
         toast.success("Pricing catalog updated");
         setCatalog(payload);

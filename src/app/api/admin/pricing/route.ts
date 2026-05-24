@@ -14,6 +14,18 @@ const seatTierSchema = z.object({
   perSeatFloor: z.coerce.number().nonnegative(),
 });
 
+// v2.20.1 — `includes` accepts both shapes: bare ServiceLine enum (legacy
+// catalogs from before v2.2.1) AND `{ serviceLine, tier? }` (the sub-tier
+// form the PricingEditor writes). Without this union, any bundle with a
+// sub-tier set in the editor crashes the save with "Validation failed".
+const includeEntrySchema = z.union([
+  z.nativeEnum(ServiceLine),
+  z.object({
+    serviceLine: z.nativeEnum(ServiceLine),
+    tier: z.string().min(1).max(200).optional(),
+  }),
+]);
+
 const bundleSchema = z.object({
   id: z.nativeEnum(ServiceBundle),
   label: z.string().min(1).max(100),
@@ -24,7 +36,7 @@ const bundleSchema = z.object({
     perSeat: z.coerce.number().nonnegative(),
   }),
   annualAddOns: z.array(z.object({ label: z.string(), amount: z.coerce.number().nonnegative() })).optional(),
-  includes: z.array(z.nativeEnum(ServiceLine)),
+  includes: z.array(includeEntrySchema),
 });
 
 const standaloneSchema = z.object({
