@@ -108,7 +108,9 @@ function ScopingResultView({ card }: { card: ScopingScorecard }) {
               </p>
             </div>
           </div>
-          <table className="w-full text-xs">
+          {/* v2.18 — mobile: horizontal scroll keeps qty + price columns aligned */}
+          <div className="overflow-x-auto">
+          <table className="w-full text-xs min-w-[420px]">
             <thead className="text-left uppercase tracking-wide text-gtn-grey-2">
               <tr>
                 <th className="py-1">Item</th>
@@ -128,6 +130,7 @@ function ScopingResultView({ card }: { card: ScopingScorecard }) {
               ))}
             </tbody>
           </table>
+          </div>
           <p className="text-xs text-gtn-grey-2 mt-2 italic">
             Adopt these into the salesperson&apos;s quote from the lead detail &mdash; the &ldquo;Adopt N recommended items into quote&rdquo; button there merges them into the ServiceQuoteCard.
           </p>

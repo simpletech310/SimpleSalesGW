@@ -68,7 +68,7 @@ export async function SalespersonHome({
           </>
         }
       >
-        <div className="grid grid-cols-3 gap-4 max-w-lg">
+        <div className="grid grid-cols-3 gap-3 sm:gap-4 max-w-lg">
           <div>
             <p className="gtn-eyebrow">All leads</p>
             <p className="text-2xl font-bold text-white">{leads.length}</p>

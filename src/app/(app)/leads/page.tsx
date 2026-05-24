@@ -117,7 +117,9 @@ export default async function LeadsPage() {
       )}
 
       <div className="gtn-card overflow-hidden p-0">
-        <table className="w-full text-sm">
+        {/* v2.18 — narrow viewports get horizontal scroll instead of clipping */}
+        <div className="overflow-x-auto">
+        <table className="w-full text-sm min-w-[560px]">
           <thead className="bg-gtn-lavender text-left text-xs uppercase tracking-wide text-gtn-grey-2">
             <tr>
               <th className="px-4 py-3">Business</th>
@@ -157,6 +159,7 @@ export default async function LeadsPage() {
             )}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );

@@ -77,7 +77,9 @@ export default async function AccountsPage() {
         />
       ) : (
         <div className="gtn-card overflow-hidden p-0">
-          <table className="w-full text-sm">
+          {/* v2.18 — horizontal scroll on narrow viewports so the table doesn't get clipped */}
+          <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[640px]">
             <thead className="bg-gtn-lavender text-left text-xs uppercase tracking-wide text-gtn-grey-2">
               <tr>
                 <th className="px-4 py-3">Business</th>
@@ -127,6 +129,7 @@ export default async function AccountsPage() {
               })}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 

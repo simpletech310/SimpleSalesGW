@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/Button";
 import { HeroBand } from "@/components/brand";
 import { ImportProspectsButton } from "./ImportProspectsButton";
 import { BackfillAccountsButton } from "./BackfillAccountsButton";
+import { WipeLeadsButton } from "./WipeLeadsButton";
 
 export const dynamic = "force-dynamic";
 
@@ -212,6 +213,25 @@ export default async function SetupPage() {
           <Link href="/login">Go to login</Link>
         </Button>
       </Step>
+
+      {/* v2.18 — Destructive: wipe every Lead row + cascaded children.
+          Use after a demo run or whenever you want a clean slate for the
+          Burbank prospect bulk import. SUPERADMIN only; two-click confirm. */}
+      {can(role, "user:manage") && (
+        <Card>
+          <h2 className="text-base font-semibold text-gtn-navy mb-2">
+            Reset all leads
+          </h2>
+          <p className="text-sm text-gtn-grey-2 mb-3">
+            Permanently delete every <code>Lead</code> row (cascades to
+            Activities, Notes, Assessments, Handoffs, PricingApprovals,
+            DiscoveryAssessments, SignedDocuments, and any Customer whose
+            lead is removed). Use this before bulk-importing the prospect
+            shortlist if you want a clean DB. <strong>Irreversible.</strong>
+          </p>
+          <WipeLeadsButton />
+        </Card>
+      )}
 
       {/* v2.15.2 — orphan-accounts recovery. If any accepted handoff
           didn't produce a Customer (data drift from v2.0-B rollout, or a

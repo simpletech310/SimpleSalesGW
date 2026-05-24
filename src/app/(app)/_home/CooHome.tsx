@@ -77,7 +77,7 @@ export async function CooHome({
           </>
         }
       >
-        <div className="grid grid-cols-4 gap-4 max-w-2xl">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 max-w-2xl">
           <Stat label="Handoffs awaiting" value={handoffs.length} urgent={handoffs.length > 0} />
           <Stat label="20%+ approvals" value={cooApprovals.length} urgent={cooApprovals.length > 0} />
           <Stat label="Active customers" value={customerCount} />
@@ -96,7 +96,8 @@ export async function CooHome({
           <Card className="text-sm text-gtn-grey-2">No handoffs waiting. Nice and clean.</Card>
         ) : (
           <Card className="p-0 overflow-hidden">
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[480px]">
               <thead className="bg-gtn-lavender text-left text-xs uppercase tracking-wide text-gtn-grey-2">
                 <tr>
                   <th className="px-4 py-2">Lead</th>
@@ -127,6 +128,7 @@ export async function CooHome({
                 ))}
               </tbody>
             </table>
+            </div>
           </Card>
         )}
       </div>

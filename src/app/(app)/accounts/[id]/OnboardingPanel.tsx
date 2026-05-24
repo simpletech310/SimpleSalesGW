@@ -160,7 +160,8 @@ export function OnboardingPanel({ customerId, currentPhase }: { customerId: stri
             Current phase: <strong className="text-gtn-purple">{PHASE_LABEL[currentPhase]}</strong>
           </p>
         </div>
-        <div className="grid grid-cols-5 gap-2">
+        {/* v2.18 — mobile: tighten gap so 5 phases fit; truncated labels handle the rest. */}
+        <div className="grid grid-cols-5 gap-1 sm:gap-2">
           {phaseProgress.map((p) => {
             const isCurrent = p.phase === currentPhase;
             const complete = p.pct === 100 && p.total > 0;

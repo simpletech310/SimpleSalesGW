@@ -94,7 +94,7 @@ export async function VcioHome({
           </>
         }
       >
-        <div className="grid grid-cols-4 gap-4 max-w-2xl">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 max-w-2xl">
           <Stat label="Active accounts" value={totalCustomers} />
           <Stat label="Onboarding" value={onboarding} />
           <Stat label="Steady state" value={steady} />

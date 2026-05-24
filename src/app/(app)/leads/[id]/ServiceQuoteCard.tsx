@@ -205,7 +205,9 @@ export function ServiceQuoteCard({
         <p className="text-xs text-gtn-grey-2 mb-3">No line items yet. Use the buttons below to add some.</p>
       ) : (
         <div className="border border-gtn-lavender-2 rounded-md overflow-hidden mb-3">
-          <table className="w-full text-xs">
+          {/* v2.18 — horizontal scroll so the qty + price columns stay legible on phones */}
+          <div className="overflow-x-auto">
+          <table className="w-full text-xs min-w-[560px]">
             <thead className="bg-gtn-lavender text-left uppercase tracking-wide text-gtn-grey-2">
               <tr>
                 <th className="px-2 py-2">Line</th>
@@ -280,6 +282,7 @@ export function ServiceQuoteCard({
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 

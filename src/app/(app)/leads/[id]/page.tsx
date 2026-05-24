@@ -223,7 +223,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
       </div>
 
       {/* Score strip */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <ScoreTile label={STRINGS.scoring.services} value={lead.servicesScore} />
         <ScoreTile label={STRINGS.scoring.customer} value={lead.customerScore} />
         <ScoreTile

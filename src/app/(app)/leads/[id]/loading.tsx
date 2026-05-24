@@ -9,7 +9,7 @@ export default function LeadDetailLoading() {
         <SkeletonBlock width="180px" height="0.875rem" />
       </div>
       <SkeletonBlock width="100%" height="80px" />
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <SkeletonCard lines={1} />
         <SkeletonCard lines={1} />
         <SkeletonCard lines={1} />
