@@ -4,10 +4,21 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { Loader2, Sparkles, AlertTriangle, ShieldAlert, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { NextStepHint } from "@/components/help/NextStepHint";
 import type { Role } from "@prisma/client";
+
+type QcSeverity = "blocking" | "warn" | "ok";
+type QcIssue = { field: string; concern: string; severity: "blocking" | "warn" };
+type QcResult = {
+  severity: QcSeverity;
+  issues: QcIssue[];
+  suggestions: string[];
+  summary: string;
+  generatedAt: string;
+};
 
 type HandoffRow = {
   id: string;
@@ -25,6 +36,7 @@ type HandoffRow = {
   decisionMakers: unknown;
   hardCommitments: unknown;
   successCriteria: unknown;
+  qcResult: QcResult | null;
   initiator: { name: string };
   acceptor: { name: string } | null;
 };
@@ -44,6 +56,7 @@ export function HandoffCard({
   const [items, setItems] = useState<HandoffRow[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [recovering, setRecovering] = useState(false);
+  const [qcRunning, setQcRunning] = useState<string | null>(null);
 
   const canAccept = role === "COO" || role === "SUPERADMIN";
 
@@ -77,6 +90,24 @@ export function HandoffCard({
       router.refresh();
     } finally {
       setRecovering(false);
+    }
+  }
+
+  async function runQc(id: string) {
+    setQcRunning(id);
+    try {
+      const res = await fetch(`/api/handoffs/${id}/qc`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data?.error ?? "QC failed");
+        return;
+      }
+      toast.success(`QC: ${data.severity}`);
+      await refresh();
+    } catch {
+      toast.error("QC failed");
+    } finally {
+      setQcRunning(null);
     }
   }
 
@@ -229,6 +260,30 @@ export function HandoffCard({
               <pre className="text-xs bg-gtn-lavender p-2 rounded whitespace-pre-wrap font-mono">{h.notes}</pre>
             )}
 
+            {/* v2.20 — AI quality check */}
+            {(h.status === "INITIATED" || h.status === "DRAFT") && (
+              <div className="flex items-center justify-between gap-2 pt-1">
+                <p className="text-[11px] text-gtn-grey-2">
+                  AI quality check {h.qcResult ? "rerun" : "looks at decision-makers, commitments, contracts, and success criteria"}.
+                </p>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => runQc(h.id)}
+                  disabled={qcRunning === h.id}
+                  className="h-7 px-2 text-xs"
+                >
+                  {qcRunning === h.id ? (
+                    <><Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> Checking…</>
+                  ) : (
+                    <><Sparkles className="h-3.5 w-3.5 mr-1" /> {h.qcResult ? "Re-run QC" : "Run AI quality check"}</>
+                  )}
+                </Button>
+              </div>
+            )}
+
+            {h.qcResult && <QcReport qc={h.qcResult} />}
+
             {h.status === "ACCEPTED" && h.acceptor && (
               <p className="text-xs text-gtn-green">
                 ✓ Accepted by {h.acceptor.name} · {h.acceptedAt ? format(new Date(h.acceptedAt), "PPp") : ""}
@@ -247,6 +302,56 @@ export function HandoffCard({
         ))}
       </ul>
     </Card>
+  );
+}
+
+function QcReport({ qc }: { qc: QcResult }) {
+  const sev = qc.severity;
+  const bg =
+    sev === "blocking" ? "border-gtn-red/40 bg-[#FBE9E7]"
+      : sev === "warn" ? "border-gtn-amber/40 bg-[#FEF3E2]"
+      : "border-gtn-green/40 bg-gtn-green-bg";
+  const Icon = sev === "blocking" ? ShieldAlert : sev === "warn" ? AlertTriangle : CheckCircle2;
+  const labelColor =
+    sev === "blocking" ? "text-gtn-red"
+      : sev === "warn" ? "text-gtn-amber"
+      : "text-gtn-green";
+  return (
+    <div className={`rounded-md border p-3 space-y-2 ${bg}`}>
+      <div className="flex items-center gap-2">
+        <Icon className={`h-4 w-4 ${labelColor}`} />
+        <p className={`text-xs font-semibold uppercase tracking-wide ${labelColor}`}>
+          AI QC: {sev}
+        </p>
+      </div>
+      {qc.summary && <p className="text-sm text-gtn-navy">{qc.summary}</p>}
+      {qc.issues.length > 0 && (
+        <div>
+          <p className="text-[11px] uppercase tracking-wide font-semibold text-gtn-grey-2">Issues</p>
+          <ul className="space-y-1 mt-1">
+            {qc.issues.map((iss, i) => (
+              <li key={i} className="text-sm text-gtn-navy">
+                <span className={`text-[10px] uppercase tracking-wide rounded-full px-1.5 py-0.5 mr-2 ${iss.severity === "blocking" ? "bg-gtn-red/20 text-gtn-red" : "bg-gtn-amber/20 text-gtn-amber"}`}>
+                  {iss.severity}
+                </span>
+                <strong>{iss.field}:</strong> {iss.concern}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {qc.suggestions.length > 0 && (
+        <div>
+          <p className="text-[11px] uppercase tracking-wide font-semibold text-gtn-grey-2">Suggested fixes</p>
+          <ul className="list-disc list-inside text-sm text-gtn-navy mt-1">
+            {qc.suggestions.map((s, i) => <li key={i}>{s}</li>)}
+          </ul>
+        </div>
+      )}
+      <p className="text-[10px] text-gtn-grey-3">
+        Generated {format(new Date(qc.generatedAt), "PPp")}
+      </p>
+    </div>
   );
 }
 

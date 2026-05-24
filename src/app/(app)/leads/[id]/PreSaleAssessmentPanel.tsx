@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { ClipboardCheck, Loader2, Plus } from "lucide-react";
+import { ClipboardCheck, Loader2, Plus, Sparkles, Copy } from "lucide-react";
 import { DealKind, DiscoveryKind, DiscoveryStatus, Role } from "@prisma/client";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -55,6 +55,14 @@ export function PreSaleAssessmentPanel({
   const [picking, setPicking] = useState(false);
   const [creating, setCreating] = useState<DiscoveryKind | null>(null);
   const [adopting, setAdopting] = useState<string | null>(null);
+  // v2.20 — Pre-sale narrative state
+  const [narratingId, setNarratingId] = useState<string | null>(null);
+  const [narratives, setNarratives] = useState<Record<string, {
+    narrative: string;
+    included: string[];
+    notIncluded: string[];
+    nextStep: string;
+  }>>({});
 
   const refresh = useCallback(async () => {
     const res = await fetch(`/api/leads/${leadId}/discovery`);
@@ -115,6 +123,56 @@ export function PreSaleAssessmentPanel({
       router.refresh();
     } finally {
       setAdopting(null);
+    }
+  }
+
+  async function generateNarrative(assessmentId: string) {
+    setNarratingId(assessmentId);
+    try {
+      const res = await fetch(`/api/leads/${leadId}/discovery/${assessmentId}/narrative`, {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data?.error ?? "Narrative generation failed");
+        return;
+      }
+      setNarratives((cur) => ({
+        ...cur,
+        [assessmentId]: {
+          narrative: data.narrative ?? "",
+          included: data.included ?? [],
+          notIncluded: data.notIncluded ?? [],
+          nextStep: data.nextStep ?? "",
+        },
+      }));
+      toast.success("Narrative ready");
+    } catch {
+      toast.error("Narrative generation failed");
+    } finally {
+      setNarratingId(null);
+    }
+  }
+
+  async function copyNarrative(assessmentId: string) {
+    const n = narratives[assessmentId];
+    if (!n) return;
+    const text = [
+      n.narrative,
+      "",
+      "What's included:",
+      ...n.included.map((s) => `  • ${s}`),
+      "",
+      "What's not included:",
+      ...n.notIncluded.map((s) => `  • ${s}`),
+      "",
+      n.nextStep ? `Next step: ${n.nextStep}` : "",
+    ].filter(Boolean).join("\n");
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success("Copied to clipboard");
+    } catch {
+      toast.error("Copy failed — select and copy manually.");
     }
   }
 
@@ -188,38 +246,94 @@ export function PreSaleAssessmentPanel({
               isPreSaleKind(a.kind) &&
               canEdit &&
               dealKind !== DealKind.MANAGED_IT_BUNDLE;
+            const showNarrative = isCompleted && canEdit;
+            const n = narratives[a.id];
             return (
-              <li key={a.id} className="py-3 flex items-start justify-between gap-3 flex-wrap">
-                <div>
-                  <p className="text-sm font-medium text-gtn-navy flex items-center gap-2">
-                    <StatusBadge status={a.status} />
-                    {discoveryTitle(a.kind)}
-                  </p>
-                  <p className="text-xs text-gtn-grey-3 mt-1">
-                    Requested by {a.createdBy.name}
-                    {a.completedAt && ` · completed ${format(new Date(a.completedAt), "MMM d")}`}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  {showAdopt && (
-                    <Button
-                      size="sm"
-                      onClick={() => adoptIntoQuote(a)}
-                      disabled={adopting === a.id}
-                    >
-                      {adopting === a.id ? (
-                        <><Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> Adopting…</>
-                      ) : (
-                        <><ClipboardCheck className="h-3.5 w-3.5 mr-1" /> Adopt {recCount} item{recCount === 1 ? "" : "s"} into quote</>
-                      )}
+              <li key={a.id} className="py-3 flex flex-col gap-3">
+                <div className="flex items-start justify-between gap-3 flex-wrap">
+                  <div>
+                    <p className="text-sm font-medium text-gtn-navy flex items-center gap-2">
+                      <StatusBadge status={a.status} />
+                      {discoveryTitle(a.kind)}
+                    </p>
+                    <p className="text-xs text-gtn-grey-3 mt-1">
+                      Requested by {a.createdBy.name}
+                      {a.completedAt && ` · completed ${format(new Date(a.completedAt), "MMM d")}`}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {showAdopt && (
+                      <Button
+                        size="sm"
+                        onClick={() => adoptIntoQuote(a)}
+                        disabled={adopting === a.id}
+                      >
+                        {adopting === a.id ? (
+                          <><Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> Adopting…</>
+                        ) : (
+                          <><ClipboardCheck className="h-3.5 w-3.5 mr-1" /> Adopt {recCount} item{recCount === 1 ? "" : "s"} into quote</>
+                        )}
+                      </Button>
+                    )}
+                    {showNarrative && (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => generateNarrative(a.id)}
+                        disabled={narratingId === a.id}
+                      >
+                        {narratingId === a.id ? (
+                          <><Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> Writing…</>
+                        ) : (
+                          <><Sparkles className="h-3.5 w-3.5 mr-1" /> {n ? "Regen narrative" : "Generate proposal narrative"}</>
+                        )}
+                      </Button>
+                    )}
+                    <Button asChild size="sm" variant="secondary">
+                      <Link href={`/leads/${leadId}/discovery/${a.id}`}>
+                        {isCompleted ? "View result" : canRunDiscovery ? "Continue" : "Open"}
+                      </Link>
                     </Button>
-                  )}
-                  <Button asChild size="sm" variant="secondary">
-                    <Link href={`/leads/${leadId}/discovery/${a.id}`}>
-                      {isCompleted ? "View result" : canRunDiscovery ? "Continue" : "Open"}
-                    </Link>
-                  </Button>
+                  </div>
                 </div>
+
+                {n && (
+                  <div className="rounded-md border border-gtn-lavender-2 bg-gtn-lavender/30 p-3 space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-[11px] uppercase tracking-wide font-semibold text-gtn-purple flex items-center gap-1">
+                        <Sparkles className="h-3.5 w-3.5" />
+                        Customer-facing narrative
+                      </p>
+                      <Button size="sm" variant="ghost" onClick={() => copyNarrative(a.id)} className="h-7 px-2">
+                        <Copy className="h-3.5 w-3.5 mr-1" /> Copy
+                      </Button>
+                    </div>
+                    {n.narrative && (
+                      <p className="text-sm text-gtn-navy whitespace-pre-wrap">{n.narrative}</p>
+                    )}
+                    {n.included.length > 0 && (
+                      <div>
+                        <p className="text-[11px] uppercase tracking-wide font-semibold text-gtn-purple">What's included</p>
+                        <ul className="list-disc list-inside text-sm text-gtn-navy mt-1">
+                          {n.included.map((s, i) => <li key={i}>{s}</li>)}
+                        </ul>
+                      </div>
+                    )}
+                    {n.notIncluded.length > 0 && (
+                      <div>
+                        <p className="text-[11px] uppercase tracking-wide font-semibold text-gtn-grey-2">What's not included</p>
+                        <ul className="list-disc list-inside text-sm text-gtn-navy mt-1">
+                          {n.notIncluded.map((s, i) => <li key={i}>{s}</li>)}
+                        </ul>
+                      </div>
+                    )}
+                    {n.nextStep && (
+                      <p className="text-xs text-gtn-grey-2 border-t border-gtn-lavender-2 pt-2">
+                        <strong>Next step:</strong> {n.nextStep}
+                      </p>
+                    )}
+                  </div>
+                )}
               </li>
             );
           })}
