@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { can } from "@/lib/rbac";
 import { DiscoveryCallForm } from "./DiscoveryCallForm";
+import { DiscoveryPrepButton } from "./DiscoveryPrepButton";
 
 export default async function DiscoveryCallPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
@@ -40,6 +41,8 @@ export default async function DiscoveryCallPage({ params }: { params: Promise<{ 
           (opening · business · tech · decision · mini-pitch · close).
         </p>
       </div>
+
+      <DiscoveryPrepButton leadId={id} />
 
       <DiscoveryCallForm leadId={id} contactName={lead.primaryContactName ?? ""} />
 
