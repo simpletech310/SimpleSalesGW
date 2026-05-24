@@ -313,7 +313,7 @@ export function PreSaleAssessmentPanel({
                     )}
                     {n.included.length > 0 && (
                       <div>
-                        <p className="text-[11px] uppercase tracking-wide font-semibold text-gtn-purple">What's included</p>
+                        <p className="text-[11px] uppercase tracking-wide font-semibold text-gtn-purple">What&apos;s included</p>
                         <ul className="list-disc list-inside text-sm text-gtn-navy mt-1">
                           {n.included.map((s, i) => <li key={i}>{s}</li>)}
                         </ul>
@@ -321,7 +321,7 @@ export function PreSaleAssessmentPanel({
                     )}
                     {n.notIncluded.length > 0 && (
                       <div>
-                        <p className="text-[11px] uppercase tracking-wide font-semibold text-gtn-grey-2">What's not included</p>
+                        <p className="text-[11px] uppercase tracking-wide font-semibold text-gtn-grey-2">What&apos;s not included</p>
                         <ul className="list-disc list-inside text-sm text-gtn-navy mt-1">
                           {n.notIncluded.map((s, i) => <li key={i}>{s}</li>)}
                         </ul>

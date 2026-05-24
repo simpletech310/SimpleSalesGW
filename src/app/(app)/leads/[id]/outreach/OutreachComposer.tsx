@@ -153,7 +153,7 @@ export function OutreachComposer({
                 Personalize with AI
               </p>
               <p className="text-[11px] text-gtn-grey-2 mt-0.5">
-                Rewrites subject + body for this lead's industry, contact, and research context.
+                Rewrites subject + body for this lead&apos;s industry, contact, and research context.
               </p>
             </div>
             <div className="flex items-center gap-2">
