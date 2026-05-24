@@ -68,6 +68,11 @@ export default async function AdminHomePage() {
             <Card><h2 className="text-lg font-semibold">Objections library</h2><p className="text-sm text-gtn-grey-2 mt-1">Catalog of objections + tested rebuttals.</p></Card>
           </Link>
         )}
+        {can(role, "audit:view") && (
+          <Link href="/admin/ai-usage" className="block">
+            <Card><h2 className="text-lg font-semibold">AI usage</h2><p className="text-sm text-gtn-grey-2 mt-1">Month-to-date Claude spend by feature, lead, and user.</p></Card>
+          </Link>
+        )}
       </div>
     </div>
   );

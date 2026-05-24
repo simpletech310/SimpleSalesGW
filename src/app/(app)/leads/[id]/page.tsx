@@ -20,6 +20,7 @@ import { DeleteLeadButton } from "./DeleteLeadButton";
 import { DealKindPicker } from "./DealKindPicker";
 import { ServiceQuoteCard } from "./ServiceQuoteCard";
 import { PreSaleAssessmentPanel } from "./PreSaleAssessmentPanel";
+import { AiUsageMeter } from "./AiUsageMeter";
 import type { LineItem } from "@/lib/pricing/deal-kinds";
 import { DealKind, HandoffStatus, PipelineStage } from "@prisma/client";
 
@@ -116,6 +117,12 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
   return (
     <div className="space-y-6">
       <PageHeaderBand pageTitle={`Lead · ${lead.businessName}`} />
+
+      {/* v2.20 — inline AI usage meter (per-lead month-to-date) */}
+      <div className="flex justify-end -mt-2">
+        <AiUsageMeter leadId={lead.id} />
+      </div>
+
 
       {/* v2.14 — Closed-won-without-handoff: the most common "why isn't there
           an account?" footgun. Surface it loud at the top of the page. */}
