@@ -128,9 +128,14 @@ export function LoginForms() {
           <Button type="submit" disabled={loading} className="w-full">
             {loading ? "Signing in…" : "Sign in"}
           </Button>
-          <p className="text-xs text-gtn-grey-3 text-center">
-            Dev seed password: <code className="gtn-code-pill">gateway123</code>
-          </p>
+          {/* v2.20.3 — production hides the dev-seed password hint. In dev
+              and Vercel preview deploys (NODE_ENV !== "production") it
+              still renders so the team can sign in with the seed creds. */}
+          {process.env.NODE_ENV !== "production" && (
+            <p className="text-xs text-gtn-grey-3 text-center">
+              Dev seed password: <code className="gtn-code-pill">gateway123</code>
+            </p>
+          )}
         </form>
       )}
     </div>

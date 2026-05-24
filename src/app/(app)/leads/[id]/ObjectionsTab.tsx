@@ -134,6 +134,8 @@ export function ObjectionsTab({ leadId, canEdit }: { leadId: string; canEdit: bo
         [logId]: { rebuttals: data.rebuttals ?? [], ifEscalated: data.ifEscalated ?? "" },
       }));
       toast.success(`Generated ${data.rebuttals?.length ?? 0} rebuttals`);
+      // v2.20.3 — refresh server components so the AI usage meter updates
+      router.refresh();
     } catch {
       toast.error("Coaching failed");
     } finally {

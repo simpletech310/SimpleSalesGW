@@ -104,6 +104,8 @@ export function HandoffCard({
       }
       toast.success(`QC: ${data.severity}`);
       await refresh();
+      // v2.20.3 — refresh server components so the AI usage meter updates
+      router.refresh();
     } catch {
       toast.error("QC failed");
     } finally {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Loader2, Sparkles, Printer } from "lucide-react";
 import { Card } from "@/components/ui/Card";
@@ -20,6 +21,7 @@ type Brief = {
  * as a printable card the salesperson takes into the call.
  */
 export function DiscoveryPrepButton({ leadId }: { leadId: string }) {
+  const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [brief, setBrief] = useState<Brief | null>(null);
 
@@ -40,6 +42,8 @@ export function DiscoveryPrepButton({ leadId }: { leadId: string }) {
         successCriteria: data.successCriteria ?? [],
       });
       toast.success("Prep brief ready");
+      // v2.20.3 — refresh server components so the AI usage meter updates
+      router.refresh();
     } catch {
       toast.error("Prep generation failed");
     } finally {

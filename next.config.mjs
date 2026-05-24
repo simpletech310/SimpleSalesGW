@@ -1,4 +1,12 @@
 import withPWAInit from "@ducanh2912/next-pwa";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+
+// v2.20.3 — auto-bump the footer version label from package.json on every
+// build so the deployed app never lies about which version is live.
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const pkg = JSON.parse(readFileSync(join(__dirname, "package.json"), "utf8"));
 
 const withPWA = withPWAInit({
   dest: "public",
@@ -32,6 +40,12 @@ const nextConfig = {
   },
   images: {
     remotePatterns: [{ protocol: "https", hostname: "**" }],
+  },
+  // v2.20.3 — expose package.json version to client + server via
+  // process.env.NEXT_PUBLIC_APP_VERSION so the footer can render the
+  // actual deployed version instead of a hardcoded string.
+  env: {
+    NEXT_PUBLIC_APP_VERSION: pkg.version,
   },
 };
 

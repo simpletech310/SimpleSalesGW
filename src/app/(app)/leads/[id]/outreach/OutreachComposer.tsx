@@ -89,6 +89,8 @@ export function OutreachComposer({
       setBody(data.body ?? body);
       setAiNotes(data.notes ?? "");
       toast.success("Personalized — review before sending");
+      // v2.20.3 — refresh server components so the AI usage meter updates
+      router.refresh();
     } catch {
       toast.error("Personalize failed");
     } finally {

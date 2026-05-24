@@ -121,7 +121,10 @@ export function AppShell({ user, children }: Props) {
         <div className="bg-white pt-6 pb-4 hidden md:block">
           <div className="container">
             <BrandedFooter
-              versionLabel="V2.18 — 2026"
+              // v2.20.3 — version pulled from package.json via next.config.mjs
+              // (NEXT_PUBLIC_APP_VERSION). Footer no longer lies about the
+              // deployed version when we ship.
+              versionLabel={`V${process.env.NEXT_PUBLIC_APP_VERSION ?? "?"} — ${new Date().getFullYear()}`}
               centerLabel="GATEWAY TELNET"
               rightLabel={STRINGS.brand.tagline}
             />
