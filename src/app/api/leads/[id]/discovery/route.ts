@@ -28,7 +28,13 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       select: { ownerUserId: true, pipelineStage: true },
     });
     if (!lead) throw new ApiError(404, "Lead not found");
-    if (!leadIsVisible(user.role, user.id, lead.ownerUserId, lead.pipelineStage)) {
+    // v2.17.1 — VCIO's `leadIsVisible` short-circuits to PRE_SALES+, but
+    // pre-sale scoping happens on early-stage leads. Bypass for anyone
+    // with `discovery:edit` since they may have been asked to scope this lead.
+    const canSee =
+      leadIsVisible(user.role, user.id, lead.ownerUserId, lead.pipelineStage) ||
+      can(user.role, "discovery:edit");
+    if (!canSee) {
       throw new ApiError(403, "Forbidden");
     }
     const assessments = await prisma.discoveryAssessment.findMany({

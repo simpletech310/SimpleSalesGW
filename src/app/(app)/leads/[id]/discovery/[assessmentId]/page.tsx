@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { leadIsVisible } from "@/lib/rbac";
+import { can, leadIsVisible } from "@/lib/rbac";
 import { bankForKind, discoveryTitle } from "@/lib/discovery/banks";
 import { DiscoveryRunner } from "@/app/(app)/accounts/[id]/discovery/[assessmentId]/DiscoveryRunner";
 import { DiscoveryResult } from "@/app/(app)/accounts/[id]/discovery/[assessmentId]/DiscoveryResult";
@@ -29,7 +29,14 @@ export default async function LeadDiscoveryAssessmentPage({
     include: { lead: { select: { businessName: true, ownerUserId: true, pipelineStage: true } } },
   });
   if (!assessment || !assessment.lead || assessment.leadId !== id) notFound();
-  if (!leadIsVisible(session.user.role, session.user.id, assessment.lead.ownerUserId, assessment.lead.pipelineStage)) {
+  // v2.17.1 — VCIO's `leadIsVisible` short-circuits to PRE_SALES+, which
+  // would block early-stage pre-sale scoping (exactly what this page is
+  // for). Bypass: anyone with `discovery:edit` who's been asked to scope a
+  // lead can view that lead's runner regardless of stage.
+  const canViewRunner =
+    leadIsVisible(session.user.role, session.user.id, assessment.lead.ownerUserId, assessment.lead.pipelineStage) ||
+    can(session.user.role, "discovery:edit");
+  if (!canViewRunner) {
     return <p className="text-sm text-gtn-grey-2">Not authorized.</p>;
   }
 

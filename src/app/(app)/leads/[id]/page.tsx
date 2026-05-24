@@ -50,7 +50,19 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
     },
   });
   if (!lead) notFound();
-  if (!leadIsVisible(session.user.role, session.user.id, lead.ownerUserId, lead.pipelineStage)) {
+  // v2.17.1 — VCIO's `leadIsVisible` short-circuits to PRE_SALES+, which
+  // would block them from opening an early-stage lead they were explicitly
+  // asked to scope. If a pre-sale DiscoveryAssessment exists on this lead
+  // and the viewer can edit discoveries, grant access — they have a
+  // legitimate scoping reason to see the lead context.
+  let leadVisible = leadIsVisible(session.user.role, session.user.id, lead.ownerUserId, lead.pipelineStage);
+  if (!leadVisible && can(session.user.role, "discovery:edit")) {
+    const hasPreSale = await prisma.discoveryAssessment.count({
+      where: { leadId: id },
+    });
+    if (hasPreSale > 0) leadVisible = true;
+  }
+  if (!leadVisible) {
     return (
       <Card>
         <h2 className="text-lg font-semibold text-gtn-navy">{STRINGS.auth.notAuthorized}</h2>
