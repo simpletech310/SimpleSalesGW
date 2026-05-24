@@ -70,6 +70,14 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
     },
   });
 
+  // v2.15.2 — orphan-detection: did the accepted handoff actually produce a
+  // Customer? If not, HandoffCard surfaces a "Create account now" button so
+  // ops can recover without filing a ticket.
+  const existingCustomer = await prisma.customer.findUnique({
+    where: { leadId: id },
+    select: { id: true },
+  });
+
   const auditLogs = can(session.user.role, "audit:view")
     ? await prisma.auditLog.findMany({
         where: { entityId: id },
@@ -259,7 +267,11 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
         />
       )}
 
-      <HandoffCard leadId={lead.id} role={session.user.role} />
+      <HandoffCard
+        leadId={lead.id}
+        role={session.user.role}
+        hasCustomer={Boolean(existingCustomer)}
+      />
 
       <LeadTabs
         lead={lead as never}

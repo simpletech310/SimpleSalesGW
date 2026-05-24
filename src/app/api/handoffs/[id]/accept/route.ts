@@ -21,6 +21,19 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     }
     const body = schema.parse(await req.json().catch(() => ({})));
 
+    // v2.15.2 — the prior implementation did three sequential awaits:
+    //   1. flip handoff to ACCEPTED
+    //   2. write Activity row
+    //   3. createCustomerFromHandoff
+    // If step 3 threw, the handoff was already ACCEPTED but no Customer
+    // existed — exactly the T Sports orphan state.
+    //
+    // We still call createCustomerFromHandoff outside the transaction
+    // because it internally opens its own $transaction (and Prisma doesn't
+    // support nested transactions). But we run handoff.update first, then
+    // try createCustomerFromHandoff inside a try/catch; if it fails, we
+    // ROLL BACK the handoff to its prior state so the salesperson can
+    // retry instead of being silently stuck.
     const updated = await prisma.handoff.update({
       where: { id },
       data: {
@@ -40,11 +53,32 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       },
     });
 
-    // Spawn the post-close Customer record + onboarding tasks.
-    const customer = await createCustomerFromHandoff({
-      leadId: handoff.leadId,
-      acceptedByUserId: user.id,
-    });
+    // Spawn the post-close Customer record + onboarding tasks. If this
+    // throws, undo the handoff status change so the COO can retry.
+    let customer;
+    try {
+      customer = await createCustomerFromHandoff({
+        leadId: handoff.leadId,
+        acceptedByUserId: user.id,
+      });
+    } catch (createErr) {
+      // eslint-disable-next-line no-console
+      console.error("[handoff/accept] customer create failed — rolling back handoff status:", createErr);
+      await prisma.handoff.update({
+        where: { id },
+        data: {
+          status: handoff.status, // back to INITIATED
+          acceptorUserId: handoff.acceptorUserId,
+          acceptedAt: handoff.acceptedAt,
+          notes: handoff.notes,
+        },
+      }).catch(() => undefined);
+      throw new ApiError(
+        500,
+        "Handoff accepted but Customer creation failed. Status rolled back — please retry. " +
+        (createErr instanceof Error ? createErr.message : ""),
+      );
+    }
 
     // v2.14 — notify the salesperson who initiated the handoff. Without
     // this, the SP has zero signal their handoff landed. We write a second

@@ -29,10 +29,21 @@ type HandoffRow = {
   acceptor: { name: string } | null;
 };
 
-export function HandoffCard({ leadId, role }: { leadId: string; role: Role }) {
+export function HandoffCard({
+  leadId,
+  role,
+  hasCustomer = true,
+}: {
+  leadId: string;
+  role: Role;
+  /** v2.15.2 — server passes whether the lead already has a Customer.
+   *  Used to detect "orphaned accepted handoff" and surface the recovery CTA. */
+  hasCustomer?: boolean;
+}) {
   const router = useRouter();
   const [items, setItems] = useState<HandoffRow[] | null>(null);
   const [busy, setBusy] = useState(false);
+  const [recovering, setRecovering] = useState(false);
 
   const canAccept = role === "COO" || role === "SUPERADMIN";
 
@@ -43,6 +54,31 @@ export function HandoffCard({ leadId, role }: { leadId: string; role: Role }) {
   }, [leadId]);
 
   useEffect(() => { void refresh(); }, [refresh]);
+
+  // v2.15.2 — recover an orphaned accepted handoff. Calls
+  // POST /api/handoffs/[id]/create-customer; idempotent server-side.
+  async function recoverCustomer(handoffId: string) {
+    setRecovering(true);
+    try {
+      const res = await fetch(`/api/handoffs/${handoffId}/create-customer`, {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data?.error ?? "Could not create the account");
+        return;
+      }
+      if (data.alreadyExisted) {
+        toast.message("Account already existed — refreshing.");
+      } else {
+        toast.success("Account created — vCIO will see it under /accounts now.");
+      }
+      await refresh();
+      router.refresh();
+    } finally {
+      setRecovering(false);
+    }
+  }
 
   async function decide(id: string, action: "accept" | "reject") {
     let body: Record<string, string> = {};
@@ -90,7 +126,7 @@ export function HandoffCard({ leadId, role }: { leadId: string; role: Role }) {
           </NextStepHint>
         </div>
       )}
-      {hasAccepted && (
+      {hasAccepted && hasCustomer && (
         <div className="mb-3">
           <NextStepHint
             label="What's next"
@@ -98,6 +134,39 @@ export function HandoffCard({ leadId, role }: { leadId: string; role: Role }) {
           >
             Handoff accepted. The customer is now under /accounts; vCIO takes over Discovery + onboarding.
           </NextStepHint>
+        </div>
+      )}
+
+      {/* v2.15.2 — orphaned-accepted-handoff recovery. The handoff says
+          ACCEPTED but no Customer row exists for this lead (likely a partial
+          failure during the accept transaction, or accepted before v2.0-B
+          shipped). Surface a one-click fix instead of leaving the deal stuck. */}
+      {hasAccepted && !hasCustomer && (
+        <div className="mb-3 rounded-md border border-gtn-amber/40 bg-[#FEF3E2] p-3">
+          <p className="text-sm font-semibold text-gtn-navy mb-1">
+            Handoff accepted, but no Account exists yet.
+          </p>
+          <p className="text-xs text-gtn-grey-2 mb-2">
+            The acceptance went through but the Customer record didn&apos;t get created
+            (likely a one-time hiccup). Click below to create it now — vCIO will see
+            the new client under <strong>/accounts</strong> as soon as you do.
+          </p>
+          {canAccept ? (
+            <Button
+              size="sm"
+              disabled={recovering}
+              onClick={() => {
+                const acceptedHandoff = items.find((h) => h.status === "ACCEPTED");
+                if (acceptedHandoff) recoverCustomer(acceptedHandoff.id);
+              }}
+            >
+              {recovering ? "Creating…" : "Create account now"}
+            </Button>
+          ) : (
+            <p className="text-xs text-gtn-grey-2 italic">
+              Ask Marcelo (COO) or your Superadmin to click &quot;Create account now.&quot;
+            </p>
+          )}
         </div>
       )}
 

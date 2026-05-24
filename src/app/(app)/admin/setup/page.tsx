@@ -18,6 +18,7 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { HeroBand } from "@/components/brand";
 import { ImportProspectsButton } from "./ImportProspectsButton";
+import { BackfillAccountsButton } from "./BackfillAccountsButton";
 
 export const dynamic = "force-dynamic";
 
@@ -211,6 +212,21 @@ export default async function SetupPage() {
           <Link href="/login">Go to login</Link>
         </Button>
       </Step>
+
+      {/* v2.15.2 — orphan-accounts recovery. If any accepted handoff
+          didn't produce a Customer (data drift from v2.0-B rollout, or a
+          partial accept-route failure), this button fixes them all. */}
+      <Card>
+        <h2 className="text-base font-semibold text-gtn-navy mb-2">
+          Recover orphaned accounts
+        </h2>
+        <p className="text-sm text-gtn-grey-2 mb-3">
+          If a Sales-to-Ops handoff was accepted but no Customer record exists
+          under <code>/accounts</code>, click below. Scans all accepted handoffs
+          and creates the missing Customer rows. Idempotent — safe to run anytime.
+        </p>
+        <BackfillAccountsButton />
+      </Card>
 
       <Card className="bg-gtn-lavender border-gtn-purple/40">
         <p className="text-sm text-gtn-navy">
