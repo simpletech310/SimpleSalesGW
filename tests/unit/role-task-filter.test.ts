@@ -34,16 +34,30 @@ describe("onboarding task templates — defaultRole coverage", () => {
     expect(phase.find((t) => t.key === "ob.compliance_controls")?.defaultRole).toBe(Role.VCIO);
   });
 
-  it("STEADY_STATE is mostly VCIO with annual contract review on SALES_MANAGER", () => {
+  it("STEADY_STATE includes annual contract review on SALES_MANAGER + recurring vCIO + salesperson renewal runway", () => {
     const phase = TASK_TEMPLATES.filter((t) => t.phase === "STEADY_STATE");
     expect(phase.find((t) => t.key === "ss.contract_review")?.defaultRole).toBe(Role.SALES_MANAGER);
-    const others = phase.filter((t) => t.key !== "ss.contract_review");
-    for (const t of others) expect(t.defaultRole).toBe(Role.VCIO);
+    // v2.16 — salesperson now owns the renewal runway + QBR attendance
+    expect(phase.find((t) => t.key === "sp.renewal_runway")?.defaultRole).toBe(Role.SALESPERSON);
+    expect(phase.find((t) => t.key === "sp.qbr_attend")?.defaultRole).toBe(Role.SALESPERSON);
+    // The classic recurring vCIO items still own everything else
+    expect(phase.find((t) => t.key === "ss.qbr_followups")?.defaultRole).toBe(Role.VCIO);
+    expect(phase.find((t) => t.key === "ss.roadmap_progress")?.defaultRole).toBe(Role.VCIO);
   });
 
-  it("no template assigns SALESPERSON — by design, salespeople don't own onboarding work", () => {
-    for (const t of TASK_TEMPLATES) {
-      expect(t.defaultRole).not.toBe(Role.SALESPERSON);
-    }
+  // v2.16 — explicit Salesperson + Sales Manager touchpoints across the
+  // lifecycle so the relationship doesn't dead-drop after handoff.
+  it("Salesperson now has multiple post-handoff touchpoints", () => {
+    const spTasks = TASK_TEMPLATES.filter((t) => t.defaultRole === Role.SALESPERSON);
+    expect(spTasks.length).toBeGreaterThanOrEqual(5);
+    // Spans Pre-Engagement through Steady-State, not just one phase
+    const phases = new Set(spTasks.map((t) => t.phase));
+    expect(phases.size).toBeGreaterThanOrEqual(3);
+  });
+
+  it("Sales Manager has at least one in-flight scope review beyond the day-365 renewal", () => {
+    const smTasks = TASK_TEMPLATES.filter((t) => t.defaultRole === Role.SALES_MANAGER);
+    expect(smTasks.length).toBeGreaterThanOrEqual(2);
+    expect(smTasks.some((t) => t.key === "sm.scope_review_30d")).toBe(true);
   });
 });

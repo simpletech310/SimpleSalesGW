@@ -8,6 +8,8 @@ import { OnboardingPhase, OnboardingTaskStatus } from "@prisma/client";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 
+import { Role } from "@prisma/client";
+
 type Task = {
   id: string;
   phase: OnboardingPhase;
@@ -16,6 +18,8 @@ type Task = {
   status: OnboardingTaskStatus;
   ownerUserId: string | null;
   owner: { id: string; name: string } | null;
+  // v2.16 — role bucket the task defaults to (assigned at customer create).
+  ownerRole: Role | null;
   dueAt: string | null;
   completedAt: string | null;
   position: number;
@@ -87,6 +91,25 @@ export function OnboardingPanel({ customerId, currentPhase }: { customerId: stri
 
   if (loading) return <p className="text-sm text-gtn-grey-2">Loading…</p>;
 
+  // v2.16 — per-role ownership strip. Confirms every role on the team
+  // has skin in the game on this customer — nothing falls through cracks.
+  // Bucket by the assignee's name when set, otherwise by role.
+  type RoleBucket = { key: string; label: string; open: number; done: number };
+  const bucketMap = new Map<string, RoleBucket>();
+  for (const t of tasks) {
+    const isDone = t.status === "DONE" || t.status === "SKIPPED";
+    const key = t.ownerUserId && t.owner
+      ? `user:${t.ownerUserId}`
+      : `role:${t.ownerRole ?? "UNASSIGNED"}`;
+    const label = t.ownerUserId && t.owner
+      ? t.owner.name
+      : (t.ownerRole ?? "Unassigned").replace(/_/g, " ").toLowerCase();
+    const b = bucketMap.get(key) ?? { key, label, open: 0, done: 0 };
+    if (isDone) b.done += 1; else b.open += 1;
+    bucketMap.set(key, b);
+  }
+  const roleStrip = Array.from(bucketMap.values()).sort((a, b) => b.open - a.open);
+
   // v2.14 — phase progress bar. Calculates % done per phase based on
   // task completion. Gives the vCIO an at-a-glance "where is this
   // customer in the onboarding lifecycle?" without scrolling.
@@ -103,6 +126,32 @@ export function OnboardingPanel({ customerId, currentPhase }: { customerId: stri
 
   return (
     <div className="space-y-3">
+      {/* v2.16 — Who owns what on this customer */}
+      {roleStrip.length > 0 && (
+        <Card>
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-semibold text-gtn-navy">Task ownership</h3>
+            <p className="text-xs text-gtn-grey-2">Open · Done per person/role</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {roleStrip.map((b) => (
+              <div
+                key={b.key}
+                className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs ${
+                  b.open > 0 ? "bg-gtn-lavender text-gtn-navy" : "bg-gtn-green-bg text-gtn-green"
+                }`}
+                title={`${b.open} open, ${b.done} done`}
+              >
+                <span className="font-semibold capitalize">{b.label}</span>
+                <span className="font-mono">{b.open}</span>
+                <span className="text-gtn-grey-3">·</span>
+                <span className="font-mono text-gtn-grey-3">{b.done} ✓</span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
       {/* Phase progress bar */}
       <Card>
         <div className="flex items-center justify-between mb-2">

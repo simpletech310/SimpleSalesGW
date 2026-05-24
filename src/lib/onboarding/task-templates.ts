@@ -197,6 +197,49 @@ export const TASK_TEMPLATES: ReadonlyArray<TaskTemplate> = [
     title: "Compliance recertification (if applicable)",
     description: "Cyber insurance renewal, CMMC re-attestation, HIPAA review.",
     dueOffsetDays: 330, defaultRole: Role.VCIO },
+
+  // ---------- v2.16 — Salesperson post-handoff touchpoints
+  // Without these the salesperson disappears once they hand off. The
+  // customer feels handed-off-and-forgotten, and the sales rep misses
+  // every expansion signal. createCustomerFromHandoff assigns each of
+  // these to the lead's original owner (Lin) instead of any salesperson.
+  { key: "sp.handoff_followup", phase: OnboardingPhase.PRE_ENGAGEMENT,
+    title: "Post-handoff client check-in",
+    description: "Quick call or email — confirm the kickoff felt smooth, set expectations for the next 30 days.",
+    dueOffsetDays: 7, defaultRole: Role.SALESPERSON },
+  { key: "sp.onboard_midpoint", phase: OnboardingPhase.ONBOARD,
+    title: "Mid-onboarding temperature check",
+    description: "Is the deployment hitting bumps? Surface anything you hear to the vCIO + COO.",
+    dueOffsetDays: 45, defaultRole: Role.SALESPERSON },
+  { key: "sp.satisfaction_60d", phase: OnboardingPhase.STABILIZE,
+    title: "60-day customer satisfaction check-in",
+    description: "Personal touch — call or visit the executive sponsor. Capture quotes for case studies.",
+    dueOffsetDays: 60, defaultRole: Role.SALESPERSON },
+  { key: "sp.expansion_90d", phase: OnboardingPhase.STABILIZE,
+    title: "Expansion conversation — surface upsells",
+    description: "Voice, cabling, cameras, access control, AI advisory — what's the next service line for this customer?",
+    dueOffsetDays: 90, defaultRole: Role.SALESPERSON },
+  { key: "sp.qbr_attend", phase: OnboardingPhase.STEADY_STATE,
+    title: "Attend first QBR with vCIO",
+    description: "Brings deal-level context + relationship continuity. Coordinate with vCIO before the meeting.",
+    dueOffsetDays: 95, defaultRole: Role.SALESPERSON },
+  { key: "sp.renewal_runway", phase: OnboardingPhase.STEADY_STATE,
+    title: "Annual renewal runway — start the conversation",
+    description: "30 days before contract anniversary: review usage, scope changes, expansion opportunities.",
+    dueOffsetDays: 335, defaultRole: Role.SALESPERSON },
+
+  // ---------- v2.16 — Sales Manager touchpoints
+  // Beyond the day-365 contract review, Sales Manager needs to catch
+  // mid-onboarding scope creep and run a quick post-deal retro while
+  // the deal is fresh.
+  { key: "sm.scope_review_30d", phase: OnboardingPhase.ONBOARD,
+    title: "30-day deal scope review",
+    description: "Compare what was sold (handoff doc) vs. what's being delivered. Flag scope creep early.",
+    dueOffsetDays: 30, defaultRole: Role.SALES_MANAGER },
+  { key: "sm.handoff_retro", phase: OnboardingPhase.STABILIZE,
+    title: "Handoff retro with sales + vCIO + COO",
+    description: "Quick 30-min: what went well, what to fix on the next deal. Capture learnings.",
+    dueOffsetDays: 75, defaultRole: Role.SALES_MANAGER },
 ];
 
 /** Returns the templates that should be materialized on day 1 of onboarding. */

@@ -21,6 +21,33 @@ import { TASK_TEMPLATES, type TaskTemplate } from "./task-templates";
 // Specialised template sets (small, project-style)
 // ---------------------------------------------------------------------------
 
+/**
+ * v2.16 — shared Salesperson + Sales Manager touchpoints for *every*
+ * project-style deal kind (voice, cabling, access, video, custom).
+ * The Salesperson stays connected through cutover; the Sales Manager
+ * catches margin drift early and runs a quick retro before the team
+ * moves on. createCustomerFromHandoff assigns SALESPERSON tasks to the
+ * specific lead.ownerUserId, not the role bucket.
+ */
+const PROJECT_SP_SM_TEMPLATES: ReadonlyArray<TaskTemplate> = [
+  { key: "sp.proj_kickoff_followup", phase: OnboardingPhase.PRE_ENGAGEMENT,
+    title: "Post-kickoff client check-in",
+    description: "Confirm scope expectations and timeline with the client a few days after kickoff.",
+    dueOffsetDays: 5, defaultRole: Role.SALESPERSON },
+  { key: "sp.proj_install_check", phase: OnboardingPhase.ONBOARD,
+    title: "Install-week temperature check",
+    description: "Stop by or call during install — anything off-spec? Surface to the COO immediately.",
+    dueOffsetDays: 22, defaultRole: Role.SALESPERSON },
+  { key: "sp.proj_closeout_check", phase: OnboardingPhase.STABILIZE,
+    title: "Post-closeout client check-in + expansion",
+    description: "Was the install clean? Any leftover needs the customer didn't know to ask for? (MSP, voice, cameras, access — whatever wasn't in scope this time.)",
+    dueOffsetDays: 40, defaultRole: Role.SALESPERSON },
+  { key: "sm.proj_margin_review", phase: OnboardingPhase.STABILIZE,
+    title: "Project margin review",
+    description: "Compare quoted line items vs. actual labor + materials. Catch scope creep before the next quote.",
+    dueOffsetDays: 35, defaultRole: Role.SALES_MANAGER },
+];
+
 /** Voice-only install: kickoff → port + provision → train → close out. */
 const VOICE_ONLY_TEMPLATES: ReadonlyArray<TaskTemplate> = [
   { key: "vo.contract", phase: OnboardingPhase.PRE_ENGAGEMENT,
@@ -211,16 +238,56 @@ const CUSTOM_MIX_TEMPLATES: ReadonlyArray<TaskTemplate> = [
     dueOffsetDays: 7, defaultRole: Role.VCIO },
 ];
 
+/**
+ * v2.16 — every project-style template (everything except FULL_MANAGED_IT,
+ * which has its own richer Salesperson schedule via TASK_TEMPLATES) gets
+ * the shared SP+SM touchpoints folded in. Order doesn't matter — the
+ * customer-create grouper sorts by phase before materializing rows.
+ */
+function withSpSm(base: ReadonlyArray<TaskTemplate>): ReadonlyArray<TaskTemplate> {
+  return [...base, ...PROJECT_SP_SM_TEMPLATES];
+}
+
 const TEMPLATES_BY_KEY: Record<TemplateKey, ReadonlyArray<TaskTemplate>> = {
-  FULL_MANAGED_IT: TASK_TEMPLATES,
-  VOICE_ONLY: VOICE_ONLY_TEMPLATES,
-  VOICE_PLUS_VIDEO: VOICE_PLUS_VIDEO_TEMPLATES,
-  CABLING_JOB: CABLING_JOB_TEMPLATES,
-  ACCESS_CONTROL: ACCESS_CONTROL_TEMPLATES,
-  VIDEO_SURVEILLANCE: VIDEO_SURVEILLANCE_TEMPLATES,
-  CUSTOM_MIX: CUSTOM_MIX_TEMPLATES,
+  FULL_MANAGED_IT: TASK_TEMPLATES, // already has SP+SM touchpoints from v2.16
+  VOICE_ONLY: withSpSm(VOICE_ONLY_TEMPLATES),
+  VOICE_PLUS_VIDEO: withSpSm(VOICE_PLUS_VIDEO_TEMPLATES),
+  CABLING_JOB: withSpSm(CABLING_JOB_TEMPLATES),
+  ACCESS_CONTROL: withSpSm(ACCESS_CONTROL_TEMPLATES),
+  VIDEO_SURVEILLANCE: withSpSm(VIDEO_SURVEILLANCE_TEMPLATES),
+  CUSTOM_MIX: withSpSm(CUSTOM_MIX_TEMPLATES),
 };
 
 export function templatesForKey(key: TemplateKey): ReadonlyArray<TaskTemplate> {
   return TEMPLATES_BY_KEY[key];
+}
+
+/**
+ * v2.16 — Ownership matrix per template key. Helps the team see, at a
+ * glance, that every role has skin in the game on every deal kind.
+ * Returned in the canonical role order; used by /admin/setup and the
+ * OnboardingPanel for the per-role task-count strip.
+ */
+export type OwnershipRow = {
+  role: Role | "UNASSIGNED";
+  count: number;
+};
+export function ownershipMatrix(key: TemplateKey): OwnershipRow[] {
+  const tpl = TEMPLATES_BY_KEY[key];
+  const counts: Record<string, number> = {
+    SALESPERSON: 0, SALES_MANAGER: 0, VCIO: 0, COO: 0, SUPERADMIN: 0, UNASSIGNED: 0,
+  };
+  for (const t of tpl) {
+    const k = t.defaultRole ?? "UNASSIGNED";
+    counts[k] = (counts[k] ?? 0) + 1;
+  }
+  const rows: OwnershipRow[] = [
+    { role: Role.SALESPERSON, count: counts.SALESPERSON ?? 0 },
+    { role: Role.SALES_MANAGER, count: counts.SALES_MANAGER ?? 0 },
+    { role: Role.VCIO, count: counts.VCIO ?? 0 },
+    { role: Role.COO, count: counts.COO ?? 0 },
+    { role: Role.SUPERADMIN, count: counts.SUPERADMIN ?? 0 },
+    { role: "UNASSIGNED", count: counts.UNASSIGNED ?? 0 },
+  ];
+  return rows.filter((r) => r.count > 0);
 }
