@@ -1,95 +1,40 @@
-import Link from "next/link";
-import { auth } from "@/auth";
-import { prisma } from "@/lib/prisma";
-import { Button } from "@/components/ui/Button";
-import { PipelineBoard } from "@/components/pipeline/PipelineBoard";
-import { EmptyState } from "@/components/help/EmptyState";
-import { HeroBand } from "@/components/brand";
-import { STRINGS } from "@/lib/strings";
-import { leadVisibilityFilter } from "@/lib/rbac";
-import { PipelineStage } from "@prisma/client";
-import { Inbox } from "lucide-react";
 import { redirect } from "next/navigation";
+import { Role } from "@prisma/client";
+import { auth } from "@/auth";
+import { SalespersonHome } from "./_home/SalespersonHome";
+import { VcioHome } from "./_home/VcioHome";
+import { CooHome } from "./_home/CooHome";
 
+/**
+ * v2.13 — role-branching home.
+ *
+ * The same `/` route renders a different landing per role:
+ *   SALESPERSON / SALES_MANAGER / SUPERADMIN → pipeline-first dashboard
+ *   VCIO                                     → customer portfolio + QBR/discovery rail
+ *   COO                                      → handoff queue + approvals + customer book
+ *
+ * URL stays `/` so bookmarks survive a role change (e.g. Marcelo flipping
+ * between Sales Manager and COO accounts).
+ */
 export default async function HomePage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
 
-  const leads = await prisma.lead.findMany({
-    where: leadVisibilityFilter(session.user.role, session.user.id),
-    orderBy: [{ pipelineStage: "asc" }, { dealQualityScore: "desc" }, { updatedAt: "desc" }],
-    select: {
-      id: true,
-      businessName: true,
-      industry: true,
-      pipelineStage: true,
-      dealQualityScore: true,
-      servicesScore: true,
-      customerScore: true,
-      nonStrategicFlag: true,
-      primaryContactName: true,
-      seatCount: true,
-      updatedAt: true,
-    },
-  });
+  const user = {
+    id: session.user.id,
+    name: session.user.name ?? null,
+    role: session.user.role,
+  };
 
-  const activeStages: PipelineStage[] = [
-    PipelineStage.LEAD,
-    PipelineStage.QUALIFIED,
-    PipelineStage.DISCOVERY,
-    PipelineStage.PRE_SALES,
-    PipelineStage.PROPOSAL,
-    PipelineStage.NEGOTIATION,
-  ];
-  const active = leads.filter((l) => activeStages.includes(l.pipelineStage));
-
-  const firstName = session.user.name?.split(" ")[0] ?? "there";
-  const closedWon = leads.filter((l) => l.pipelineStage === PipelineStage.CLOSED_WON).length;
-
-  return (
-    <div className="space-y-6">
-      <HeroBand
-        eyebrow="DASHBOARD"
-        title={`Welcome back, ${firstName}`}
-        subtitle="Your pipeline at a glance. Use the +New button to add a lead, or jump straight into one below."
-        actions={
-          <>
-            <Button asChild variant="secondary">
-              <Link href="/leads">{STRINGS.nav.leads}</Link>
-            </Button>
-            <Button asChild>
-              <Link href="/leads/new">+ New Lead</Link>
-            </Button>
-          </>
-        }
-      >
-        <div className="grid grid-cols-3 gap-4 max-w-lg">
-          <div>
-            <p className="gtn-eyebrow">All leads</p>
-            <p className="text-2xl font-bold text-white">{leads.length}</p>
-          </div>
-          <div>
-            <p className="gtn-eyebrow">Active</p>
-            <p className="text-2xl font-bold text-white">{active.length}</p>
-          </div>
-          <div>
-            <p className="gtn-eyebrow">Closed won</p>
-            <p className="text-2xl font-bold text-white">{closedWon}</p>
-          </div>
-        </div>
-      </HeroBand>
-
-      {leads.length === 0 ? (
-        <EmptyState
-          Icon={Inbox}
-          title="No leads yet"
-          body="Add your first lead and the portal scores it the moment you save. From there you'll see the deal-quality, services-fit and customer-fit scores update as you fill in more info."
-          cta={{ label: "Add a lead", href: "/leads/new" }}
-          secondaryCta={{ label: "Open help center", href: "/help" }}
-        />
-      ) : (
-        <PipelineBoard leads={leads} />
-      )}
-    </div>
-  );
+  switch (user.role) {
+    case Role.VCIO:
+      return <VcioHome user={user} />;
+    case Role.COO:
+      return <CooHome user={user} />;
+    case Role.SALESPERSON:
+    case Role.SALES_MANAGER:
+    case Role.SUPERADMIN:
+    default:
+      return <SalespersonHome user={user} />;
+  }
 }

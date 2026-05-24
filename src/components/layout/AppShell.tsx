@@ -1,37 +1,26 @@
 import Link from "next/link";
-import { Home, Users, Plus, Bell, User, Layers, Briefcase, CheckSquare, HelpCircle, DollarSign } from "lucide-react";
 import { GatewayLogo } from "@/components/brand/GatewayLogo";
 import { BrandedFooter } from "@/components/brand/BrandedFooter";
 import { STRINGS } from "@/lib/strings";
 import type { Role } from "@prisma/client";
-import { can } from "@/lib/rbac";
 import { SignOutButton } from "./SignOutButton";
 import { OfflineQueueBanner } from "./OfflineQueueBanner";
 import { OnboardingTrigger } from "@/components/onboarding/OnboardingTrigger";
 import { HelpButton } from "@/components/help/HelpButton";
+import { navForRole, roleDisplay } from "@/lib/nav/role-nav";
 
 type Props = {
   user: { name: string; email: string; role: Role };
   children: React.ReactNode;
 };
 
-const navItems = [
-  { href: "/", label: STRINGS.nav.home, icon: Home },
-  { href: "/leads", label: STRINGS.nav.leads, icon: Users },
-  { href: "/leads/new", label: STRINGS.nav.newLead, icon: Plus, primary: true },
-  { href: "/notifications", label: STRINGS.nav.notifications, icon: Bell },
-  { href: "/me", label: STRINGS.nav.me, icon: User },
-];
-
-const desktopExtraItems = [
-  { href: "/pipeline", label: STRINGS.nav.pipeline, icon: Layers },
-  { href: "/accounts", label: STRINGS.nav.accounts, icon: Briefcase },
-  { href: "/my-tasks", label: STRINGS.nav.myTasks, icon: CheckSquare },
-  { href: "/pricing", label: STRINGS.nav.pricing, icon: DollarSign },
-  { href: "/help", label: STRINGS.nav.help, icon: HelpCircle },
-];
-
 export function AppShell({ user, children }: Props) {
+  // v2.13 — nav now branches by role. Each role gets a different set of
+  // top-bar items and a different bottom-nav (with a different "primary"
+  // floating action). See src/lib/nav/role-nav.ts for the matrix.
+  const nav = navForRole(user.role);
+  const roleMeta = roleDisplay(user.role);
+
   return (
     <div className="min-h-dvh flex flex-col">
       {/* Top app bar — navy Gateway banner */}
@@ -41,7 +30,7 @@ export function AppShell({ user, children }: Props) {
             <GatewayLogo variant="onDark" size="sm" />
           </Link>
           <nav className="hidden md:flex items-center gap-1">
-            {[...navItems, ...desktopExtraItems].map((item) => (
+            {nav.desktop.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
@@ -50,20 +39,17 @@ export function AppShell({ user, children }: Props) {
                 {item.label}
               </Link>
             ))}
-            {(can(user.role, "user:manage") || can(user.role, "audit:view") || can(user.role, "system:config")) && (
-              <Link
-                href="/admin"
-                className="px-3 py-2 rounded-md text-sm font-medium text-white/90 hover:bg-gtn-navy-2 hover:text-white"
-              >
-                {STRINGS.nav.admin}
-              </Link>
-            )}
           </nav>
           <div className="flex items-center gap-3">
             <OfflineQueueBanner />
             <div className="hidden sm:flex flex-col text-right">
               <span className="text-sm font-semibold">{user.name}</span>
-              <span className="text-xs text-white/60">{user.role.replace("_", " ")}</span>
+              <span
+                className="text-xs text-white/70 font-semibold tracking-wide uppercase"
+                title={roleMeta.tagline}
+              >
+                {roleMeta.label}
+              </span>
             </div>
             <SignOutButton />
           </div>
@@ -84,7 +70,7 @@ export function AppShell({ user, children }: Props) {
         className="md:hidden fixed bottom-0 inset-x-0 bg-white border-t border-gtn-lavender-2 z-40 flex justify-around items-center pb-[env(safe-area-inset-bottom)]"
         aria-label="Primary"
       >
-        {navItems.map((item) => {
+        {nav.mobile.map((item) => {
           const Icon = item.icon;
           return (
             <Link

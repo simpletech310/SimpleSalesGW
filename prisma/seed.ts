@@ -1,12 +1,4 @@
-import {
-  PrismaClient,
-  Role,
-  Industry,
-  PipelineStage,
-  LeadSource,
-  ComplianceDriver,
-  MspSatisfaction,
-} from "@prisma/client";
+import { PrismaClient, Role } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
@@ -70,121 +62,13 @@ async function main() {
     password: DEV_PW,
   });
 
+  // v2.13 — demo lead block removed. Real prospect list lives in
+  // `docs/prospects-burbank.md` and gets entered through the UI by Lin so
+  // each gets a real owner, real research, real outreach trail rather than
+  // a synthetic seed. Keeping a no-op so a future re-seed never overwrites.
+  void lin;
   // eslint-disable-next-line no-console
-  console.log("→ Seeding demo leads...");
-
-  const demoLeads = [
-    {
-      businessName: "Pacific Coast Medical Group",
-      industry: Industry.MEDICAL,
-      seatCount: 140,
-      addressCity: "San Diego",
-      addressState: "CA",
-      pipelineStage: PipelineStage.QUALIFIED,
-      source: LeadSource.INBOUND,
-      complianceDrivers: [ComplianceDriver.HIPAA],
-      primaryContactName: "Dr. Anita Rao",
-      primaryContactTitle: "Practice Administrator",
-      primaryContactEmail: "anita.rao@example.com",
-      executiveSponsorName: "Dr. James Chen",
-      executiveSponsorTitle: "Managing Partner",
-      currentMspName: "BlueGlass IT",
-      currentMspSatisfaction: MspSatisfaction.LEAVING,
-      researchSummary:
-        "12-physician multi-site practice (3 locations). HIPAA pressure, cyber insurance renews Q3.",
-      servicesScore: 78, customerScore: 82, dealQualityScore: 80,
-    },
-    {
-      businessName: "Whitman Whitman & Cole LLP",
-      industry: Industry.LEGAL,
-      seatCount: 75,
-      addressCity: "Los Angeles",
-      addressState: "CA",
-      pipelineStage: PipelineStage.DISCOVERY,
-      source: LeadSource.REFERRAL,
-      complianceDrivers: [ComplianceDriver.OTHER],
-      primaryContactName: "Sarah Whitman",
-      primaryContactTitle: "Managing Partner",
-      primaryContactEmail: "swhitman@example.com",
-      currentMspName: "In-house IT (1 person)",
-      currentMspSatisfaction: MspSatisfaction.NEUTRAL,
-      researchSummary:
-        "Boutique litigation firm. Document management on aging on-prem fileserver. Looking at SharePoint migration.",
-      servicesScore: 58, customerScore: 71, dealQualityScore: 65,
-    },
-    {
-      businessName: "Sentinel Defense Solutions",
-      industry: Industry.FEDERAL_CONTRACTING,
-      seatCount: 60,
-      addressCity: "Riverside",
-      addressState: "CA",
-      pipelineStage: PipelineStage.PRE_SALES,
-      source: LeadSource.OUTBOUND,
-      complianceDrivers: [ComplianceDriver.CMMC],
-      primaryContactName: "Mark Travers",
-      primaryContactTitle: "VP Operations",
-      primaryContactEmail: "mtravers@example.com",
-      executiveSponsorName: "Erica Long",
-      executiveSponsorTitle: "CEO",
-      currentMspName: "None",
-      currentMspSatisfaction: MspSatisfaction.NONE,
-      researchSummary:
-        "DoD subcontractor pursuing CMMC Level 2 certification. NIST SP 800-171 work needed.",
-      servicesScore: 84, customerScore: 86, dealQualityScore: 85,
-    },
-    {
-      businessName: "Vanguard Precision Manufacturing",
-      industry: Industry.MANUFACTURING,
-      seatCount: 110,
-      addressCity: "Anaheim",
-      addressState: "CA",
-      pipelineStage: PipelineStage.LEAD,
-      source: LeadSource.EVENT,
-      complianceDrivers: [ComplianceDriver.NONE],
-      primaryContactName: "Hugh Park",
-      primaryContactTitle: "COO",
-      primaryContactEmail: "hpark@example.com",
-      currentMspName: "Local break-fix vendor",
-      currentMspSatisfaction: MspSatisfaction.LEAVING,
-      researchSummary:
-        "Custom CNC shop. Frequent network outages on shop floor. Considering full MSP move.",
-      servicesScore: 70, customerScore: 64, dealQualityScore: 67,
-    },
-    {
-      businessName: "Coastal Hospitality Group",
-      industry: Industry.HOSPITALITY,
-      seatCount: 220,
-      siteCount: 4,
-      addressCity: "Long Beach",
-      addressState: "CA",
-      pipelineStage: PipelineStage.PROPOSAL,
-      source: LeadSource.PARTNER,
-      complianceDrivers: [ComplianceDriver.PCI],
-      primaryContactName: "Carla Mendez",
-      primaryContactTitle: "Director of IT",
-      primaryContactEmail: "cmendez@example.com",
-      executiveSponsorName: "Tom Westbrook",
-      executiveSponsorTitle: "CFO",
-      currentMspName: "Regional MSP (declining)",
-      currentMspSatisfaction: MspSatisfaction.LEAVING,
-      researchSummary:
-        "Four-property boutique hotel group. PCI on point-of-sale. Phone system replacement underway.",
-      servicesScore: 88, customerScore: 90, dealQualityScore: 89,
-    },
-  ];
-
-  for (const lead of demoLeads) {
-    const existing = await prisma.lead.findFirst({
-      where: { businessName: lead.businessName },
-    });
-    if (existing) continue;
-    await prisma.lead.create({
-      data: {
-        ...lead,
-        ownerUserId: lin.id,
-      },
-    });
-  }
+  console.log("→ Skipping demo leads (entered via UI in v2.13+).");
 
   // eslint-disable-next-line no-console
   console.log("→ Seeding system config defaults...");
