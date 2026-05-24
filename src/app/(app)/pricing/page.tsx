@@ -13,7 +13,47 @@ import {
   fmtUsd,
   listBundles,
 } from "@/lib/pricing/catalog";
+import {
+  DEAL_KIND_META,
+  LINE_ITEM_STICKERS,
+  listDealKinds,
+  type LineItemKind,
+} from "@/lib/pricing/deal-kinds";
 import { can } from "@/lib/rbac";
+
+/**
+ * v2.18 — Per-unit line-item pricing for project-style deals (voice,
+ * cabling, access, video, custom mix). Grouped into the same categories
+ * the ServiceQuoteCard builder uses so the salesperson can cross-
+ * reference what they'll see in the quote builder.
+ */
+const LINE_ITEM_GROUPS: ReadonlyArray<{ label: string; help: string; kinds: ReadonlyArray<LineItemKind> }> = [
+  {
+    label: "Voice / Phone system",
+    help: "Per-extension MRR plus handset hardware. Used in Voice-only and Voice+Video deals.",
+    kinds: ["VOICE_EXTENSION", "VOICE_HARDWARE"],
+  },
+  {
+    label: "Structured cabling",
+    help: "Per-drop pricing for new cable runs (Cat6 / Cat6a, terminated and certified).",
+    kinds: ["CABLE_DROP"],
+  },
+  {
+    label: "Access control",
+    help: "Per-door reader + software licensing. Door hardware (strike, REX, contacts) priced separately.",
+    kinds: ["DOOR_READER"],
+  },
+  {
+    label: "Video surveillance",
+    help: "Per-camera MRR for monitoring + per-camera one-time install. NVR/DVR sized per site.",
+    kinds: ["CAMERA", "NVR_DVR"],
+  },
+  {
+    label: "Labor + catch-all",
+    help: "Technician hours for installs and ad-hoc work. OTHER is a free-text catch-all for unique scope items.",
+    kinds: ["INSTALL_LABOR", "OTHER"],
+  },
+];
 
 /**
  * /pricing — public-to-staff pricing catalog browser.
@@ -53,7 +93,7 @@ export default async function PricingPage() {
           </>
         }
       >
-        <div className="grid grid-cols-4 gap-3 max-w-md">
+        <div className="grid grid-cols-4 gap-2 sm:gap-3 max-w-md">
           <IconTile Icon={Briefcase} size="lg" />
           <IconTile Icon={Shield} size="lg" />
           <IconTile Icon={Server} size="lg" />
@@ -219,9 +259,138 @@ export default async function PricingPage() {
         </Card>
       </section>
 
+      {/* v2.18 — Deal kinds + per-unit pricing for project-style deals */}
+      <section className="space-y-4">
+        <h2 className="gtn-section-label">Deal types</h2>
+        <Card>
+          <p className="text-sm text-gtn-grey-2 mb-4">
+            What kind of deal is this? Each kind drives the PricingCard form
+            (bundles vs. line-item quote builder) and the onboarding
+            template stack that materializes after the COO accepts the handoff.
+          </p>
+          <div className="grid sm:grid-cols-2 gap-3">
+            {listDealKinds().map((dk) => (
+              <div key={dk.kind} className="rounded-md border border-gtn-lavender-2 p-3">
+                <div className="flex items-start justify-between gap-2 mb-1">
+                  <p className="text-sm font-semibold text-gtn-navy">{dk.label}</p>
+                  {dk.usesBundles ? (
+                    <Pill tone="purple" dot>Bundles</Pill>
+                  ) : (
+                    <Pill tone="navy" dot>Line-item quote</Pill>
+                  )}
+                </div>
+                <p className="text-xs text-gtn-grey-2">{dk.tagline}</p>
+                {dk.serviceLines.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {dk.serviceLines.map((sl) => (
+                      <span
+                        key={sl}
+                        className="text-[10px] bg-gtn-lavender text-gtn-navy rounded px-1.5 py-0.5"
+                      >
+                        {sl.replace(/_/g, " ")}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </Card>
+      </section>
+
+      <section className="space-y-4">
+        <h2 className="gtn-section-label">Per-unit pricing (project-style deals)</h2>
+        <Card>
+          <p className="text-sm text-gtn-grey-2 mb-4">
+            When the deal kind is voice, cabling, access control, video, or
+            a custom mix, the salesperson builds the quote line-by-line
+            from these stickers. The pre-sale assessment scoring engines
+            output recommended line items at these prices &mdash; one click
+            adopts them into the quote.
+          </p>
+          {LINE_ITEM_GROUPS.map((group) => (
+            <div key={group.label} className="mt-4 first:mt-0">
+              <div className="flex items-start justify-between gap-2 mb-2 flex-wrap">
+                <p className="text-sm font-semibold text-gtn-navy">{group.label}</p>
+                <p className="text-xs text-gtn-grey-2 max-w-md text-right">{group.help}</p>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm min-w-[480px]">
+                  <thead className="text-left text-gtn-grey-2 border-b border-gtn-lavender-2">
+                    <tr>
+                      <th className="py-2 pr-3 font-medium">Line item</th>
+                      <th className="py-2 pr-3 font-medium text-right">MRR each</th>
+                      <th className="py-2 pr-3 font-medium text-right">One-time each</th>
+                      <th className="py-2 font-medium">Notes</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {group.kinds.map((kind) => {
+                      const s = LINE_ITEM_STICKERS[kind];
+                      return (
+                        <tr key={kind} className="border-b border-gtn-lavender-2 last:border-0 align-top">
+                          <td className="py-2 pr-3 font-medium text-gtn-navy whitespace-nowrap">
+                            {s.label}
+                          </td>
+                          <td className="py-2 pr-3 text-right font-mono">
+                            {s.perUnitMrr > 0 ? fmtUsd(s.perUnitMrr) : "—"}
+                          </td>
+                          <td className="py-2 pr-3 text-right font-mono">
+                            {s.perUnitOneTime > 0 ? fmtUsd(s.perUnitOneTime) : "—"}
+                          </td>
+                          <td className="py-2 text-xs text-gtn-grey-2">{s.helpText}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ))}
+          <Callout kind="tip" label="Sticker, not floor">
+            These are the catalog stickers. The Salesperson can override per
+            quote (within the same approval-tier math: 0&ndash;5% self-approves,
+            5&ndash;20% Sales Manager, 20%+ or below-floor &rarr; COO).
+            Sales Manager + Superadmin can edit these defaults from{" "}
+            <Link href="/admin/pricing" className="text-gtn-purple hover:underline">
+              /admin/pricing
+            </Link>.
+          </Callout>
+        </Card>
+      </section>
+
+      {/* v2.18 — pre-sale assessment quick reference */}
+      <section className="space-y-4">
+        <h2 className="gtn-section-label">Pre-sale scoping (vCIO)</h2>
+        <Card>
+          <p className="text-sm text-gtn-grey-2 mb-3">
+            Salesperson can request vCIO scoping help <strong>before</strong> the
+            deal closes &mdash; right from the lead detail page. The vCIO
+            answers a focused ~25-question bank and the scoring engine
+            outputs recommended line items at the prices above.
+          </p>
+          <div className="grid sm:grid-cols-2 gap-3">
+            {[
+              { key: "VOICE_SCOPING", label: "Voice / Phone scoping", desc: "Extensions, port-out, hardware, network readiness, special needs (e911, recording, CRM)." },
+              { key: "CCTV_SCOPING", label: "CCTV / Video scoping", desc: "Camera count, retention, NVR sizing, PoE budget, remote viewing." },
+              { key: "ACCESS_CONTROL_SCOPING", label: "Access control scoping", desc: "Door count + type, credentials, software, compliance drivers." },
+              { key: "SITE_SURVEY", label: "IT Site Survey (full)", desc: "Deep IT discovery for managed-IT bundle deals: identity, endpoints, backups, compliance." },
+            ].map((s) => (
+              <div key={s.key} className="rounded-md border border-gtn-lavender-2 p-3">
+                <p className="text-sm font-semibold text-gtn-navy">{s.label}</p>
+                <p className="text-xs text-gtn-grey-2 mt-1">{s.desc}</p>
+              </div>
+            ))}
+          </div>
+        </Card>
+      </section>
+
       <Card>
         <p className="text-xs text-gtn-grey-3">
           Catalog version: <code className="gtn-code-pill">{catalog.version}</code> · currency {catalog.currency}.
+          {/* v2.18 — DEAL_KIND_META is part of the type registry; bumping a deal kind
+              here cross-references the catalog version. */}
+          {" "}Deal-kind registry: <code className="gtn-code-pill">{Object.keys(DEAL_KIND_META).length} kinds</code>.
         </p>
       </Card>
     </div>
