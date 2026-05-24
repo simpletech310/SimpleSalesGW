@@ -3,10 +3,13 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { Loader2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input, Label, Textarea } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
 import { fillTemplate, type OutreachTemplate } from "@/lib/outreach/templates";
+
+type Tone = "warm" | "formal" | "follow_up";
 
 type LeadLike = {
   id: string;
@@ -41,6 +44,10 @@ export function OutreachComposer({
   const [subject, setSubject] = useState<string>(() => fillTemplate(template?.subject ?? "", defaultVars));
   const [body, setBody] = useState<string>(() => fillTemplate(template?.body ?? "", defaultVars));
   const [sending, setSending] = useState(false);
+  // v2.20 — AI personalize state
+  const [personalizing, setPersonalizing] = useState(false);
+  const [tone, setTone] = useState<Tone>("warm");
+  const [aiNotes, setAiNotes] = useState<string>("");
 
   function applyTemplate(id: string) {
     const t = templates.find((x) => x.id === id);
@@ -57,6 +64,35 @@ export function OutreachComposer({
     if (template) {
       setSubject(fillTemplate(template.subject, next));
       setBody(fillTemplate(template.body, next));
+    }
+  }
+
+  async function personalize() {
+    if (!templateId) {
+      toast.error("Pick a template first.");
+      return;
+    }
+    setPersonalizing(true);
+    setAiNotes("");
+    try {
+      const res = await fetch(`/api/leads/${lead.id}/outreach/personalize`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ templateId, tone }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data?.error ?? "Personalize failed");
+        return;
+      }
+      setSubject(data.subject ?? subject);
+      setBody(data.body ?? body);
+      setAiNotes(data.notes ?? "");
+      toast.success("Personalized — review before sending");
+    } catch {
+      toast.error("Personalize failed");
+    } finally {
+      setPersonalizing(false);
     }
   }
 
@@ -107,6 +143,54 @@ export function OutreachComposer({
             <option key={t.id} value={t.id}>{t.name} · {t.category}</option>
           ))}
         </select>
+
+        {/* v2.20 — AI personalize controls */}
+        <div className="mt-4 p-3 rounded-md border border-gtn-lavender-2 bg-gtn-lavender/30">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <p className="text-xs font-semibold text-gtn-purple flex items-center gap-1">
+                <Sparkles className="h-3.5 w-3.5" />
+                Personalize with AI
+              </p>
+              <p className="text-[11px] text-gtn-grey-2 mt-0.5">
+                Rewrites subject + body for this lead's industry, contact, and research context.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Label htmlFor="tone" className="text-xs">Tone</Label>
+              <select
+                id="tone"
+                value={tone}
+                onChange={(e) => setTone(e.target.value as Tone)}
+                className="h-8 rounded border border-input bg-white px-2 text-xs"
+                disabled={personalizing}
+              >
+                <option value="warm">warm</option>
+                <option value="formal">formal</option>
+                <option value="follow_up">follow-up</option>
+              </select>
+              <Button size="sm" onClick={personalize} disabled={personalizing || !templateId}>
+                {personalizing ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                    Writing…
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-3.5 w-3.5 mr-1" />
+                    Personalize
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+          {aiNotes && (
+            <p className="text-[11px] italic text-gtn-grey-2 mt-2 border-t border-gtn-lavender-2 pt-2">
+              <strong>What changed:</strong> {aiNotes}
+            </p>
+          )}
+        </div>
+
         {placeholders.length > 0 && (
           <div className="mt-4 grid md:grid-cols-2 gap-3">
             {placeholders.map((p) => (
