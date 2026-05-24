@@ -27,6 +27,10 @@ export type PermissionKey =
   // emphasis, win stories). Drives every Claude prompt; SUPERADMIN
   // only because misconfigured brand voice ships to every AI call.
   | "msp:profile:edit"
+  // v2.22 — Sales-management surfaces
+  | "team:manage"        // create/edit teams + territories + members
+  | "sales-rep:create"   // create SALESPERSON-role user accounts (scoped)
+  | "lead:assign"        // assign leads to teams or specific reps
   | "data:export"
   // v2.0 — customer / vCIO portal
   | "customer:view:own"
@@ -68,6 +72,10 @@ const matrix: Record<Role, ReadonlyArray<PermissionKey>> = {
     "customer:view:all",
     "onboarding:manage",
     "customer:archive",
+    // v2.22 — sales-management surfaces
+    "team:manage",
+    "sales-rep:create",
+    "lead:assign",
   ],
   VCIO: [
     "lead:view:own",
@@ -117,6 +125,10 @@ const matrix: Record<Role, ReadonlyArray<PermissionKey>> = {
     "system:config",
     "pricing:catalog:edit",
     "msp:profile:edit",
+    // v2.22 — superadmin can do anything sales-manager can
+    "team:manage",
+    "sales-rep:create",
+    "lead:assign",
     "data:export",
     "customer:view:own",
     "customer:view:all",
@@ -159,22 +171,50 @@ export const VCIO_VISIBLE_STAGES: PipelineStage[] = [
 /**
  * Central visibility helper — returns a Prisma where-input fragment that
  * captures the role's view scope. Compose with other `where` predicates.
+ *
+ * v2.22 — SALESPERSON now also sees leads assigned to any team they're
+ * a member of (multi-team membership). Pass `userTeamIds` pre-fetched
+ * via `userTeamIds()` from src/lib/sales/teams.ts so this stays sync.
  */
-export function leadVisibilityFilter(role: Role, userId: string): Prisma.LeadWhereInput {
+export function leadVisibilityFilter(
+  role: Role,
+  userId: string,
+  userTeamIds: ReadonlyArray<string> = [],
+): Prisma.LeadWhereInput {
   if (role === Role.VCIO) {
     return { pipelineStage: { in: VCIO_VISIBLE_STAGES } };
   }
   if (!can(role, "lead:view:all")) {
+    // v2.22 — own OR on a team I'm in
+    if (userTeamIds.length > 0) {
+      return { OR: [{ ownerUserId: userId }, { teamId: { in: [...userTeamIds] } }] };
+    }
     return { ownerUserId: userId };
   }
   return {};
 }
 
-/** True if the role+stage combination is visible to this user/lead. */
-export function leadIsVisible(role: Role, userId: string, ownerUserId: string, stage: PipelineStage): boolean {
+/**
+ * True if the role+stage combination is visible to this user/lead.
+ *
+ * v2.22 — pass `teamId` of the lead + `userTeamIds` of the viewer for
+ * the team-membership check. When omitted, falls back to ownership-only
+ * (backward-compatible with v2.21 call sites).
+ */
+export function leadIsVisible(
+  role: Role,
+  userId: string,
+  ownerUserId: string,
+  stage: PipelineStage,
+  teamId: string | null = null,
+  userTeamIds: ReadonlyArray<string> = [],
+): boolean {
   if (role === Role.VCIO) return VCIO_VISIBLE_STAGES.includes(stage);
   if (can(role, "lead:view:all")) return true;
-  return ownerUserId === userId;
+  if (ownerUserId === userId) return true;
+  // v2.22 — team-membership grant
+  if (teamId && userTeamIds.includes(teamId)) return true;
+  return false;
 }
 
 // ---------------------------------------------------------------------------

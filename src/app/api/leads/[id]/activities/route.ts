@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { ApiError, getAuditContext, jsonError, requireSessionUser } from "@/lib/api";
 import { can } from "@/lib/rbac";
 import { writeAudit } from "@/lib/audit";
+import { userTeamIds } from "@/lib/sales/teams";
 
 const schema = z.object({
   type: z.nativeEnum(ActivityType),
@@ -23,7 +24,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     const lead = await prisma.lead.findUnique({ where: { id } });
     if (!lead) throw new ApiError(404, "Lead not found");
-    if (lead.ownerUserId !== user.id && !can(user.role, "lead:edit:any") && !can(user.role, "lead:edit:scope-notes")) {
+    // v2.22 — team members of the lead's team can also log activities
+    const teams = await userTeamIds(user.id);
+    const onTeam = lead.teamId ? teams.includes(lead.teamId) : false;
+    if (
+      lead.ownerUserId !== user.id &&
+      !onTeam &&
+      !can(user.role, "lead:edit:any") &&
+      !can(user.role, "lead:edit:scope-notes")
+    ) {
       throw new ApiError(403, "Forbidden");
     }
 

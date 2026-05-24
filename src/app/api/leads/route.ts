@@ -94,6 +94,40 @@ export async function POST(req: Request) {
       ...getAuditContext(req),
     });
 
+    // v2.22 — best-effort geocode + territory match on create. Fire and
+    // forget so the create response is fast; errors don't surface (the
+    // rep can manually trigger /geocode from the lead detail page).
+    void (async () => {
+      try {
+        const { geocodeAddress } = await import("@/lib/geo/mapbox");
+        const { matchTerritoryForLead } = await import("@/lib/sales/territories");
+        const latLng = await geocodeAddress({
+          street: leadFields.addressStreet,
+          city: leadFields.addressCity,
+          state: leadFields.addressState,
+          zip: leadFields.addressZip,
+        });
+        const match = await matchTerritoryForLead({
+          city: leadFields.addressCity,
+          state: leadFields.addressState,
+          zip: leadFields.addressZip,
+          latLng,
+        });
+        await prisma.lead.update({
+          where: { id: lead.id },
+          data: {
+            addressLat: latLng ? latLng.lat : null,
+            addressLng: latLng ? latLng.lng : null,
+            geocodedAt: latLng ? new Date() : null,
+            ...(match ? { teamId: match.teamId, territoryId: match.id } : {}),
+          },
+        });
+      } catch (geoErr) {
+        // eslint-disable-next-line no-console
+        console.warn("[lead-create] geocode/territory match failed:", geoErr);
+      }
+    })();
+
     return NextResponse.json({ lead }, { status: 201 });
   } catch (err) {
     return jsonError(err);

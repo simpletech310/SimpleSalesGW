@@ -138,6 +138,14 @@ enum ActivityType {
   FOLLOW_UP_SCHEDULED
   HANDOFF_INITIATED
   HANDOFF_ACCEPTED
+  // v2.22 — engagement quick-actions for SDRs/BDRs
+  DOOR_KNOCK
+  GATEKEEPER_REJECTED
+  MEETING_SET
+  NOT_INTERESTED
+  // v2.22 — Daily.co call sessions
+  VIDEO_CALL
+  AUDIO_CALL
 }
 
 enum ActivityOutcome {
@@ -183,6 +191,8 @@ enum AiFeatureKind {
   OUTREACH_PERSONALIZE
   PRESALE_NARRATIVE
   HANDOFF_QC
+  // v2.22 — per-lead sales coach (next-action recommendation from activity)
+  SALES_COACH
 }
 
 enum AuditAction {
@@ -337,6 +347,9 @@ model User {
   signedDocsUploaded SignedDocument[]     @relation("SignedDocUploader")
   qualificationScores QualificationScorecard[] @relation("QualificationScorer")
   discoveryCallsConducted DiscoveryCallNote[]  @relation("DiscoveryCallConductor")
+  // v2.22 — sales team memberships + Daily.co calls initiated
+  teamMemberships   SalesTeamMember[]
+  callsInitiated    SalesCallSession[]    @relation("CallInitiator")
   objectionsRaised  ObjectionLog[]        @relation("ObjectionRaiser")
   preferences       UserPreference?
 
@@ -400,6 +413,16 @@ model Lead {
   addressCity                 String?             @map("address_city")
   addressState                String?             @map("address_state")
   addressZip                  String?             @map("address_zip")
+  // v2.22 — server-side Mapbox geocode result; powers /leads/map markers
+  // and polygon-territory matching. Refreshed when address fields change.
+  addressLat                  Decimal?            @map("address_lat") @db.Decimal(10, 7)
+  addressLng                  Decimal?            @map("address_lng") @db.Decimal(10, 7)
+  geocodedAt                  DateTime?           @map("geocoded_at")
+  // v2.22 — sales team + territory ownership (nullable = unassigned).
+  // Auto-matched from territories on lead create + address patch; sales
+  // manager can override via /sales/assign workbench.
+  teamId                      String?             @map("team_id") @db.Uuid
+  territoryId                 String?             @map("territory_id") @db.Uuid
   websiteUrl                  String?             @map("website_url")
   linkedinCompanyUrl          String?             @map("linkedin_company_url")
   googleBusinessUrl           String?             @map("google_business_url")
@@ -456,6 +479,10 @@ model Lead {
   preSaleAssessments  DiscoveryAssessment[]
   // v2.20 — AI usage rows scoped to this lead (for per-lead budget cap)
   aiUsageLogs         AiUsageLog[]
+  // v2.22 — sales team + territory + Daily.co call sessions
+  team                SalesTeam?         @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  territory           SalesTerritory?    @relation(fields: [territoryId], references: [id], onDelete: SetNull)
+  callSessions        SalesCallSession[]
 
   @@index([ownerUserId])
   @@index([pipelineStage])
@@ -463,6 +490,8 @@ model Lead {
   @@index([dealKind])
   @@index([dealQualityScore])
   @@index([expectedCloseDate])
+  @@index([teamId])
+  @@index([territoryId])
   @@map("leads")
 }
 
@@ -1219,4 +1248,106 @@ model UserPreference {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("user_preferences")
+}
+
+// ============================================================================
+// v2.22 — SALES TEAMS, TERRITORIES, ASSIGNMENT, DAILY.CO CALLS
+// ============================================================================
+
+enum TeamRole {
+  LEAD    // team lead / supervisor
+  MEMBER  // regular rep
+}
+
+model SalesTeam {
+  id            String        @id @default(uuid()) @db.Uuid
+  name          String        @unique
+  description   String?       @db.Text
+  // Services this team sells. Drives auto-assignment heuristics + the
+  // territory→team match. Empty array = generalist team.
+  serviceLines  ServiceLine[] @default([]) @map("service_lines")
+  active        Boolean       @default(true)
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+
+  members     SalesTeamMember[]
+  territories SalesTerritory[]
+  leads       Lead[]
+
+  @@map("sales_teams")
+}
+
+model SalesTeamMember {
+  id        String   @id @default(uuid()) @db.Uuid
+  teamId    String   @map("team_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  // v2.22 — reps can belong to multiple teams. `isPrimary` marks the
+  // default landing-view team. Exactly one membership per user should
+  // be primary (enforced app-level on assign).
+  isPrimary Boolean  @default(false) @map("is_primary")
+  role      TeamRole @default(MEMBER)
+  joinedAt  DateTime @default(now()) @map("joined_at")
+
+  team SalesTeam @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, userId])
+  @@index([userId])
+  @@index([teamId])
+  @@map("sales_team_members")
+}
+
+model SalesTerritory {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  teamId    String   @map("team_id") @db.Uuid
+  // List-based match dimensions. Any hit across these = territory match.
+  states    String[] @default([])
+  zipCodes  String[] @default([]) @map("zip_codes")
+  // Cities as JSON: [{ city: "Burbank", state: "CA" }, ...]
+  cities    Json     @default("[]")
+  // v2.22 — optional polygon drawn via Mapbox Draw. Shape:
+  // { type: "Polygon", coordinates: [[[lng, lat], ...]] } (GeoJSON-style).
+  // Server-side point-in-polygon match against Lead.addressLat/Lng.
+  polygon   Json?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  team  SalesTeam @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  leads Lead[]
+
+  @@index([teamId])
+  @@map("sales_territories")
+}
+
+enum CallSessionStatus {
+  ACTIVE
+  ENDED
+  FAILED
+}
+
+model SalesCallSession {
+  id                String            @id @default(uuid()) @db.Uuid
+  leadId            String            @map("lead_id") @db.Uuid
+  initiatorUserId   String            @map("initiator_user_id") @db.Uuid
+  dailyRoomName     String            @unique @map("daily_room_name")
+  dailyRoomUrl      String            @map("daily_room_url")
+  // VIDEO_CALL or AUDIO_CALL (mirrors ActivityType for filtering)
+  kind              ActivityType      @default(VIDEO_CALL)
+  status            CallSessionStatus @default(ACTIVE)
+  startedAt         DateTime          @default(now()) @map("started_at")
+  endedAt           DateTime?         @map("ended_at")
+  durationSeconds   Int?              @map("duration_seconds")
+  // v2.23 — populated by Daily.co webhook when recording lands
+  recordingUrl      String?           @map("recording_url")
+  // Linked Activity row so the rep's quick-action feed shows the call
+  activityId        String?           @map("activity_id") @db.Uuid
+  createdAt         DateTime          @default(now()) @map("created_at")
+
+  lead      Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  initiator User @relation("CallInitiator", fields: [initiatorUserId], references: [id])
+
+  @@index([leadId, startedAt])
+  @@map("sales_call_sessions")
 }

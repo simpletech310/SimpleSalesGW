@@ -20,8 +20,14 @@ const createSchema = z.object({
 export async function GET() {
   try {
     const user = await requireSessionUser();
-    if (!can(user.role, "user:manage")) throw new ApiError(403, "Forbidden");
+    // v2.22 — sales-rep:create can list users (needed for the Sales >
+    // Reps page) but only sees salespeople. user:manage sees everyone.
+    if (!can(user.role, "user:manage") && !can(user.role, "sales-rep:create")) {
+      throw new ApiError(403, "Forbidden");
+    }
+    const filter = can(user.role, "user:manage") ? {} : { role: Role.SALESPERSON };
     const users = await prisma.user.findMany({
+      where: filter,
       select: { id: true, email: true, name: true, role: true, active: true, lastLoginAt: true, createdAt: true },
       orderBy: { createdAt: "asc" },
     });
@@ -34,8 +40,20 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const user = await requireSessionUser();
-    if (!can(user.role, "user:manage")) throw new ApiError(403, "Forbidden");
+    // v2.22 — sales-rep:create is a scoped subset of user:manage.
+    // SALES_MANAGER can hit this endpoint but is restricted to creating
+    // SALESPERSON-role accounts only. SUPERADMIN (user:manage) can
+    // create any role.
+    const hasFullPerm = can(user.role, "user:manage");
+    const hasScopedPerm = can(user.role, "sales-rep:create");
+    if (!hasFullPerm && !hasScopedPerm) throw new ApiError(403, "Forbidden");
     const data = createSchema.parse(await req.json());
+    if (!hasFullPerm && data.role !== Role.SALESPERSON) {
+      throw new ApiError(
+        403,
+        "Sales managers can only create SALESPERSON accounts. Ask a Superadmin to create other roles.",
+      );
+    }
     const passwordHash = data.password ? await bcrypt.hash(data.password, 10) : null;
     const created = await prisma.user.create({
       data: {

@@ -46,6 +46,10 @@ const nextConfig = {
   // actual deployed version instead of a hardcoded string.
   env: {
     NEXT_PUBLIC_APP_VERSION: pkg.version,
+    // v2.22 — Mapbox public token must be available client-side for GL JS.
+    // Next.js inlines NEXT_PUBLIC_* automatically; explicit re-export here
+    // documents intent and lets the build fail loudly if the var is missing.
+    NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN: process.env.NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN ?? "",
   },
 };
 

@@ -16,6 +16,13 @@ const envSchema = z.object({
   SCRAPE_USER_AGENT: z.string().optional().default(""),
   NEXT_PUBLIC_APP_NAME: z.string().default("Gateway TelNet Sales Portal"),
   NEXT_PUBLIC_APP_URL: z.string().url().default("http://localhost:3000"),
+  // v2.22 — Mapbox: secret token for server-side geocoding + static
+  // images, public token for client-side GL JS map rendering.
+  MAPBOX_SECRET_TOKEN: z.string().optional().default(""),
+  NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN: z.string().optional().default(""),
+  // v2.22 — Daily.co API key for creating video/audio call rooms +
+  // issuing per-call meeting tokens. Server-only; never exposed to client.
+  DAILY_API_KEY: z.string().optional().default(""),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
 });
 
@@ -100,6 +107,9 @@ export type IntegrationHealth = {
   blob: { configured: boolean; var: "BLOB_READ_WRITE_TOKEN"; degradedFeatures: string[] };
   anthropic: { configured: boolean; var: "ANTHROPIC_API_KEY"; degradedFeatures: string[] };
   database: { configured: boolean; var: "DATABASE_URL"; degradedFeatures: string[] };
+  // v2.22
+  mapbox: { configured: boolean; var: "MAPBOX_SECRET_TOKEN + NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN"; degradedFeatures: string[] };
+  daily: { configured: boolean; var: "DAILY_API_KEY"; degradedFeatures: string[] };
 };
 
 export function integrationHealth(): IntegrationHealth {
@@ -125,6 +135,18 @@ export function integrationHealth(): IntegrationHealth {
       configured: Boolean(e.DATABASE_URL),
       var: "DATABASE_URL",
       degradedFeatures: ["Everything (app cannot run without DB)"],
+    },
+    // v2.22 — Mapbox needs BOTH tokens: secret for server geocoding,
+    // public for client GL JS. Either missing → maps disabled.
+    mapbox: {
+      configured: Boolean(e.MAPBOX_SECRET_TOKEN && e.NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN),
+      var: "MAPBOX_SECRET_TOKEN + NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN",
+      degradedFeatures: ["Lead geocoding", "/leads/map view", "Polygon territory editor"],
+    },
+    daily: {
+      configured: Boolean(e.DAILY_API_KEY),
+      var: "DAILY_API_KEY",
+      degradedFeatures: ["In-portal video / audio calls"],
     },
   };
 }

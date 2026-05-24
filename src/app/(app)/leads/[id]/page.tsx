@@ -21,6 +21,10 @@ import { DealKindPicker } from "./DealKindPicker";
 import { ServiceQuoteCard } from "./ServiceQuoteCard";
 import { PreSaleAssessmentPanel } from "./PreSaleAssessmentPanel";
 import { AiUsageMeter } from "./AiUsageMeter";
+// v2.22 — sales workflow surfaces
+import { EngagementPanel } from "./EngagementPanel";
+import { VideoCallButton } from "./VideoCallButton";
+import { SalesCoachPanel } from "./SalesCoachPanel";
 import type { LineItem } from "@/lib/pricing/deal-kinds";
 import { DealKind, HandoffStatus, PipelineStage } from "@prisma/client";
 
@@ -119,8 +123,18 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
       <PageHeaderBand pageTitle={`Lead · ${lead.businessName}`} />
 
       {/* v2.20 — inline AI usage meter (per-lead month-to-date) */}
-      <div className="flex justify-end -mt-2">
+      <div className="flex items-center justify-end gap-2 -mt-2">
+        {/* v2.22 — in-portal Daily.co video / audio calls */}
+        <VideoCallButton leadId={lead.id} />
         <AiUsageMeter leadId={lead.id} />
+      </div>
+
+      {/* v2.22 — engagement quick-actions + AI sales coach */}
+      <div className="grid lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-2">
+          <EngagementPanel leadId={lead.id} />
+        </div>
+        <SalesCoachPanel leadId={lead.id} />
       </div>
 
 
