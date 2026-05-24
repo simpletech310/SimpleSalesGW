@@ -23,6 +23,10 @@ export type PermissionKey =
   // v2.14 — pricing catalog edit (catalog itself, not per-deal approvals).
   // Granted to SUPERADMIN + SALES_MANAGER per user decision.
   | "pricing:catalog:edit"
+  // v2.21 — MSP business profile editor (mission, voice, services
+  // emphasis, win stories). Drives every Claude prompt; SUPERADMIN
+  // only because misconfigured brand voice ships to every AI call.
+  | "msp:profile:edit"
   | "data:export"
   // v2.0 — customer / vCIO portal
   | "customer:view:own"
@@ -112,6 +116,7 @@ const matrix: Record<Role, ReadonlyArray<PermissionKey>> = {
     "audit:view",
     "system:config",
     "pricing:catalog:edit",
+    "msp:profile:edit",
     "data:export",
     "customer:view:own",
     "customer:view:all",

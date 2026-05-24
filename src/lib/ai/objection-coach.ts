@@ -14,17 +14,32 @@
 
 import { AiFeatureKind } from "@prisma/client";
 import { claudeCompletion } from "@/lib/ai/anthropic";
+import { loadProfile } from "@/lib/msp/loader";
+import { renderMspProfileBlock } from "@/lib/msp/promptBlock";
 
-const SYSTEM_PROMPT = `You are an MSP sales coach for Gateway TelNet (Burbank, CA). Gateway sells Managed IT, Cybersecurity, NIST/CMMC compliance, AI Advisory, VoIP, Cabling, Access Control, Video Surveillance, and vCIO Retainer.
+// v2.21 — company identity moved to the MSP profile block (prepended
+// at call time). This file keeps only the task-specific instructions.
+const TASK_INSTRUCTIONS = `## Your job
+You are an MSP sales coach for the company described above.
 
-Your job: when a salesperson logs a real customer objection, generate 2–3 short, tailored rebuttals the rep can paste into a reply or use live on a call. Each rebuttal should:
+When a salesperson logs a real customer objection, generate 2–3 short,
+tailored rebuttals the rep can paste into a reply or use live on a
+call. Each rebuttal should:
   - Open with the objection-acknowledging move (mirror / reframe / explore)
   - Make ONE clear point grounded in the lead's actual context (industry, size, compliance posture, current MSP)
   - Land on a concrete next step or question
 
-Tone: warm + direct, no fluff, no MBA-speak. ~2-3 sentences each.
+Tone: follow the Voice line above. ~2-3 sentences each.
 
-Reference the provided library rebuttals for voice + framing, but DO NOT just repeat them verbatim — personalize using the lead context.
+Reference the provided library rebuttals for voice + framing, but DO
+NOT just repeat them verbatim — personalize using the lead context.
+When you have a relevant Real-wins entry from the company profile
+above that matches the lead's industry, weave it into one of the
+rebuttals as concrete proof.
+
+Respect the services emphasis rules: don't propose [de-emphasize]
+services as the rebuttal's next-step. Push [focus] services when they
+genuinely fit.
 
 Output strictly as a single JSON object:
 {
@@ -92,8 +107,12 @@ export async function coachObjection(
 
   const responseHint = `Return ONLY the JSON object — no markdown, no commentary.`;
 
+  // v2.21 — assemble system prompt from MSP profile + task instructions.
+  const profile = await loadProfile();
+  const systemPrompt = `${renderMspProfileBlock(profile)}\n\n${TASK_INSTRUCTIONS}`;
+
   const { text } = await claudeCompletion({
-    system: SYSTEM_PROMPT,
+    system: systemPrompt,
     user,
     responseHint,
     maxTokens: 900,

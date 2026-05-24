@@ -72,7 +72,10 @@ export function navForRole(role: Role): RoleNav {
     can(role, "user:manage") ||
     can(role, "audit:view") ||
     can(role, "system:config") ||
-    can(role, "pricing:catalog:edit")
+    can(role, "pricing:catalog:edit") ||
+    // v2.21 — MSP profile editor lives under /admin; SUPERADMIN-gated
+    // by its own permission key.
+    can(role, "msp:profile:edit")
   )
     ? [NAV.admin]
     : [];

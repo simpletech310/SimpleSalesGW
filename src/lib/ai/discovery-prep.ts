@@ -12,12 +12,24 @@
 
 import { AiFeatureKind } from "@prisma/client";
 import { claudeCompletion } from "@/lib/ai/anthropic";
+import { loadProfile } from "@/lib/msp/loader";
+import { renderMspProfileBlock } from "@/lib/msp/promptBlock";
 
-const SYSTEM_PROMPT = `You are a discovery-call prep coach for Gateway TelNet (Burbank, CA). Gateway sells Managed IT, Cybersecurity, NIST/CMMC compliance, AI Advisory, VoIP, Cabling, Access Control, Video Surveillance, and vCIO Retainer.
+// v2.21 — company identity now lives in the MSP profile block prepended
+// at call time. This file keeps only the task-specific instructions.
+const TASK_INSTRUCTIONS = `## Your job
+You are a discovery-call prep coach for the company described above.
 
-Your job: given a Lead + research summary + recent activity history, produce a tight prep brief the rep can scan in 60 seconds before joining the discovery call. Be specific to this lead — never generic.
+Given a Lead + research summary + recent activity history, produce a
+tight prep brief the rep can scan in 60 seconds before joining the
+discovery call. Be specific to this lead — never generic.
 
-Tone: warm + direct, no fluff, no MBA-speak.
+Tone: follow the Voice line above.
+
+Use the services emphasis rules: the questions you generate should
+probe for fit with [focus] services first. Don't generate questions
+that lead toward [de-emphasize] services unless the rep specifically
+needs to qualify the customer out.
 
 Output strictly as a single JSON object:
 {
@@ -32,7 +44,8 @@ Output strictly as a single JSON object:
   "successCriteria": ["what makes this call a win", ...]
 }
 
-If context is thin, ask qualifying questions in "questions" and call out the gap in "risks". 5-8 questions, 3 risks, 3 success criteria.`;
+If context is thin, ask qualifying questions in "questions" and call
+out the gap in "risks". 5-8 questions, 3 risks, 3 success criteria.`;
 
 export type DiscoveryPrepInput = {
   lead: {
@@ -113,8 +126,12 @@ export async function discoveryPrep(
 
   const responseHint = `Return ONLY the JSON object — no markdown, no commentary.`;
 
+  // v2.21 — assemble system prompt from MSP profile + task instructions.
+  const profile = await loadProfile();
+  const systemPrompt = `${renderMspProfileBlock(profile)}\n\n${TASK_INSTRUCTIONS}`;
+
   const { text } = await claudeCompletion({
-    system: SYSTEM_PROMPT,
+    system: systemPrompt,
     user,
     responseHint,
     maxTokens: 1200,

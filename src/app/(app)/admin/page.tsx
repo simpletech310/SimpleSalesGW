@@ -73,6 +73,11 @@ export default async function AdminHomePage() {
             <Card><h2 className="text-lg font-semibold">AI usage</h2><p className="text-sm text-gtn-grey-2 mt-1">Month-to-date Claude spend by feature, lead, and user.</p></Card>
           </Link>
         )}
+        {can(role, "msp:profile:edit") && (
+          <Link href="/admin/msp-profile" className="block">
+            <Card><h2 className="text-lg font-semibold">MSP profile</h2><p className="text-sm text-gtn-grey-2 mt-1">Mission, brand voice, services emphasis, win stories — feeds every Claude prompt.</p></Card>
+          </Link>
+        )}
       </div>
     </div>
   );

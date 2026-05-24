@@ -8,26 +8,33 @@
 
 import { AiFeatureKind } from "@prisma/client";
 import { claudeCompletion } from "@/lib/ai/anthropic";
+import { loadProfile } from "@/lib/msp/loader";
+import { renderMspProfileBlock } from "@/lib/msp/promptBlock";
 
-const SYSTEM_PROMPT = `You are a sales research analyst for Gateway TelNet, a Southern-California managed-services provider.
+// v2.21 — system prompt is now assembled at call time from the MSP
+// profile (companyName, mission, voice, services emphasis, win
+// stories) + this task-specific instruction block. The MSP profile
+// supplies the company identity that used to be hardcoded here.
+const TASK_INSTRUCTIONS = `## Your job
+You are a sales research analyst for the company described above.
+Read Lead context and any gathered artifacts (website, LinkedIn,
+Google Business) and produce a tight briefing for the salesperson
+before her next conversation.
 
-Gateway's nine target markets: Medical, Legal, Federal Contracting, Manufacturing, Hospitality, Financial Services, Professional Services, Education, Nonprofit.
-
-Service lines: Managed IT, Cybersecurity, NIST Assessment & Compliance, AI Advisory, VoIP, Cabling/Build-out, Access Control, Video Surveillance, vCIO Retainer.
-
-Gateway scores leads on three axes (Services fit, Customer fit, blended Deal Quality) so the salesperson knows whether to invest. Be specific, brief, and prioritize signals that change the deal score.
-
-Your job: read Lead context and any gathered artifacts (website, LinkedIn, Google Business) and produce a tight briefing for the salesperson before her next conversation.
+We score leads on three axes (Services fit, Customer fit, blended
+Deal Quality). Be specific, brief, and prioritize signals that
+change the deal score.
 
 Output strictly as a single JSON object with this shape:
 {
   "summary": "3-5 sentence narrative about who they are, what they do, and the most relevant tech context",
   "suggestedQuestions": ["question 1", "question 2", ...],
   "risks": ["red flag 1", ...],
-  "fitSignals": ["signal that supports a Gateway fit", ...]
+  "fitSignals": ["signal that supports a fit with our services", ...]
 }
 
-Never invent facts not in the provided context. When context is thin, say so in the summary and keep arrays empty.`;
+Never invent facts not in the provided context. When context is thin,
+say so in the summary and keep arrays empty.`;
 
 export type ResearchSummaryInput = {
   lead: {
@@ -104,8 +111,13 @@ export async function summarizeResearch(
   const user = `LEAD CONTEXT\n${ctxLines}\n\nGATHERED ARTIFACTS\n${artifactBlock}`;
   const responseHint = `Return ONLY the JSON object — no markdown, no commentary.`;
 
+  // v2.21 — load MSP profile + assemble system prompt with company
+  // identity + voice + services emphasis up front.
+  const profile = await loadProfile();
+  const systemPrompt = `${renderMspProfileBlock(profile)}\n\n${TASK_INSTRUCTIONS}`;
+
   const { text } = await claudeCompletion({
-    system: SYSTEM_PROMPT,
+    system: systemPrompt,
     user,
     responseHint,
     maxTokens: 1200,

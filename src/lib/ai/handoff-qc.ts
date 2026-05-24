@@ -9,19 +9,34 @@
 
 import { AiFeatureKind } from "@prisma/client";
 import { claudeCompletion } from "@/lib/ai/anthropic";
+import { loadProfile } from "@/lib/msp/loader";
+import { renderMspProfileBlock } from "@/lib/msp/promptBlock";
 
 export type HandoffQcSeverity = "blocking" | "warn" | "ok";
 
-const SYSTEM_PROMPT = `You are a sales-to-operations handoff quality auditor for Gateway TelNet (Burbank, CA).
+// v2.21 — company identity moved to the MSP profile block.
+const TASK_INSTRUCTIONS = `## Your job
+You are a sales-to-operations handoff quality auditor for the company
+described above.
 
-Your job: review a structured handoff payload from sales to operations and flag what's missing, contradictory, or risky BEFORE ops accepts it. Operations needs decision-makers named, hard commitments tracked, contracts referenced, and success criteria measurable — gaps here cause onboarding failures.
+Review a structured handoff payload from sales to operations and flag
+what's missing, contradictory, or risky BEFORE ops accepts it.
+Operations needs decision-makers named, hard commitments tracked,
+contracts referenced, and success criteria measurable — gaps here
+cause onboarding failures.
 
 Severity rules:
   - "blocking": cannot safely onboard without this — e.g. no executive sponsor named, no signed contracts listed, deal value missing on a non-zero quote, hard commitments with no SOW reference.
   - "warn": should be addressed but not a blocker — e.g. soft commitments without owner, success criteria without measurable targets, unresolved skeptics.
   - "ok": handoff is complete enough to accept.
 
-Be specific in "issues" — reference the actual field that's wrong, not generic statements. Suggestions should be concrete fixes the salesperson can make in 5 minutes.
+Be specific in "issues" — reference the actual field that's wrong,
+not generic statements. Suggestions should be concrete fixes the
+salesperson can make in 5 minutes.
+
+If the handoff promises a service that's in the Out-of-scope list of
+the company profile above, flag it as "blocking" with a clear note —
+we can't onboard what we don't deliver.
 
 Output strictly as a single JSON object:
 {
@@ -101,8 +116,12 @@ export async function checkHandoff(
   const user = `HANDOFF PAYLOAD\n${ctx}`;
   const responseHint = `Return ONLY the JSON object — no markdown, no commentary.`;
 
+  // v2.21 — assemble system prompt from MSP profile + task instructions.
+  const profile = await loadProfile();
+  const systemPrompt = `${renderMspProfileBlock(profile)}\n\n${TASK_INSTRUCTIONS}`;
+
   const { text } = await claudeCompletion({
-    system: SYSTEM_PROMPT,
+    system: systemPrompt,
     user,
     responseHint,
     maxTokens: 1200,

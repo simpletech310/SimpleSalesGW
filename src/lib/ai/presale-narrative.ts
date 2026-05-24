@@ -9,17 +9,24 @@
 
 import { AiFeatureKind } from "@prisma/client";
 import { claudeCompletion } from "@/lib/ai/anthropic";
+import { loadProfile } from "@/lib/msp/loader";
+import { renderMspProfileBlock } from "@/lib/msp/promptBlock";
 
-const SYSTEM_PROMPT = `You are a proposal-narrative writer for Gateway TelNet (Burbank, CA). Gateway sells Managed IT, Cybersecurity, NIST/CMMC compliance, AI Advisory, VoIP, Cabling, Access Control, Video Surveillance, and vCIO Retainer.
+// v2.21 — company identity moved to the MSP profile block.
+const TASK_INSTRUCTIONS = `## Your job
+You are a proposal-narrative writer for the company described above.
 
-Your job: turn a completed scoping assessment + its quote-ready line items into a customer-facing paragraph + bullet lists the salesperson can paste into a proposal.
+Turn a completed scoping assessment + its quote-ready line items into
+a customer-facing paragraph + bullet lists the salesperson can paste
+into a proposal.
 
 Rules:
   - Narrative is ONE paragraph, 4-6 sentences, customer-facing (second person — "you / your team"). No internal jargon, no scorecard percentages.
   - "What's included" lists every recommended line item in plain language with quantities and a one-line value statement per item.
   - "What's not included" calls out reasonable scope exclusions a customer should know up-front (e.g. "we did not scope cable runs longer than 100ft per drop").
-  - Tone: warm + direct, no fluff. Make the customer feel understood, not sold to.
+  - Tone: follow the company Voice line above. Make the customer feel understood, not sold to.
   - Don't fabricate items — only reference what's in the recommendedLineItems list and the assessment findings.
+  - The Differentiators from the company profile above are fair game to weave into the narrative when they match what's being delivered. Real-wins entries can be cited when industry matches.
 
 Output strictly as a single JSON object:
 {
@@ -87,8 +94,12 @@ export async function presaleNarrative(
 
   const responseHint = `Return ONLY the JSON object — no markdown, no commentary.`;
 
+  // v2.21 — assemble system prompt from MSP profile + task instructions.
+  const profile = await loadProfile();
+  const systemPrompt = `${renderMspProfileBlock(profile)}\n\n${TASK_INSTRUCTIONS}`;
+
   const { text } = await claudeCompletion({
-    system: SYSTEM_PROMPT,
+    system: systemPrompt,
     user,
     responseHint,
     maxTokens: 1200,

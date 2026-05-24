@@ -9,12 +9,19 @@
 
 import { AiFeatureKind } from "@prisma/client";
 import { claudeCompletion } from "@/lib/ai/anthropic";
+import { loadProfile } from "@/lib/msp/loader";
+import { renderMspProfileBlock } from "@/lib/msp/promptBlock";
 
 export type OutreachTone = "warm" | "formal" | "follow_up";
 
-const SYSTEM_PROMPT = `You are a B2B email-copy editor for Gateway TelNet (Burbank, CA). Gateway sells Managed IT, Cybersecurity, NIST/CMMC compliance, AI Advisory, VoIP, Cabling, Access Control, Video Surveillance, and vCIO Retainer.
+// v2.21 — company identity + brand voice come from the MSP profile
+// block at call time. This file keeps only task-specific instructions.
+const TASK_INSTRUCTIONS = `## Your job
+You are a B2B email-copy editor for the company described above.
 
-Your job: rewrite a template-style outreach email so it sounds like it was written for THIS lead and THIS contact — specific, brief, and respectful of the reader's time. Keep Gateway's voice: warm + direct, no fluff, no MBA-speak.
+Rewrite a template-style outreach email so it sounds like it was
+written for THIS lead and THIS contact — specific, brief, and
+respectful of the reader's time. Follow the company Voice line above.
 
 Rules:
   - Open with one specific reference from the lead context (industry, location, compliance posture, or research notes). If the context is truly thin, lead with the value proposition for their industry — never invent facts.
@@ -23,7 +30,13 @@ Rules:
   - Subject line is under 60 chars, lower-case if the tone is warm, sentence-case if formal.
   - Keep the rep's signature line as-is.
 
-Tone modes:
+Service-emphasis rules: surface [focus] services where they fit the
+industry. Don't mention [de-emphasize] services unless the source
+template already does. Use a Real-wins entry from the company profile
+above if one matches the lead's industry — that's the strongest
+opener.
+
+Tone modes (overrides the default Voice when set):
   - warm: like a real human, conversational, contractions OK
   - formal: business-appropriate, no contractions, slightly more polished
   - follow_up: short — under 4 sentences total — acknowledging the prior reach-out without being needy
@@ -90,8 +103,12 @@ export async function personalizeOutreach(
 
   const responseHint = `Return ONLY the JSON object — no markdown, no commentary.`;
 
+  // v2.21 — assemble system prompt from MSP profile + task instructions.
+  const profile = await loadProfile();
+  const systemPrompt = `${renderMspProfileBlock(profile)}\n\n${TASK_INSTRUCTIONS}`;
+
   const { text } = await claudeCompletion({
-    system: SYSTEM_PROMPT,
+    system: systemPrompt,
     user,
     responseHint,
     maxTokens: 1000,

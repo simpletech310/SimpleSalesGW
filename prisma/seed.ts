@@ -111,6 +111,21 @@ async function main() {
     }
   }
 
+  // v2.21 — Seed MSP business profile if missing. Once a SUPERADMIN
+  // saves their real profile via /admin/msp-profile we never want to
+  // overwrite — so use `findUnique + create` instead of `upsert` here.
+  // eslint-disable-next-line no-console
+  console.log("→ Seeding MSP profile defaults (v2.21)...");
+  const existingProfile = await prisma.systemConfig.findUnique({
+    where: { key: "msp.profile" },
+  });
+  if (!existingProfile) {
+    const { DEFAULT_PROFILE } = await import("../src/lib/msp/profile");
+    await prisma.systemConfig.create({
+      data: { key: "msp.profile", value: DEFAULT_PROFILE as never },
+    });
+  }
+
   // eslint-disable-next-line no-console
   console.log("→ Seeding outreach templates (v2.2)...");
   const { DEFAULT_OUTREACH_TEMPLATES, extractPlaceholders } = await import(
