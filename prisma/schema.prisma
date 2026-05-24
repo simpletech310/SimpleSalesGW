@@ -181,6 +181,8 @@ enum ResearchArtifactType {
   OUTREACH_DRAFT
   PRESALE_NARRATIVE
   HANDOFF_QC
+  // v2.23 — vCIO post-assessment recommendations (tasks + services + risks)
+  VCIO_RECOMMENDATION
 }
 
 // v2.20 — which AI feature spent a Claude call. Drives usage roll-ups + budget caps.
@@ -193,6 +195,8 @@ enum AiFeatureKind {
   HANDOFF_QC
   // v2.22 — per-lead sales coach (next-action recommendation from activity)
   SALES_COACH
+  // v2.23 — vCIO post-assessment recommendations (structured task plan)
+  VCIO_RECOMMENDATION
 }
 
 enum AuditAction {
@@ -341,6 +345,8 @@ model User {
   pricingApprovals  PricingApproval[] @relation("PricingApprover")
   managedCustomers  Customer[]            @relation("CustomerManager")
   discoveryCreated  DiscoveryAssessment[] @relation("DiscoveryCreator")
+  // v2.23 — vCIO plans this user accepted (materialized into OnboardingTask rows)
+  plansAccepted     DiscoveryAssessment[] @relation("PlanAccepter")
   // v2.20 — Claude calls this user triggered
   aiUsageEvents     AiUsageLog[]          @relation("AiUsageActor")
   onboardingTasks   OnboardingTask[]      @relation("OnboardingTaskOwner")
@@ -688,7 +694,17 @@ model SystemConfig {
 
 model Attachment {
   id               String   @id @default(uuid()) @db.Uuid
-  leadId           String   @map("lead_id") @db.Uuid
+  // v2.23 — leadId is now nullable to support polymorphic ownership.
+  // EXACTLY ONE of (leadId) or (entityType + entityId) must be set,
+  // enforced at the API layer.
+  leadId           String?  @map("lead_id") @db.Uuid
+  // v2.23 — polymorphic owner. entityType is one of:
+  //   "FirewallAsset" | "SwitchAsset" | "AccessPoint" | "ServerAsset"
+  //   | "StorageAsset" | "NetworkCircuit" | "EndpointSummary"
+  //   | "LicenseEntry" | "VendorContract" | "Site"
+  //   | "Customer" | "DiscoveryAssessment"
+  entityType       String?  @map("entity_type")
+  entityId         String?  @map("entity_id") @db.Uuid
   uploadedByUserId String   @map("uploaded_by_user_id") @db.Uuid
   filename         String
   contentType      String   @map("content_type")
@@ -697,10 +713,11 @@ model Attachment {
   publicUrl        String   @map("public_url")
   createdAt        DateTime @default(now()) @map("created_at")
 
-  lead       Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  lead       Lead? @relation(fields: [leadId], references: [id], onDelete: Cascade)
   uploadedBy User @relation(fields: [uploadedByUserId], references: [id])
 
   @@index([leadId])
+  @@index([entityType, entityId])
   @@map("attachments")
 }
 
@@ -795,12 +812,23 @@ model DiscoveryAssessment {
   createdByUserId String          @map("created_by_user_id") @db.Uuid
   answers         Json            @default("{}")
   scorecard       Json?
+  // v2.23 — vCIO elevation: cached AI plan snapshot + acceptance audit.
+  // aiPlanSnapshot is the most-recent AI output (regenerate-safe).
+  // planAcceptedSnapshot is the frozen copy of what was actually accepted
+  // — preserved even if the vCIO regenerates the plan later, so the
+  // materialized OnboardingTasks always have a traceable source.
+  aiPlanSnapshot         Json?     @map("ai_plan_snapshot")
+  aiPlanGeneratedAt      DateTime? @map("ai_plan_generated_at")
+  planAcceptedAt         DateTime? @map("plan_accepted_at")
+  planAcceptedByUserId   String?   @map("plan_accepted_by_user_id") @db.Uuid
+  planAcceptedSnapshot   Json?     @map("plan_accepted_snapshot")
   createdAt       DateTime        @default(now()) @map("created_at")
   updatedAt       DateTime        @updatedAt @map("updated_at")
 
   customer  Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
   lead      Lead?     @relation(fields: [leadId], references: [id], onDelete: Cascade)
   createdBy User      @relation("DiscoveryCreator", fields: [createdByUserId], references: [id])
+  planAcceptedBy User? @relation("PlanAccepter", fields: [planAcceptedByUserId], references: [id])
 
   @@index([customerId, kind])
   @@index([leadId, kind])

@@ -16,6 +16,7 @@ const FEATURE_LABEL: Record<AiFeatureKind, string> = {
   PRESALE_NARRATIVE: "Pre-sale narrative",
   HANDOFF_QC: "Handoff QC",
   SALES_COACH: "Sales coach",
+  VCIO_RECOMMENDATION: "vCIO recommendations",
 };
 
 /**

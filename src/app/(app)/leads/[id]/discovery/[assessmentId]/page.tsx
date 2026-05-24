@@ -5,6 +5,10 @@ import { can, leadIsVisible } from "@/lib/rbac";
 import { bankForKind, discoveryTitle } from "@/lib/discovery/banks";
 import { DiscoveryRunner } from "@/app/(app)/accounts/[id]/discovery/[assessmentId]/DiscoveryRunner";
 import { DiscoveryResult } from "@/app/(app)/accounts/[id]/discovery/[assessmentId]/DiscoveryResult";
+// v2.23 — vCIO plan panel for pre-sale assessments. Lead side has no
+// Customer record yet, so the "accept plan" button is hidden until
+// handoff lands and the assessment migrates over to customerId.
+import { VcioPlanPanel } from "@/components/sales/VcioPlanPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -46,17 +50,30 @@ export default async function LeadDiscoveryAssessmentPage({
   const backHref = `/leads/${id}`;
 
   if (assessment.status === "COMPLETED") {
+    const canEditDiscovery = can(session.user.role, "discovery:edit");
     return (
-      <DiscoveryResult
-        title={title}
-        customerName={assessment.lead.businessName}
-        customerId={id /* used only for the prop name; ignored when backHref provided */}
-        assessmentId={assessment.id}
-        scorecard={assessment.scorecard as never}
-        backHref={backHref}
-        // Print view stays on the customer route family; pre-sale print is out of scope for v2.17.
-        printHref={backHref}
-      />
+      <div className="space-y-4">
+        <DiscoveryResult
+          title={title}
+          customerName={assessment.lead.businessName}
+          customerId={id /* used only for the prop name; ignored when backHref provided */}
+          assessmentId={assessment.id}
+          scorecard={assessment.scorecard as never}
+          backHref={backHref}
+          printHref={backHref}
+        />
+        {/* v2.23 — Generate plan even pre-handoff; acceptance not yet (no Customer record).
+            Once handoff completes, the assessment carries over and accept becomes available
+            on the /accounts side. */}
+        {canEditDiscovery && (
+          <VcioPlanPanel
+            generateUrl={`/api/leads/${id}/discovery/${assessment.id}/vcio-plan`}
+            initialPlan={(assessment.aiPlanSnapshot as never) ?? null}
+            acceptedAt={null}
+            acceptedByName={null}
+          />
+        )}
+      </div>
     );
   }
 
