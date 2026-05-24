@@ -89,7 +89,8 @@ export function OnboardingPanel({ customerId, currentPhase }: { customerId: stri
 
   return (
     <div className="space-y-3">
-      <div className="flex justify-end">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <AddTaskInline customerId={customerId} onCreated={refresh} />
         <a
           href={`/accounts/${customerId}/onboarding/print`}
           target="_blank"
@@ -166,6 +167,86 @@ export function OnboardingPanel({ customerId, currentPhase }: { customerId: stri
           </Card>
         );
       })}
+    </div>
+  );
+}
+
+/**
+ * Inline "Add task" form — collapsed by default. Lets the vCIO add an
+ * ad-hoc onboarding task outside the template + QBR auto-spawn flows.
+ */
+function AddTaskInline({ customerId, onCreated }: { customerId: string; onCreated: () => Promise<void> | void }) {
+  const [open, setOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [phase, setPhase] = useState<OnboardingPhase>(OnboardingPhase.PRE_ENGAGEMENT);
+  const [title, setTitle] = useState("");
+  const [dueAt, setDueAt] = useState("");
+
+  async function submit() {
+    if (!title.trim()) { toast.error("Task title is required."); return; }
+    setSubmitting(true);
+    try {
+      const res = await fetch(`/api/accounts/${customerId}/onboarding/tasks`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phase,
+          title: title.trim(),
+          dueAt: dueAt ? new Date(dueAt).toISOString() : undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast.error(data?.error ?? "Failed"); return; }
+      toast.success("Task added");
+      setTitle(""); setDueAt(""); setOpen(false);
+      await onCreated();
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="text-xs text-gtn-purple hover:text-gtn-purple-2 underline"
+      >
+        + Add ad-hoc task
+      </button>
+    );
+  }
+
+  return (
+    <div className="flex items-end gap-2 flex-wrap bg-gtn-callout-bg border-l-4 border-gtn-purple rounded px-3 py-2">
+      <div className="flex flex-col gap-1">
+        <label className="text-[10px] uppercase tracking-wide text-gtn-grey-2">Phase</label>
+        <select
+          value={phase}
+          onChange={(e) => setPhase(e.target.value as OnboardingPhase)}
+          className="h-8 rounded border border-input bg-white px-2 text-xs"
+        >
+          {PHASES.map((p) => <option key={p} value={p}>{PHASE_LABEL[p]}</option>)}
+        </select>
+      </div>
+      <Input
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        placeholder="Task title (e.g. Schedule security review)"
+        className="h-8 text-xs flex-1 min-w-[200px]"
+      />
+      <Input
+        type="date"
+        value={dueAt}
+        onChange={(e) => setDueAt(e.target.value)}
+        className="h-8 text-xs w-36"
+      />
+      <button onClick={submit} disabled={submitting || !title.trim()} className="text-xs bg-gtn-purple text-white px-3 h-8 rounded disabled:opacity-60">
+        {submitting ? "…" : "Add"}
+      </button>
+      <button onClick={() => { setOpen(false); setTitle(""); setDueAt(""); }} disabled={submitting} className="text-xs text-gtn-grey-2 hover:text-gtn-navy">
+        Cancel
+      </button>
     </div>
   );
 }
