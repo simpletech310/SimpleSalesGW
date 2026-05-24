@@ -18,6 +18,15 @@ import { ALLOWED_CONTENT_TYPES, MAX_FILE_BYTES } from "@/lib/storage/blob";
  */
 export async function POST(req: Request) {
   try {
+    // v2.14 — surface unconfigured blob storage as a clean 503 instead of
+    // hanging the upload client.
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      throw new ApiError(
+        503,
+        "Document uploads aren't configured. Ask your admin to set BLOB_READ_WRITE_TOKEN in Vercel env.",
+      );
+    }
+
     const user = await requireSessionUser();
     const body = (await req.json()) as HandleUploadBody;
 

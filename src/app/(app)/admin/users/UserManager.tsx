@@ -51,12 +51,26 @@ export function UserManager({ initialUsers }: { initialUsers: U[] }) {
       }),
     });
     const data = await res.json();
-    if (!res.ok) toast.error(data?.error ?? "Failed");
-    else {
-      toast.success("User created");
-      setOpen(false);
-      router.refresh();
+    if (!res.ok) {
+      toast.error(data?.error ?? "Failed");
+      return;
     }
+
+    // v2.14 — branch the toast on whether the invite email actually sent.
+    // Without this signal, the SUPERADMIN doesn't know they need to share
+    // credentials with the new user manually.
+    toast.success("User created");
+    if (data.inviteSent) {
+      toast.message("Invite email sent — they'll see it in their inbox.", {
+        duration: 5000,
+      });
+    } else if (data.inviteSkipReason) {
+      toast.warning(`No invite email: ${data.inviteSkipReason}`, {
+        duration: 8000,
+      });
+    }
+    setOpen(false);
+    router.refresh();
   }
 
   return (

@@ -16,6 +16,16 @@ import { ALLOWED_CONTENT_TYPES, MAX_FILE_BYTES } from "@/lib/storage/blob";
  */
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    // v2.14 — guard against the silent-hang failure mode: without
+    // BLOB_READ_WRITE_TOKEN, Vercel's handleUpload returns opaque errors or
+    // hangs the client. Surface a clean 503 with the var name instead.
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      throw new ApiError(
+        503,
+        "File uploads aren't configured. Ask your admin to set BLOB_READ_WRITE_TOKEN in Vercel env.",
+      );
+    }
+
     const user = await requireSessionUser();
     const { id: leadId } = await params;
 

@@ -5,6 +5,26 @@ import { prisma } from "@/lib/prisma";
 import { ApiError, getAuditContext, jsonError, requireSessionUser } from "@/lib/api";
 import { can, leadIsVisible } from "@/lib/rbac";
 import { writeAudit, diffForAudit } from "@/lib/audit";
+import { autoScoreQualification } from "@/lib/qualification/auto-score";
+import { verdictFor } from "@/lib/qualification";
+
+/**
+ * v2.14 — fields that, when mutated on a Lead, should re-run the
+ * qualification auto-score so the QualificationScorecard never goes stale
+ * silently. Gate transitions (LEAD → QUALIFIED) use these numbers, so a
+ * stale scorecard means a wrong gate.
+ */
+const SCORING_FIELDS = new Set<string>([
+  "industry",
+  "seatCount",
+  "siteCount",
+  "addressCity",
+  "addressState",
+  "executiveSponsorName",
+  "currentMspSatisfaction",
+  "cyberInsuranceRenewalDate",
+  "complianceDrivers",
+]);
 
 const updateSchema = z.object({
   businessName: z.string().min(1).max(200).optional(),
@@ -93,6 +113,70 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       after: diff.after as never,
       ...getAuditContext(req),
     });
+
+    // v2.14 — if any scoring-relevant field changed, re-run the
+    // auto-score and upsert the scorecard. Wrapped in try/catch so a
+    // scoring failure never breaks a lead save.
+    const changedScoringField = Object.keys(cleaned).some((k) => SCORING_FIELDS.has(k));
+    if (changedScoringField) {
+      try {
+        const scores = autoScoreQualification({
+          industry: after.industry,
+          seatCount: after.seatCount,
+          addressCity: after.addressCity,
+          addressState: after.addressState,
+          executiveSponsorName: after.executiveSponsorName,
+          currentMspSatisfaction: after.currentMspSatisfaction,
+          cyberInsuranceRenewalDate: after.cyberInsuranceRenewalDate,
+          complianceDrivers: after.complianceDrivers,
+        });
+        const total =
+          scores.industryFit +
+          scores.sizeFit +
+          scores.geography +
+          scores.growthPosture +
+          scores.authority +
+          scores.budget +
+          scores.timeline +
+          scores.complianceDriver;
+        await prisma.qualificationScorecard.upsert({
+          where: { leadId: id },
+          create: {
+            leadId: id,
+            industryFit: scores.industryFit,
+            sizeFit: scores.sizeFit,
+            geography: scores.geography,
+            growthPosture: scores.growthPosture,
+            authority: scores.authority,
+            budget: scores.budget,
+            timeline: scores.timeline,
+            complianceDriver: scores.complianceDriver,
+            total,
+            verdict: verdictFor(total),
+            scoredByUserId: user.id,
+            scoredAt: new Date(),
+          },
+          update: {
+            industryFit: scores.industryFit,
+            sizeFit: scores.sizeFit,
+            geography: scores.geography,
+            growthPosture: scores.growthPosture,
+            authority: scores.authority,
+            budget: scores.budget,
+            timeline: scores.timeline,
+            complianceDriver: scores.complianceDriver,
+            total,
+            verdict: verdictFor(total),
+            scoredByUserId: user.id,
+            scoredAt: new Date(),
+          },
+        });
+      } catch (scoreErr) {
+        // eslint-disable-next-line no-console
+        console.warn("[lead/PATCH] auto-score failed (lead save still applied):", scoreErr);
+      }
+    }
+
     return NextResponse.json({ lead: after });
   } catch (err) {
     return jsonError(err);

@@ -46,6 +46,29 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       acceptedByUserId: user.id,
     });
 
+    // v2.14 — notify the salesperson who initiated the handoff. Without
+    // this, the SP has zero signal their handoff landed. We write a second
+    // Activity row with actor = initiator so it lands in their /notifications
+    // openActions queue, complete with a `nextAction` link to the new account.
+    if (handoff.initiatorUserId && handoff.initiatorUserId !== user.id) {
+      try {
+        await prisma.activity.create({
+          data: {
+            leadId: handoff.leadId,
+            actorUserId: handoff.initiatorUserId,
+            type: ActivityType.HANDOFF_ACCEPTED,
+            subject: "Your handoff was accepted",
+            body: `Customer record created — open it under /accounts/${customer.id}`,
+            nextAction: "Confirm the kickoff handshake with the vCIO",
+            nextActionDueAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), // 3 days out
+          },
+        });
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn("[handoff/accept] could not write initiator notification:", err);
+      }
+    }
+
     await writeAudit({
       actorUserId: user.id,
       entityType: "Handoff",

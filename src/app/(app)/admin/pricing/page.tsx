@@ -9,7 +9,8 @@ import { PricingEditor } from "./PricingEditor";
 export default async function AdminPricingPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
-  if (!can(session.user.role, "system:config")) redirect("/");
+  // v2.14 — Sales Manager now also has full pricing catalog edit.
+  if (!can(session.user.role, "pricing:catalog:edit")) redirect("/");
 
   const catalog = await loadCatalog();
   const isOverride = catalog.version !== DEFAULT_CATALOG.version;

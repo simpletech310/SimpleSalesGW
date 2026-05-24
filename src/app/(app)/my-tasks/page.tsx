@@ -4,6 +4,11 @@ import { prisma } from "@/lib/prisma";
 import { OnboardingTaskStatus, Role } from "@prisma/client";
 import { MyTasksView } from "./MyTasksView";
 
+// v2.14 — completing or reassigning a task must show up immediately on
+// next page load. Without this, a stale rendered page can re-display a
+// completed task until cache TTL expires.
+export const dynamic = "force-dynamic";
+
 export default async function MyTasksPage({
   searchParams,
 }: {

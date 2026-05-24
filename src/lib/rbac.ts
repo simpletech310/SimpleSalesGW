@@ -20,6 +20,9 @@ export type PermissionKey =
   | "user:manage"
   | "audit:view"
   | "system:config"
+  // v2.14 — pricing catalog edit (catalog itself, not per-deal approvals).
+  // Granted to SUPERADMIN + SALES_MANAGER per user decision.
+  | "pricing:catalog:edit"
   | "data:export"
   // v2.0 — customer / vCIO portal
   | "customer:view:own"
@@ -55,6 +58,7 @@ const matrix: Record<Role, ReadonlyArray<PermissionKey>> = {
     "handoff:initiate",
     "pricing:view:sticker",
     "pricing:view:floor",
+    "pricing:catalog:edit",
     "data:export",
     "customer:view:own",
     "customer:view:all",
@@ -107,6 +111,7 @@ const matrix: Record<Role, ReadonlyArray<PermissionKey>> = {
     "user:manage",
     "audit:view",
     "system:config",
+    "pricing:catalog:edit",
     "data:export",
     "customer:view:own",
     "customer:view:all",

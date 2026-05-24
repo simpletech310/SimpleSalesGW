@@ -43,7 +43,8 @@ const catalogSchema = z.object({
 export async function POST(req: Request) {
   try {
     const user = await requireSessionUser();
-    if (!can(user.role, "system:config")) throw new ApiError(403, "Forbidden");
+    // v2.14 — Sales Manager + Superadmin can edit the catalog.
+    if (!can(user.role, "pricing:catalog:edit")) throw new ApiError(403, "Forbidden");
     const data = catalogSchema.parse(await req.json());
 
     const row = await prisma.systemConfig.upsert({

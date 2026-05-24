@@ -85,6 +85,16 @@ export default async function AccountsPage() {
           </table>
         </div>
       )}
+
+      {/* v2.14 — make the "where's the account I just closed?" failure mode
+          discoverable. Customers only appear after a handoff is accepted. */}
+      <p className="text-xs text-gtn-grey-2 mt-4">
+        Looking for a customer that should be here? A Customer only appears
+        after a Sales-to-Ops handoff has been accepted by the COO.{" "}
+        <Link href="/leads" className="text-gtn-purple hover:underline">
+          See your closed-won leads →
+        </Link>
+      </p>
     </div>
   );
 }

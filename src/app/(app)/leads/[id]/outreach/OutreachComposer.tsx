@@ -72,7 +72,18 @@ export function OutreachComposer({
       if (!res.ok) {
         toast.error(data?.error ?? "Failed");
       } else {
-        toast.success(data.message ?? "Sent.");
+        // v2.14 — surface the email-not-actually-sent fallback as a warning
+        // toast, not a green success. The API returns `sent: false` when
+        // RESEND_API_KEY isn't configured (the message body is logged as an
+        // Activity instead). Without this branch the user thinks the email
+        // went out when it didn't.
+        if (data.sent === false) {
+          toast.warning(data.message ?? "Logged as activity — email not configured.", {
+            duration: 6000,
+          });
+        } else {
+          toast.success(data.message ?? "Sent.");
+        }
         router.push(`/leads/${lead.id}`);
       }
     } finally {

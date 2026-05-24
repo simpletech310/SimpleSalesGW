@@ -67,7 +67,13 @@ export type RoleNav = {
 };
 
 export function navForRole(role: Role): RoleNav {
-  const adminTail = (can(role, "user:manage") || can(role, "audit:view") || can(role, "system:config"))
+  // v2.14 — add pricing:catalog:edit so Sales Manager sees the Admin link.
+  const adminTail = (
+    can(role, "user:manage") ||
+    can(role, "audit:view") ||
+    can(role, "system:config") ||
+    can(role, "pricing:catalog:edit")
+  )
     ? [NAV.admin]
     : [];
 

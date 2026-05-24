@@ -8,15 +8,35 @@ export default async function AdminHomePage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
   const role = session.user.role;
-  // v2.12 — admit any role that holds at least one admin permission. Today
-  // only SUPERADMIN holds all three; COO holds audit:view. Future-proof.
-  if (!can(role, "user:manage") && !can(role, "audit:view") && !can(role, "system:config")) {
+  // v2.14 — widen the admit-gate to include pricing:catalog:edit so
+  // Sales Manager can land here for the pricing editor.
+  if (
+    !can(role, "user:manage") &&
+    !can(role, "audit:view") &&
+    !can(role, "system:config") &&
+    !can(role, "pricing:catalog:edit")
+  ) {
     redirect("/");
   }
 
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-bold text-gtn-navy">Admin</h1>
+
+      {/* v2.14 — First-run setup tile, top of grid, two-column wide */}
+      {(can(role, "pricing:catalog:edit") || can(role, "user:manage")) && (
+        <Link href="/admin/setup" className="block">
+          <Card className="bg-gtn-lavender border-gtn-purple/40 hover:border-gtn-purple">
+            <h2 className="text-lg font-semibold text-gtn-purple">⚡ First-run setup</h2>
+            <p className="text-sm text-gtn-grey-2 mt-1">
+              Walk through the 6 steps to make this portal usable for your team day to day —
+              env health, real users, pricing catalog, prospect import, library customization,
+              and email test.
+            </p>
+          </Card>
+        </Link>
+      )}
+
       <div className="grid md:grid-cols-3 gap-3">
         {can(role, "user:manage") && (
           <Link href="/admin/users" className="block">
@@ -33,7 +53,7 @@ export default async function AdminHomePage() {
             <Card><h2 className="text-lg font-semibold">System config</h2><p className="text-sm text-gtn-grey-2 mt-1">Tune scoring thresholds + weights.</p></Card>
           </Link>
         )}
-        {can(role, "system:config") && (
+        {can(role, "pricing:catalog:edit") && (
           <Link href="/admin/pricing" className="block">
             <Card><h2 className="text-lg font-semibold">Pricing catalog</h2><p className="text-sm text-gtn-grey-2 mt-1">Edit bundle prices, floors, and onboarding fees.</p></Card>
           </Link>

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { ArrowRight } from "lucide-react";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { can, leadIsVisible } from "@/lib/rbac";
@@ -7,7 +8,7 @@ import { STRINGS } from "@/lib/strings";
 import { scoreBadgeClass, formatScore } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-import { PageHeaderBand } from "@/components/brand";
+import { PageHeaderBand, Callout } from "@/components/brand";
 import { StageTimeline } from "@/components/process/StageTimeline";
 import { LeadTabs } from "./LeadTabs";
 import { PricingCard } from "./PricingCard";
@@ -16,6 +17,7 @@ import { CloseDealButtons } from "./CloseDealButtons";
 import { HandoffCard } from "./HandoffCard";
 import { ScoreOverrideButton } from "./ScoreOverrideButton";
 import { DeleteLeadButton } from "./DeleteLeadButton";
+import { HandoffStatus, PipelineStage } from "@prisma/client";
 
 export default async function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
@@ -52,6 +54,19 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
     );
   }
 
+  // v2.14 — handoff-state probe for the CLOSED_WON-without-handoff CTA.
+  // We pull the latest handoff so the banner can either nudge "initiate
+  // one" or surface "waiting on COO" depending on status.
+  const latestHandoff = await prisma.handoff.findFirst({
+    where: { leadId: id },
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      status: true,
+      initiator: { select: { name: true } },
+    },
+  });
+
   const auditLogs = can(session.user.role, "audit:view")
     ? await prisma.auditLog.findMany({
         where: { entityId: id },
@@ -61,9 +76,66 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
       })
     : [];
 
+  // v2.14 — banner decision tree:
+  //   CLOSED_WON + no handoff at all (or only DRAFT)
+  //     → "Initiate handoff" warn CTA
+  //   CLOSED_WON + INITIATED handoff
+  //     → "Waiting on COO" info CTA
+  //   Otherwise: no banner
+  const closedWon = lead.pipelineStage === PipelineStage.CLOSED_WON;
+  const hasLiveHandoff =
+    latestHandoff != null && latestHandoff.status !== HandoffStatus.DRAFT;
+  const handoffWaitingAcceptance =
+    latestHandoff?.status === HandoffStatus.INITIATED;
+  const handoffAccepted = latestHandoff?.status === HandoffStatus.ACCEPTED;
+
   return (
     <div className="space-y-6">
       <PageHeaderBand pageTitle={`Lead · ${lead.businessName}`} />
+
+      {/* v2.14 — Closed-won-without-handoff: the most common "why isn't there
+          an account?" footgun. Surface it loud at the top of the page. */}
+      {closedWon && !hasLiveHandoff && (
+        <Callout kind="warning" label="Action needed">
+          <p className="mb-2">
+            This deal is closed-won but no handoff is on the way yet. An Account
+            won&apos;t be created under <strong>/accounts</strong> until you initiate
+            a Sales-to-Ops handoff and the COO accepts it.
+          </p>
+          {can(session.user.role, "handoff:initiate") ? (
+            <Link
+              href={`/leads/${lead.id}/handoff`}
+              className="inline-flex items-center gap-1 text-sm font-medium text-gtn-purple hover:text-gtn-purple-2"
+            >
+              Initiate handoff to Ops <ArrowRight size={14} />
+            </Link>
+          ) : (
+            <p className="text-xs text-gtn-grey-2">
+              Ask {lead.owner.name} (the lead owner) to initiate a handoff.
+            </p>
+          )}
+        </Callout>
+      )}
+      {closedWon && handoffWaitingAcceptance && (
+        <Callout kind="note" label="Waiting on Ops">
+          <p>
+            Handoff sent <strong>{latestHandoff?.initiator.name ?? "by the owner"}</strong>.
+            Waiting on the COO to accept — once they do, an Account will appear under{" "}
+            <Link href="/accounts" className="text-gtn-purple hover:underline">/accounts</Link>{" "}
+            and the vCIO takes over Discovery + onboarding.
+          </p>
+        </Callout>
+      )}
+      {closedWon && handoffAccepted && (
+        <Callout kind="tip" label="Handoff accepted">
+          <p>
+            This deal is now a Customer under{" "}
+            <Link href="/accounts" className="text-gtn-purple hover:underline inline-flex items-center gap-1">
+              /accounts <ArrowRight size={12} />
+            </Link>
+          </p>
+        </Callout>
+      )}
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
