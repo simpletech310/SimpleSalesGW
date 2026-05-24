@@ -26,6 +26,11 @@ export async function POST(req: Request) {
 
     const lead = await prisma.lead.findUnique({ where: { id: data.leadId } });
     if (!lead) throw new ApiError(404, "Lead not found");
+    // v2.8 defense-in-depth: only the owner (or someone with lead:edit:any)
+    // can launch an assessment on this lead.
+    if (lead.ownerUserId !== user.id && !can(user.role, "lead:edit:any")) {
+      throw new ApiError(403, "Forbidden — you don't own this lead.");
+    }
 
     const isSelfService = data.mode === AssessmentMode.SELF_SERVICE_LINK || data.mode === AssessmentMode.HYBRID;
     if (isSelfService && !data.respondentEmail) {

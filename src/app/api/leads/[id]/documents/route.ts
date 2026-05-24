@@ -47,6 +47,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const { id } = await params;
     const lead = await prisma.lead.findUnique({ where: { id } });
     if (!lead) throw new ApiError(404, "Lead not found");
+    // v2.8 defense-in-depth: only the owner (or someone with lead:edit:any)
+    // can attach a signed document to this lead.
+    if (lead.ownerUserId !== user.id && !can(user.role, "lead:edit:any")) {
+      throw new ApiError(403, "Forbidden — you don't own this lead.");
+    }
     const data = createSchema.parse(await req.json());
 
     const doc = await prisma.signedDocument.create({

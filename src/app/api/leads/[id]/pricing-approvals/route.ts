@@ -62,6 +62,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const { id } = await params;
     const data = schema.parse(await req.json());
 
+    // v2.8 defense-in-depth: salespeople can only request pricing on leads
+    // they own. Sales Manager / Superadmin can request on any lead.
+    const leadCheck = await prisma.lead.findUnique({
+      where: { id },
+      select: { ownerUserId: true },
+    });
+    if (!leadCheck) throw new ApiError(404, "Lead not found");
+    if (leadCheck.ownerUserId !== user.id && !can(user.role, "lead:edit:any")) {
+      throw new ApiError(403, "Forbidden — you don't own this lead.");
+    }
+
     if (data.proposedMrr > data.stickerMrr) {
       throw new ApiError(400, "Proposed MRR exceeds sticker — no approval needed.");
     }

@@ -25,6 +25,11 @@ export async function POST(req: Request) {
 
     const lead = await prisma.lead.findUnique({ where: { id: data.leadId } });
     if (!lead) throw new ApiError(404, "Lead not found");
+    // v2.8 defense-in-depth: only the owner (or someone with lead:edit:any)
+    // can send outreach from this lead.
+    if (lead.ownerUserId !== user.id && !can(user.role, "lead:edit:any")) {
+      throw new ApiError(403, "Forbidden — you don't own this lead.");
+    }
 
     const rendered = renderBrandedEmail({ subject: data.subject, bodyText: data.body });
     const apiKey = env().RESEND_API_KEY;
