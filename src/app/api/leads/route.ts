@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { Industry, LeadSource, type Prisma, type PipelineStage } from "@prisma/client";
+import { DealKind, Industry, LeadSource, type Prisma, type PipelineStage } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { writeAudit } from "@/lib/audit";
 import { can, leadVisibilityFilter } from "@/lib/rbac";
@@ -24,6 +24,8 @@ const createSchema = z.object({
   primaryContactEmail: z.string().email().optional().or(z.literal("")),
   primaryContactPhone: z.string().max(50).optional(),
   source: z.nativeEnum(LeadSource).default(LeadSource.INBOUND),
+  // v2.15 — what kind of deal is this. Drives PricingCard form + onboarding template.
+  dealKind: z.nativeEnum(DealKind).default(DealKind.MANAGED_IT_BUNDLE),
   notes: z.string().max(5000).optional(),
 });
 

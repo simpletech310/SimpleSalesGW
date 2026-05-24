@@ -69,6 +69,22 @@ enum ComplianceDriver {
   NONE
 }
 
+// v2.15 — classifies what kind of deal this is. Drives:
+//   - PricingCard form (bundles vs line-item quote builder)
+//   - Handoff form context
+//   - Which onboarding tasks get materialized at handoff acceptance
+//   - vCIO portfolio display of service mix
+// MANAGED_IT_BUNDLE is the historical default (pre-v2.15 leads).
+enum DealKind {
+  MANAGED_IT_BUNDLE
+  VOICE_ONLY
+  VOICE_PLUS_VIDEO
+  STRUCTURED_CABLING_JOB
+  ACCESS_CONTROL_PROJECT
+  VIDEO_SURVEILLANCE_PROJECT
+  CUSTOM_MIX
+}
+
 enum RegulatedDataType {
   PHI
   PII
@@ -371,6 +387,11 @@ model Lead {
   executiveSponsorTitle       String?             @map("executive_sponsor_title")
   pipelineStage               PipelineStage       @default(LEAD) @map("pipeline_stage")
   source                      LeadSource          @default(INBOUND)
+  // v2.15 — what's being sold. Drives PricingCard form + onboarding template subset.
+  dealKind                    DealKind            @default(MANAGED_IT_BUNDLE) @map("deal_kind")
+  // v2.15 — line-item quote for non-bundle deals (extensions / drops / doors / cameras).
+  // Shape: { lines: [{ kind, label, qty, perUnitMrr, perUnitOneTime, notes? }] }
+  dealLineItems               Json?               @map("deal_line_items")
   cyberInsuranceRenewalDate   DateTime?           @map("cyber_insurance_renewal_date")
   complianceDrivers           ComplianceDriver[]  @map("compliance_drivers")
   regulatedDataTypes          RegulatedDataType[] @map("regulated_data_types")
@@ -411,6 +432,7 @@ model Lead {
   @@index([ownerUserId])
   @@index([pipelineStage])
   @@index([industry])
+  @@index([dealKind])
   @@index([dealQualityScore])
   @@index([expectedCloseDate])
   @@map("leads")

@@ -179,16 +179,50 @@ export function PricingCard({ leadId, role, suggestedBundle, seatCount }: Props)
   const canApproveManager = role === "SALES_MANAGER" || role === "SUPERADMIN";
   const canApproveCoo = role === "COO" || role === "SUPERADMIN";
 
+  // v2.15.1 — header sticker preview. Always-visible compact summary of the
+  // currently-suggested bundle's MRR + one-time, so the salesperson sees
+  // the going price without opening the form.
+  const headerSticker = useMemo(() => {
+    if (!catalog) return null;
+    const baseBundle = suggestedBundle ?? ServiceBundle.PROFESSIONAL;
+    const baseSeats = seatCount && seatCount > 0 ? seatCount : 1;
+    if (baseBundle === ServiceBundle.CUSTOM) return null;
+    return computeSticker(catalog, baseBundle, baseSeats);
+  }, [catalog, suggestedBundle, seatCount]);
+
   return (
     <Card>
       <div className="flex items-start justify-between gap-3 mb-3 flex-wrap">
-        <div>
+        <div className="min-w-0">
           <h3 className="text-sm font-semibold text-gtn-navy">Pricing</h3>
           {suggestedBundle && (
             <p className="text-xs text-gtn-grey-2 mt-0.5">
               Scoring engine suggests <strong>{suggestedBundle.replace(/_/g, " ")}</strong>
               {seatCount ? ` for ${seatCount} seats` : ""}
             </p>
+          )}
+          {/* v2.15.1 — sticker MRR + one-time band, always visible */}
+          {headerSticker && (
+            <div className="mt-2 inline-flex items-center gap-3 rounded-md bg-gtn-lavender px-3 py-2 text-sm">
+              <span>
+                <span className="text-[10px] uppercase tracking-wide text-gtn-grey-2 mr-1">Sticker MRR</span>
+                <span className="font-mono font-semibold text-gtn-navy">
+                  {fmtUsd(headerSticker.monthlyMrr)}
+                </span>
+                <span className="text-xs text-gtn-grey-2">/mo</span>
+              </span>
+              <span className="text-gtn-grey-3">·</span>
+              <span>
+                <span className="text-[10px] uppercase tracking-wide text-gtn-grey-2 mr-1">Onboarding</span>
+                <span className="font-mono font-semibold text-gtn-navy">
+                  {fmtUsd(headerSticker.onboardingTotal)}
+                </span>
+                <span className="text-xs text-gtn-grey-2"> one-time</span>
+              </span>
+              {headerSticker.outOfBand && (
+                <span className="text-[10px] text-gtn-amber font-semibold">out-of-band seats</span>
+              )}
+            </div>
           )}
         </div>
         <Button variant="secondary" onClick={() => setOpen((o) => !o)}>
@@ -396,8 +430,19 @@ export function PricingCard({ leadId, role, suggestedBundle, seatCount }: Props)
           </div>
 
           <div className="flex justify-end">
-            <Button type="submit" disabled={saving || !reason.trim() || !sticker || (pct === 0 && proposedOneTimeN >= sticker.onboardingTotal)}>
-              {saving ? "Submitting…" : "Submit request"}
+            {/* v2.15.1 — previous guard blocked submission when the salesperson
+                wanted to send the sticker through unchanged (no discount).
+                Now any non-zero quote can be submitted: NONE-tier requests
+                auto-approve server-side, MANAGER/COO-tier go to /notifications. */}
+            <Button
+              type="submit"
+              disabled={saving || !reason.trim() || !sticker || proposedMrrN <= 0}
+            >
+              {saving
+                ? "Submitting…"
+                : previewTier === "NONE"
+                  ? "Submit (auto-approves)"
+                  : `Submit request → ${previewTier === "SELF" ? "self-approve" : previewTier === "MANAGER" ? "Sales Manager" : "COO"}`}
             </Button>
           </div>
         </form>

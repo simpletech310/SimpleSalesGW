@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { Industry, LeadSource, PipelineStage } from "@prisma/client";
+import { DealKind, Industry, LeadSource, PipelineStage } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ApiError, getAuditContext, jsonError, requireSessionUser } from "@/lib/api";
 import { can, leadIsVisible } from "@/lib/rbac";
@@ -47,6 +47,9 @@ const updateSchema = z.object({
   executiveSponsorTitle: z.string().max(200).nullable().optional(),
   source: z.nativeEnum(LeadSource).optional(),
   pipelineStage: z.nativeEnum(PipelineStage).optional(),
+  // v2.15 — sales can change the deal kind mid-deal (e.g. customer added cameras to a voice-only quote)
+  dealKind: z.nativeEnum(DealKind).optional(),
+  dealLineItems: z.unknown().optional(), // Json — validated by PricingCard payload
   researchSummary: z.string().max(20_000).nullable().optional(),
   expectedCloseDate: z.string().datetime().nullable().optional(),
   closedLostReason: z.string().max(2_000).nullable().optional(),

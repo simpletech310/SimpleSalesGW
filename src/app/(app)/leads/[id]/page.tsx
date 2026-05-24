@@ -17,7 +17,10 @@ import { CloseDealButtons } from "./CloseDealButtons";
 import { HandoffCard } from "./HandoffCard";
 import { ScoreOverrideButton } from "./ScoreOverrideButton";
 import { DeleteLeadButton } from "./DeleteLeadButton";
-import { HandoffStatus, PipelineStage } from "@prisma/client";
+import { DealKindPicker } from "./DealKindPicker";
+import { ServiceQuoteCard } from "./ServiceQuoteCard";
+import type { LineItem } from "@/lib/pricing/deal-kinds";
+import { DealKind, HandoffStatus, PipelineStage } from "@prisma/client";
 
 export default async function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
@@ -151,6 +154,14 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
               <span className="text-xs uppercase font-semibold text-gtn-red">Non-strategic</span>
             )}
           </div>
+          {/* v2.15 — deal-kind inline editor */}
+          <div className="mt-2">
+            <DealKindPicker
+              leadId={lead.id}
+              currentKind={lead.dealKind}
+              canEdit={lead.ownerUserId === session.user.id || can(session.user.role, "lead:edit:any")}
+            />
+          </div>
         </div>
         <div className="flex flex-wrap gap-2">
           {can(session.user.role, "assessment:run") && (
@@ -225,12 +236,28 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
         canEdit={lead.ownerUserId === session.user.id || can(session.user.role, "lead:edit:any")}
       />
 
-      <PricingCard
-        leadId={lead.id}
-        role={session.user.role}
-        suggestedBundle={lead.suggestedBundle}
-        seatCount={lead.seatCount}
-      />
+      {/* v2.15 — branch on deal kind: MSP bundles use the seat-tier PricingCard;
+          everything else gets the line-item ServiceQuoteCard. */}
+      {lead.dealKind === DealKind.MANAGED_IT_BUNDLE ? (
+        <PricingCard
+          leadId={lead.id}
+          role={session.user.role}
+          suggestedBundle={lead.suggestedBundle}
+          seatCount={lead.seatCount}
+        />
+      ) : (
+        <ServiceQuoteCard
+          leadId={lead.id}
+          role={session.user.role}
+          dealKind={lead.dealKind}
+          initialLineItems={
+            lead.dealLineItems && typeof lead.dealLineItems === "object" && "lines" in lead.dealLineItems
+              ? ((lead.dealLineItems as { lines?: LineItem[] }).lines ?? null)
+              : null
+          }
+          canEdit={lead.ownerUserId === session.user.id || can(session.user.role, "lead:edit:any")}
+        />
+      )}
 
       <HandoffCard leadId={lead.id} role={session.user.role} />
 

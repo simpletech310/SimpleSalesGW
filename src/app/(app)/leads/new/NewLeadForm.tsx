@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Industry, LeadSource } from "@prisma/client";
+import { DealKind, Industry, LeadSource } from "@prisma/client";
+import { DEAL_KIND_META, listDealKinds } from "@/lib/pricing/deal-kinds";
 import { Button } from "@/components/ui/Button";
 import { Input, Label, Textarea } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
@@ -45,6 +46,7 @@ export function NewLeadForm() {
       primaryContactEmail: fd.get("primaryContactEmail") || undefined,
       primaryContactPhone: fd.get("primaryContactPhone") || undefined,
       source: fd.get("source") || "INBOUND",
+      dealKind: fd.get("dealKind") || DealKind.MANAGED_IT_BUNDLE,
       notes: fd.get("notes") || undefined,
     };
     try {
@@ -67,6 +69,33 @@ export function NewLeadForm() {
 
   return (
     <form onSubmit={onSubmit} className="space-y-6">
+      {/* v2.15 — Deal-kind picker. Decides what PricingCard form to show + which
+          onboarding tasks get seeded on handoff acceptance. */}
+      <Card>
+        <h2 className="text-lg font-semibold text-gtn-navy mb-2">What&apos;s this deal about?</h2>
+        <p className="text-xs text-gtn-grey-2 mb-3">
+          Pick the closest match. Drives pricing + post-handoff onboarding. You can change it later from the lead page.
+        </p>
+        <div className="grid sm:grid-cols-2 gap-2">
+          {listDealKinds().map((dk) => (
+            <label
+              key={dk.kind}
+              className="cursor-pointer rounded-md border border-gtn-lavender-2 p-3 hover:border-gtn-purple/40 has-[:checked]:border-gtn-purple has-[:checked]:bg-gtn-lavender/30 block"
+            >
+              <input
+                type="radio"
+                name="dealKind"
+                value={dk.kind}
+                defaultChecked={dk.kind === DEAL_KIND_META.MANAGED_IT_BUNDLE.kind}
+                className="sr-only"
+              />
+              <p className="text-sm font-semibold text-gtn-navy">{dk.label}</p>
+              <p className="text-xs text-gtn-grey-2 mt-0.5">{dk.tagline}</p>
+            </label>
+          ))}
+        </div>
+      </Card>
+
       <Card>
         <h2 className="text-lg font-semibold text-gtn-navy mb-4">Business</h2>
         <div className="grid md:grid-cols-2 gap-4">
