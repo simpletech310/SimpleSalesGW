@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { formatDistanceToNow } from "date-fns";
 import {
   Users,
   ScrollText,
@@ -10,11 +11,15 @@ import {
   Sparkles,
   Building2,
   Zap,
+  CheckCircle2,
+  AlertTriangle,
   type LucideIcon,
 } from "lucide-react";
 import { auth } from "@/auth";
 import { can } from "@/lib/rbac";
-import { DashboardPage } from "@/components/templates";
+import { prisma } from "@/lib/prisma";
+import { integrationHealth } from "@/lib/env";
+import { DashboardPage, DashboardSection } from "@/components/templates";
 
 export default async function AdminHomePage() {
   const session = await auth();
@@ -28,6 +33,26 @@ export default async function AdminHomePage() {
   ) {
     redirect("/");
   }
+
+  const health = integrationHealth();
+  const auditEvents = can(role, "audit:view")
+    ? await prisma.auditLog.findMany({
+        orderBy: { createdAt: "desc" },
+        take: 8,
+        include: { actor: { select: { name: true } } },
+      })
+    : [];
+
+  const healthItems = [
+    { name: "Database",       ok: health.database.configured,    note: health.database.configured ? "Connected" : "DATABASE_URL missing" },
+    { name: "Auth secret",    ok: health.authSecretStable,       note: health.authSecretStable ? "Stable across deploys" : "Ephemeral — set AUTH_SECRET" },
+    { name: "Email (Resend)", ok: health.resend.configured,      note: health.resend.configured ? "Magic-link + outreach live" : "Magic-link + outreach disabled" },
+    { name: "Anthropic",      ok: health.anthropic.configured,   note: health.anthropic.configured ? "AI features live" : "Auto-summary disabled" },
+    { name: "Blob storage",   ok: health.blob.configured,        note: health.blob.configured ? "File uploads live" : "File uploads disabled" },
+    { name: "Mapbox",         ok: health.mapbox.configured,      note: health.mapbox.configured ? "Maps + geocoding live" : "/leads/map degraded" },
+    { name: "Daily.co",       ok: health.daily.configured,       note: health.daily.configured ? "Video/audio live" : "Video/audio disabled" },
+  ];
+  const okCount = healthItems.filter((h) => h.ok).length;
 
   return (
     <DashboardPage
@@ -55,32 +80,120 @@ export default async function AdminHomePage() {
         </Link>
       )}
 
-      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
-        {can(role, "user:manage") && (
-          <AdminTile icon={Users} href="/admin/users" title="Users" desc="Create, edit, deactivate accounts." />
-        )}
-        {can(role, "audit:view") && (
-          <AdminTile icon={ScrollText} href="/admin/audit" title="Audit log" desc="Every state change is recorded here." />
-        )}
-        {can(role, "system:config") && (
-          <AdminTile icon={Settings} href="/admin/config" title="System config" desc="Tune scoring thresholds + weights." />
-        )}
-        {can(role, "pricing:catalog:edit") && (
-          <AdminTile icon={DollarSign} href="/admin/pricing" title="Pricing catalog" desc="Edit bundle prices, floors, and onboarding fees." />
-        )}
-        {can(role, "system:config") && (
-          <AdminTile icon={Mail} href="/admin/outreach" title="Outreach templates" desc="Manage the cold-outreach + follow-up library." />
-        )}
-        {can(role, "system:config") && (
-          <AdminTile icon={MessageCircle} href="/admin/objections" title="Objections library" desc="Catalog of objections + tested rebuttals." />
-        )}
-        {can(role, "audit:view") && (
-          <AdminTile icon={Sparkles} href="/admin/ai-usage" title="AI usage" desc="Month-to-date Claude spend by feature, lead, and user." />
-        )}
-        {can(role, "msp:profile:edit") && (
-          <AdminTile icon={Building2} href="/admin/msp-profile" title="MSP profile" desc="Mission, brand voice, services emphasis, win stories — feeds every Claude prompt." />
-        )}
-      </div>
+      {/* Integration health — single horizontal strip above tiles */}
+      <DashboardSection
+        title="Integration health"
+        subtitle={`${okCount} of ${healthItems.length} services configured.`}
+        actions={
+          <Link href="/admin/setup" className="text-xs text-gtn-purple hover:underline font-medium">
+            Run setup wizard →
+          </Link>
+        }
+      >
+        <ul className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+          {healthItems.map((h) => {
+            const Icon = h.ok ? CheckCircle2 : AlertTriangle;
+            return (
+              <li
+                key={h.name}
+                className={`flex items-start gap-2 rounded-lg border px-3 py-2.5 ${
+                  h.ok
+                    ? "border-success/30 bg-success-soft/40"
+                    : "border-warn/30 bg-warn-soft/40"
+                }`}
+              >
+                <span
+                  aria-hidden
+                  className={`inline-flex items-center justify-center w-6 h-6 rounded-md flex-shrink-0 mt-0.5 ${
+                    h.ok ? "bg-success text-white" : "bg-warn text-white"
+                  }`}
+                >
+                  <Icon className="h-3 w-3" />
+                </span>
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold text-ink-strong leading-tight">{h.name}</p>
+                  <p className="text-[10px] text-ink-muted mt-0.5 leading-relaxed">{h.note}</p>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      </DashboardSection>
+
+      {/* Admin tools — tile grid */}
+      <DashboardSection title="Admin tools" subtitle="Jump into the specific surface you need.">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
+          {can(role, "user:manage") && (
+            <AdminTile icon={Users} href="/admin/users" title="Users" desc="Create, edit, deactivate accounts." />
+          )}
+          {can(role, "audit:view") && (
+            <AdminTile icon={ScrollText} href="/admin/audit" title="Audit log" desc="Every state change is recorded here." />
+          )}
+          {can(role, "system:config") && (
+            <AdminTile icon={Settings} href="/admin/config" title="System config" desc="Tune scoring thresholds + weights." />
+          )}
+          {can(role, "pricing:catalog:edit") && (
+            <AdminTile icon={DollarSign} href="/admin/pricing" title="Pricing catalog" desc="Edit bundle prices, floors, and onboarding fees." />
+          )}
+          {can(role, "system:config") && (
+            <AdminTile icon={Mail} href="/admin/outreach" title="Outreach templates" desc="Manage the cold-outreach + follow-up library." />
+          )}
+          {can(role, "system:config") && (
+            <AdminTile icon={MessageCircle} href="/admin/objections" title="Objections library" desc="Catalog of objections + tested rebuttals." />
+          )}
+          {can(role, "audit:view") && (
+            <AdminTile icon={Sparkles} href="/admin/ai-usage" title="AI usage" desc="Month-to-date Claude spend by feature, lead, and user." />
+          )}
+          {can(role, "msp:profile:edit") && (
+            <AdminTile icon={Building2} href="/admin/msp-profile" title="MSP profile" desc="Mission, brand voice, services emphasis, win stories — feeds every Claude prompt." />
+          )}
+        </div>
+      </DashboardSection>
+
+      {/* Recent audit events */}
+      {can(role, "audit:view") && (
+        <DashboardSection
+          title="Recent audit events"
+          subtitle="Last 8 state changes across the system."
+          actions={
+            <Link href="/admin/audit" className="text-xs text-gtn-purple hover:underline font-medium">
+              Full audit →
+            </Link>
+          }
+          flush
+        >
+          {auditEvents.length === 0 ? (
+            <p className="px-5 py-6 text-sm text-ink-muted text-center">
+              No audit events yet. Every state change will land here as users start working.
+            </p>
+          ) : (
+            <ul className="divide-y divide-line-subtle">
+              {auditEvents.map((e) => (
+                <li key={e.id} className="px-5 py-2.5">
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span
+                        aria-hidden
+                        className="inline-flex items-center justify-center w-6 h-6 rounded-md bg-surface-3 text-ink-muted flex-shrink-0"
+                      >
+                        <ScrollText className="h-3 w-3" />
+                      </span>
+                      <span className="text-xs font-mono uppercase tracking-wide text-ink-muted font-semibold flex-shrink-0">
+                        {e.action}
+                      </span>
+                      <span className="text-sm text-ink-strong truncate">{e.entityType}</span>
+                    </div>
+                    <p className="text-xs text-ink-muted ml-auto flex-shrink-0">
+                      {e.actor?.name ?? "System"}
+                      <span className="text-ink-faint"> · {formatDistanceToNow(new Date(e.createdAt), { addSuffix: true })}</span>
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </DashboardSection>
+      )}
     </DashboardPage>
   );
 }
