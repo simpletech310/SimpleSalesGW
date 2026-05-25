@@ -230,7 +230,7 @@ export async function SalespersonHome({
                 >
                   {recentActivity.length === 0 ? (
                     <p className="px-5 py-6 text-sm text-ink-muted text-center">
-                      No activity logged yet. Once you start calling, emailing, or meeting leads, it'll show up here.
+                      No activity logged yet. Once you start calling, emailing, or meeting leads, it&apos;ll show up here.
                     </p>
                   ) : (
                     <ul className="divide-y divide-line-subtle">
