@@ -46,10 +46,6 @@ export default async function SalesRepsPage() {
           teamNames: r.teamMemberships.filter((m) => m.team.active).map((m) => ({ name: m.team.name, isPrimary: m.isPrimary })),
         }))}
       />
-
-      {reps.length === 0 && (
-        <p className="mt-4 text-sm text-ink-muted italic">No reps yet. Click &ldquo;+ New rep&rdquo; above to hire your first.</p>
-      )}
     </ListPage>
   );
 }
