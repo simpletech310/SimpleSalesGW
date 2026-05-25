@@ -1,13 +1,14 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { format } from "date-fns";
-import { Briefcase } from "lucide-react";
-import { Role } from "@prisma/client";
+import { Briefcase, ClipboardList, Compass, CalendarClock, AlertTriangle } from "lucide-react";
+import { CustomerStatus, OnboardingTaskStatus, Role } from "@prisma/client";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { customerVisibilityFilter } from "@/lib/rbac";
 import { EmptyState } from "@/components/help/EmptyState";
 import { Badge } from "@/components/ui/Badge";
+import { StatCard } from "@/components/ui/StatCard";
 import { DataTable, type Column } from "@/components/ui/DataTable";
 import { ListPage } from "@/components/templates";
 
@@ -22,21 +23,38 @@ export default async function AccountsPage() {
   // their live deals are.
   if (session.user.role === Role.SALESPERSON) redirect("/pipeline");
 
-  const customers = await prisma.customer.findMany({
-    where: customerVisibilityFilter(session.user.role, session.user.id),
-    include: {
-      lead: { select: { id: true, businessName: true, industry: true } },
-      accountManager: { select: { name: true } },
-      onboardingTasks: { select: { status: true } },
-      qbrs: {
-        orderBy: { scheduledAt: "desc" },
-        take: 1,
-        select: { scheduledAt: true, completedAt: true },
+  const visibility = customerVisibilityFilter(session.user.role, session.user.id);
+  const fourteenDaysOut = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+
+  const [customers, overdueTaskCount, upcomingQbrCount] = await Promise.all([
+    prisma.customer.findMany({
+      where: visibility,
+      include: {
+        lead: { select: { id: true, businessName: true, industry: true } },
+        accountManager: { select: { name: true } },
+        onboardingTasks: { select: { status: true } },
+        qbrs: {
+          orderBy: { scheduledAt: "desc" },
+          take: 1,
+          select: { scheduledAt: true, completedAt: true },
+        },
+        _count: { select: { onboardingTasks: true, qbrs: true } },
       },
-      _count: { select: { onboardingTasks: true, qbrs: true } },
-    },
-    orderBy: { createdAt: "desc" },
-  });
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.onboardingTask.count({
+      where: {
+        status: { in: [OnboardingTaskStatus.PENDING, OnboardingTaskStatus.IN_PROGRESS] },
+        dueAt: { lt: new Date() },
+      },
+    }),
+    prisma.qbr.count({
+      where: { scheduledAt: { gte: new Date(), lte: fourteenDaysOut }, completedAt: null },
+    }),
+  ]);
+
+  const onboardingCount = customers.filter((c) => c.status === CustomerStatus.ONBOARDING).length;
+  const steadyCount = customers.filter((c) => c.status === CustomerStatus.ACTIVE).length;
 
   // Health signal per customer (preserved from v2.14)
   type Health = "green" | "amber" | "red";
@@ -147,34 +165,87 @@ export default async function AccountsPage() {
         </>
       }
       body={
-        customers.length === 0 ? (
-          <div className="rounded-xl bg-surface border border-line-subtle p-4 md:p-5">
-            <EmptyState
-              Icon={Briefcase}
-              title="No customers yet"
-              body="An Account appears here the moment a Sales-to-Ops handoff is accepted. Once it does, the vCIO takes over Discovery, Inventory, QBRs, and the strategic roadmap."
-              cta={{ label: "Open notifications", href: "/notifications" }}
-              secondaryCta={{ label: "Open help center", href: "/help" }}
-            />
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <DataTable
-              columns={columns}
-              rows={customers}
-              getRowKey={(c) => c.id}
-              getRowHref={(c) => `/accounts/${c.id}`}
-              empty="No customers yet."
-            />
-            <p className="text-xs text-ink-muted">
-              Looking for a customer that should be here? A Customer only appears after a Sales-to-Ops handoff
-              has been accepted by the COO.{" "}
-              <Link href="/leads" className="text-gtn-purple hover:underline font-medium">
-                See your closed-won leads →
-              </Link>
-            </p>
-          </div>
-        )
+        <div className="space-y-4">
+          {/* v3.1.2 — KPI strip on the accounts list. Same StatCard primitive
+              the role homes use; lets the vCIO triage workload before
+              opening anyone. */}
+          {customers.length > 0 && (
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+              <StatCard
+                label="Total customers"
+                value={customers.length}
+                icon={Briefcase}
+                tone="brand"
+                sub="Active customer book"
+              />
+              <StatCard
+                label="Onboarding"
+                value={onboardingCount}
+                icon={ClipboardList}
+                tone={onboardingCount > 0 ? "warn" : "neutral"}
+                sub={onboardingCount > 0 ? "Driving to steady-state" : "All graduated"}
+              />
+              <StatCard
+                label="Steady state"
+                value={steadyCount}
+                icon={Compass}
+                tone="success"
+                sub={steadyCount > 0 ? "On QBR cadence" : "—"}
+              />
+              <StatCard
+                label="QBRs / 14d"
+                value={upcomingQbrCount}
+                icon={CalendarClock}
+                tone="neutral"
+                sub={overdueTaskCount > 0 ? `⚠ ${overdueTaskCount} overdue task${overdueTaskCount === 1 ? "" : "s"}` : "Tasks on schedule"}
+              />
+            </div>
+          )}
+
+          {customers.length === 0 ? (
+            <div className="rounded-xl bg-surface border border-line-subtle p-4 md:p-5">
+              <EmptyState
+                Icon={Briefcase}
+                title="No customers yet"
+                body="An Account appears here the moment a Sales-to-Ops handoff is accepted. Once it does, the vCIO takes over Discovery, Inventory, QBRs, and the strategic roadmap."
+                cta={{ label: "Open notifications", href: "/notifications" }}
+                secondaryCta={{ label: "Open help center", href: "/help" }}
+              />
+            </div>
+          ) : (
+            <>
+              <DataTable
+                columns={columns}
+                rows={customers}
+                getRowKey={(c) => c.id}
+                getRowHref={(c) => `/accounts/${c.id}`}
+                empty="No customers yet."
+              />
+              {overdueTaskCount > 0 && (
+                <div className="rounded-xl border border-warn/30 bg-warn-soft/40 px-4 py-3 flex items-start gap-3">
+                  <AlertTriangle className="h-5 w-5 text-warn mt-0.5 flex-shrink-0" />
+                  <div className="text-sm flex-1">
+                    <p className="font-semibold text-ink-strong">
+                      {overdueTaskCount} onboarding task{overdueTaskCount === 1 ? "" : "s"} past due
+                    </p>
+                    <p className="text-ink-muted">
+                      <Link href="/my-tasks" className="text-gtn-purple hover:underline font-medium">
+                        Triage in My tasks →
+                      </Link>
+                    </p>
+                  </div>
+                </div>
+              )}
+              <p className="text-xs text-ink-muted">
+                Looking for a customer that should be here? A Customer only appears after a Sales-to-Ops handoff
+                has been accepted by the COO.{" "}
+                <Link href="/leads" className="text-gtn-purple hover:underline font-medium">
+                  See your closed-won leads →
+                </Link>
+              </p>
+            </>
+          )}
+        </div>
       }
     />
   );
