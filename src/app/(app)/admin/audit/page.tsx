@@ -1,12 +1,24 @@
 import { redirect } from "next/navigation";
-import { format } from "date-fns";
+import { format, formatDistanceToNow } from "date-fns";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { can } from "@/lib/rbac";
 import { Button } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
 import { DataTable, type Column } from "@/components/ui/DataTable";
 import { ListPage } from "@/components/templates";
 import { AuditFilter } from "./AuditFilter";
+import type { AuditAction } from "@prisma/client";
+
+const ACTION_TONE: Record<AuditAction, "brand" | "success" | "warn" | "danger" | "neutral"> = {
+  CREATE:  "success",
+  UPDATE:  "brand",
+  DELETE:  "danger",
+  APPROVE: "success",
+  REJECT:  "danger",
+  LOGIN:   "neutral",
+  EXPORT:  "warn",
+};
 
 export default async function AuditLogPage({
   searchParams,
@@ -50,40 +62,56 @@ export default async function AuditLogPage({
       header: "When",
       width: "180px",
       cell: (l) => (
-        <span className="text-xs text-ink-muted whitespace-nowrap tabular">
-          {format(new Date(l.createdAt), "PPp")}
-        </span>
+        <div>
+          <p className="text-xs text-ink-strong font-medium whitespace-nowrap tabular">
+            {formatDistanceToNow(new Date(l.createdAt), { addSuffix: true })}
+          </p>
+          <p className="text-[10px] text-ink-faint tabular whitespace-nowrap mt-0.5">
+            {format(new Date(l.createdAt), "MMM d, p")}
+          </p>
+        </div>
       ),
     },
     {
       key: "who",
       header: "Who",
-      cell: (l) => <span className="text-sm text-ink-strong">{l.actor?.name ?? "system"}</span>,
+      cell: (l) => (
+        <span className="text-sm text-ink-strong">
+          {l.actor?.name ?? <span className="italic text-ink-faint">System</span>}
+        </span>
+      ),
     },
     {
       key: "action",
       header: "Action",
-      cell: (l) => <span className="gtn-code-pill">{l.action}</span>,
+      width: "120px",
+      cell: (l) => (
+        <Badge tone={ACTION_TONE[l.action] ?? "neutral"} shape="pill" size="xs">
+          {l.action.toLowerCase()}
+        </Badge>
+      ),
     },
     {
       key: "entity",
       header: "Entity",
       cell: (l) => (
-        <span className="text-xs">
-          <span className="text-ink-strong font-medium">{l.entityType}</span>
-          <br />
-          <span className="font-mono text-[10px] text-ink-faint">{l.entityId.slice(0, 8)}</span>
-        </span>
+        <div>
+          <p className="text-sm font-medium text-ink-strong">{l.entityType}</p>
+          <p className="font-mono text-[10px] text-ink-faint tabular truncate">{l.entityId.slice(0, 8)}…</p>
+        </div>
       ),
     },
     {
       key: "detail",
       header: "Detail",
+      hideOnMobile: true,
       cell: (l) =>
         l.before || l.after ? (
-          <details>
-            <summary className="cursor-pointer text-xs text-gtn-purple font-medium hover:underline">view</summary>
-            <pre className="mt-2 max-w-md text-[10px] bg-surface-2 border border-line-subtle p-2 rounded-md overflow-x-auto">
+          <details className="text-xs">
+            <summary className="cursor-pointer text-gtn-purple font-medium hover:underline list-none inline-flex items-center gap-1">
+              <span>view diff</span>
+            </summary>
+            <pre className="mt-2 max-w-md text-[10px] bg-surface-2 border border-line-subtle p-2.5 rounded-md overflow-x-auto leading-relaxed">
               {JSON.stringify({ before: l.before, after: l.after }, null, 2)}
             </pre>
           </details>

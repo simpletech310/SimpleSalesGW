@@ -33,12 +33,6 @@ export default async function SalesTeamsPage() {
           leadCount: t._count.leads,
         }))}
       />
-
-      {teams.length === 0 && (
-        <p className="mt-4 text-sm text-ink-muted italic">
-          No teams yet. Create your first team above to start routing leads.
-        </p>
-      )}
     </ListPage>
   );
 }
