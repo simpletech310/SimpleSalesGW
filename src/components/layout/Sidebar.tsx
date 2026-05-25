@@ -78,7 +78,7 @@ export function Sidebar({
 
       {/* Identity block */}
       <div className="border-t border-line-subtle px-3 pt-3 pb-4 space-y-2.5">
-        <div className="flex items-center gap-2.5 px-2.5">
+        <div className="flex items-center gap-2.5 px-1">
           <div
             className="h-8 w-8 rounded-full bg-brand-soft text-gtn-navy flex items-center justify-center text-xs font-semibold flex-shrink-0 border border-line-subtle"
             aria-hidden
@@ -91,11 +91,9 @@ export function Sidebar({
               {roleMeta.label}
             </p>
           </div>
-        </div>
-        <div className="flex items-center gap-2 px-1">
           <OfflineQueueBanner />
-          <SignOutButton />
         </div>
+        <SignOutButton />
       </div>
     </aside>
   );

@@ -94,7 +94,7 @@ export function MobileHeader({
               {roleMeta.label}
             </span>
           </div>
-          <SignOutButton />
+          <SignOutButton variant="dark" />
         </div>
       </div>
     </header>
