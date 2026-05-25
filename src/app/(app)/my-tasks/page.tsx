@@ -86,13 +86,16 @@ export default async function MyTasksPage({
           </>
         ) : null
       }
-    >
-      <MyTasksView
-        initialTasks={tasks as never}
-        userRole={session.user.role}
-        lens={lens}
-        includeDone={includeDone}
-      />
-    </ListPage>
+      body={
+        <div className="space-y-4">
+          <MyTasksView
+            initialTasks={tasks as never}
+            userRole={session.user.role}
+            lens={lens}
+            includeDone={includeDone}
+          />
+        </div>
+      }
+    />
   );
 }

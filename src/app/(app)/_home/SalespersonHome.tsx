@@ -63,17 +63,12 @@ export async function SalespersonHome({
       title={`Welcome back, ${firstName}`}
       subtitle="Your pipeline at a glance — add a lead with the button on the right, or jump into one below."
       actions={
-        <>
-          <Button asChild variant="secondary" size="sm">
-            <Link href="/leads">All leads</Link>
-          </Button>
-          <Button asChild size="sm">
-            <Link href="/leads/new" className="inline-flex items-center gap-1.5">
-              <Plus className="h-4 w-4" />
-              New lead
-            </Link>
-          </Button>
-        </>
+        <Button asChild size="sm">
+          <Link href="/leads/new" className="inline-flex items-center gap-1.5">
+            <Plus className="h-4 w-4" />
+            New lead
+          </Link>
+        </Button>
       }
       kpis={
         <>

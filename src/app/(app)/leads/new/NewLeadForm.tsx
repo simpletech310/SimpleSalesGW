@@ -5,12 +5,39 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { DealKind, Industry, LeadSource, MspSatisfaction } from "@prisma/client";
 import { DEAL_KIND_META, listDealKinds } from "@/lib/pricing/deal-kinds";
+import {
+  Server,
+  Phone,
+  Video,
+  Cable,
+  KeyRound,
+  Camera,
+  Layers3,
+  Check,
+  type LucideIcon,
+} from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input, Textarea } from "@/components/ui/Input";
 import { FormSection, FormField, FormActions } from "@/components/templates";
 import { FieldHelp } from "@/components/help/FieldHelp";
 import { HELP } from "@/lib/help-copy";
 import { cn } from "@/lib/utils";
+
+/**
+ * v3.0.4 — Deal-kind picker now renders icon-led tiles instead of plain
+ * bordered text cards. The icon makes each option scannable at a glance,
+ * and a check pill in the corner of the selected tile gives clear
+ * affordance for which is currently picked.
+ */
+const DEAL_KIND_ICONS: Record<DealKind, LucideIcon> = {
+  MANAGED_IT_BUNDLE:          Server,
+  VOICE_ONLY:                 Phone,
+  VOICE_PLUS_VIDEO:           Video,
+  STRUCTURED_CABLING_JOB:     Cable,
+  ACCESS_CONTROL_PROJECT:     KeyRound,
+  VIDEO_SURVEILLANCE_PROJECT: Camera,
+  CUSTOM_MIX:                 Layers3,
+};
 
 const INDUSTRY_LABELS: Record<Industry, string> = {
   MEDICAL: "Medical / Healthcare",
@@ -111,26 +138,55 @@ export function NewLeadForm() {
           title="What's this deal about?"
           subtitle="Pick the closest match. Drives pricing + post-handoff onboarding. You can change it later from the lead page."
         >
-          <div className="grid sm:grid-cols-2 gap-2 md:col-span-2">
-            {listDealKinds().map((dk) => (
-              <label
-                key={dk.kind}
-                className={cn(
-                  "cursor-pointer rounded-lg border border-line-subtle p-3 block transition-colors duration-120 ease-smooth",
-                  "hover:border-brand/50 has-[:checked]:border-brand has-[:checked]:bg-brand-soft/40",
-                )}
-              >
-                <input
-                  type="radio"
-                  name="dealKind"
-                  value={dk.kind}
-                  defaultChecked={dk.kind === DEAL_KIND_META.MANAGED_IT_BUNDLE.kind}
-                  className="sr-only"
-                />
-                <p className="text-sm font-semibold text-ink-strong">{dk.label}</p>
-                <p className="text-xs text-ink-muted mt-0.5">{dk.tagline}</p>
-              </label>
-            ))}
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2.5 md:col-span-2">
+            {listDealKinds().map((dk) => {
+              const Icon = DEAL_KIND_ICONS[dk.kind] ?? Layers3;
+              return (
+                <label
+                  key={dk.kind}
+                  className={cn(
+                    "group relative cursor-pointer rounded-xl border border-line-subtle bg-surface p-4 block",
+                    "transition-all duration-120 ease-smooth",
+                    "hover:border-line-strong hover:shadow-card",
+                    "has-[:checked]:border-brand has-[:checked]:bg-brand-soft/30",
+                    "has-[:checked]:shadow-[0_2px_12px_rgba(91,79,207,0.12)]",
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="dealKind"
+                    value={dk.kind}
+                    defaultChecked={dk.kind === DEAL_KIND_META.MANAGED_IT_BUNDLE.kind}
+                    className="sr-only peer"
+                  />
+                  {/* Check pill in top-right when selected */}
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "absolute top-2.5 right-2.5 inline-flex items-center justify-center w-5 h-5 rounded-full",
+                      "bg-brand text-white opacity-0 scale-90 transition-all duration-150 ease-smooth",
+                      "peer-checked:opacity-100 peer-checked:scale-100",
+                    )}
+                  >
+                    <Check className="h-3 w-3" strokeWidth={3} />
+                  </span>
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "inline-flex items-center justify-center w-9 h-9 rounded-lg mb-2.5",
+                      "bg-surface-3 text-ink-muted",
+                      "transition-colors duration-120 ease-smooth",
+                      "group-hover:bg-brand-soft group-hover:text-gtn-purple",
+                      "peer-checked:bg-brand peer-checked:text-white",
+                    )}
+                  >
+                    <Icon className="h-4.5 w-4.5" style={{ width: 18, height: 18 }} />
+                  </span>
+                  <p className="text-sm font-semibold text-ink-strong leading-tight">{dk.label}</p>
+                  <p className="text-xs text-ink-muted mt-1 leading-relaxed">{dk.tagline}</p>
+                </label>
+              );
+            })}
           </div>
         </FormSection>
 

@@ -5,9 +5,12 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { CheckCircle2, ClipboardList } from "lucide-react";
 import { OnboardingPhase, OnboardingTaskStatus, Role } from "@prisma/client";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { EmptyState } from "@/components/help/EmptyState";
+import { cn } from "@/lib/utils";
 
 type Task = {
   id: string;
@@ -116,107 +119,136 @@ export function MyTasksView({
     return Array.from(out.values()).sort((a, b) => a.customerName.localeCompare(b.customerName));
   }, [tasks]);
 
+  const canLens = userRole === Role.SUPERADMIN;
+
   return (
     <>
-      <Card>
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-3 flex-wrap text-sm">
-            <span className="text-gtn-grey-2">Role lens:</span>
+      {/* Toolbar — role lens + done toggle + count */}
+      <div className="rounded-xl bg-surface border border-line-subtle px-4 py-3 flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <label className="inline-flex items-center gap-2 text-sm">
+            <span className="ui-label">Role lens</span>
             <select
               value={lens}
               onChange={(e) => setUrlParam("role", e.target.value === userRole ? null : e.target.value)}
-              disabled={userRole !== Role.SUPERADMIN && lens !== userRole}
-              className="h-8 rounded border border-input bg-white px-2 text-sm"
-              title={userRole === Role.SUPERADMIN ? "Lens into any role" : "Locked to your role"}
+              disabled={!canLens && lens !== userRole}
+              className={cn(
+                "h-8 rounded-md border border-line bg-surface px-2.5 text-sm text-ink-strong",
+                "hover:border-line-strong",
+                "focus:outline-none focus:border-brand focus:ring-4 focus:ring-brand/15",
+                "disabled:opacity-60 disabled:cursor-not-allowed",
+                "transition-colors duration-120 ease-smooth",
+              )}
+              title={canLens ? "Lens into any role" : "Locked to your role"}
             >
               {(Object.values(Role) as Role[]).map((r) => (
                 <option key={r} value={r}>{ROLE_LABEL[r]}</option>
               ))}
             </select>
-            {userRole !== Role.SUPERADMIN && (
-              <span className="text-[10px] text-gtn-grey-2">
-                (Superadmins can lens into any role)
-              </span>
-            )}
-            <label className="flex items-center gap-1 text-xs cursor-pointer">
-              <input
-                type="checkbox"
-                checked={includeDone}
-                onChange={(e) => setUrlParam("includeDone", e.target.checked ? "true" : null)}
-              />
-              Include DONE / SKIPPED
-            </label>
-          </div>
-          <div className="text-xs text-gtn-grey-2">
-            {tasks.length} task{tasks.length === 1 ? "" : "s"} · {grouped.length} customer{grouped.length === 1 ? "" : "s"}
-          </div>
+          </label>
+
+          <span className="hidden sm:inline-block w-px h-5 bg-line-subtle mx-1" aria-hidden />
+
+          <label className="inline-flex items-center gap-1.5 text-sm cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={includeDone}
+              onChange={(e) => setUrlParam("includeDone", e.target.checked ? "true" : null)}
+              className="w-3.5 h-3.5 rounded border-line text-brand focus:ring-2 focus:ring-brand/30 cursor-pointer"
+            />
+            <span className="text-ink">Include done / skipped</span>
+          </label>
+
+          {!canLens && (
+            <span className="text-[10px] text-ink-faint italic ml-1">
+              Superadmins can lens into any role
+            </span>
+          )}
         </div>
-      </Card>
+
+        <div className="text-xs text-ink-muted tabular">
+          <span className="font-semibold text-ink-strong">{tasks.length}</span>{" "}
+          task{tasks.length === 1 ? "" : "s"}
+          <span className="text-line-strong mx-1.5">·</span>
+          <span className="font-semibold text-ink-strong">{grouped.length}</span>{" "}
+          customer{grouped.length === 1 ? "" : "s"}
+        </div>
+      </div>
 
       {grouped.length === 0 ? (
-        <Card>
-          <p className="text-sm text-gtn-grey-2">
-            {includeDone ? "No tasks at all yet." : "Nothing on your plate. Either you're caught up or no work has rolled out to your role yet."}
-          </p>
-        </Card>
+        <EmptyState
+          Icon={includeDone ? ClipboardList : CheckCircle2}
+          title={includeDone ? "No tasks yet" : "You're all caught up"}
+          body={
+            includeDone
+              ? "No onboarding tasks have rolled out for this role yet. They'll appear here as customers move through Discovery → Onboard → Stabilize."
+              : "Nothing on your plate right now. Tasks land here automatically as customers hit each onboarding phase — check back after the next handoff."
+          }
+          cta={{ label: "Open accounts", href: "/accounts" }}
+          secondaryCta={{ label: "Open help center", href: "/help" }}
+        />
       ) : (
         grouped.map((group) => {
           const openIds = group.tasks
             .filter((t) => t.status !== OnboardingTaskStatus.DONE && t.status !== OnboardingTaskStatus.SKIPPED)
             .map((t) => t.id);
           return (
-            <Card key={group.customerId}>
-              <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
-                <h2 className="text-sm font-semibold text-gtn-navy">
-                  <Link href={`/accounts/${group.customerId}`} className="hover:underline">
+            <section
+              key={group.customerId}
+              className="rounded-xl bg-surface border border-line-subtle overflow-hidden"
+            >
+              <header className="flex items-center justify-between gap-3 flex-wrap px-4 md:px-5 py-3 border-b border-line-subtle bg-surface-2/60">
+                <h2 className="text-sm font-semibold text-ink-strong">
+                  <Link href={`/accounts/${group.customerId}`} className="hover:text-gtn-purple transition-colors">
                     {group.customerName}
                   </Link>
-                  <span className="text-gtn-grey-2 font-normal ml-2">({group.tasks.length})</span>
+                  <span className="text-ink-muted font-normal ml-2 tabular">({group.tasks.length})</span>
                 </h2>
                 {openIds.length > 0 && (
-                  <Button size="sm" variant="secondary" disabled={bulkBusy} onClick={() => bulkMarkDone(openIds)}>
+                  <Button size="xs" variant="secondary" disabled={bulkBusy} onClick={() => bulkMarkDone(openIds)}>
                     Mark all {openIds.length} done
                   </Button>
                 )}
-              </div>
-              <ul className="divide-y divide-gtn-lavender-2">
-                {group.tasks.map((t) => (
-                  <li key={t.id} className="py-2 flex items-start gap-3">
-                    <select
-                      value={t.status}
-                      onChange={(e) => updateStatus(t.id, e.target.value as OnboardingTaskStatus)}
-                      className="h-7 rounded border border-input bg-white px-2 text-xs"
-                      aria-label={`Status of ${t.title}`}
-                    >
-                      {(Object.values(OnboardingTaskStatus) as OnboardingTaskStatus[]).map((s) => (
-                        <option key={s} value={s}>{s}</option>
-                      ))}
-                    </select>
-                    <div className="flex-1 min-w-0">
-                      <p
-                        className={
-                          t.status === OnboardingTaskStatus.DONE || t.status === OnboardingTaskStatus.SKIPPED
-                            ? "text-sm line-through text-gtn-grey-2"
-                            : "text-sm font-medium text-gtn-navy"
-                        }
+              </header>
+              <ul className="divide-y divide-line-subtle">
+                {group.tasks.map((t) => {
+                  const isDone = t.status === OnboardingTaskStatus.DONE || t.status === OnboardingTaskStatus.SKIPPED;
+                  return (
+                    <li key={t.id} className="px-4 md:px-5 py-3 flex items-start gap-3 group hover:bg-surface-3/40 transition-colors">
+                      <select
+                        value={t.status}
+                        onChange={(e) => updateStatus(t.id, e.target.value as OnboardingTaskStatus)}
+                        className={cn(
+                          "h-7 rounded-md border border-line bg-surface px-2 text-xs flex-shrink-0",
+                          "hover:border-line-strong",
+                          "focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20",
+                        )}
+                        aria-label={`Status of ${t.title}`}
                       >
-                        {t.title}
-                      </p>
-                      <p className="text-[11px] text-gtn-grey-2 mt-0.5">
-                        <span className="uppercase tracking-wide font-semibold">{PHASE_LABEL[t.phase]}</span>
-                        {t.dueAt && <span> · due {format(new Date(t.dueAt), "PP")}</span>}
-                        {t.owner ? (
-                          <span> · assigned to {t.owner.name}</span>
-                        ) : t.ownerRole ? (
-                          <span> · unassigned · role: {ROLE_LABEL[t.ownerRole]}</span>
-                        ) : null}
-                      </p>
-                      {t.description && <p className="text-[11px] text-gtn-grey-3 mt-0.5">{t.description}</p>}
-                    </div>
-                  </li>
-                ))}
+                        {(Object.values(OnboardingTaskStatus) as OnboardingTaskStatus[]).map((s) => (
+                          <option key={s} value={s}>{s}</option>
+                        ))}
+                      </select>
+                      <div className="flex-1 min-w-0">
+                        <p className={cn("text-sm", isDone ? "line-through text-ink-faint" : "font-medium text-ink-strong")}>
+                          {t.title}
+                        </p>
+                        <p className="text-[11px] text-ink-muted mt-0.5 leading-relaxed">
+                          <span className="uppercase tracking-wide font-semibold text-ink">{PHASE_LABEL[t.phase]}</span>
+                          {t.dueAt && <span> · due {format(new Date(t.dueAt), "PP")}</span>}
+                          {t.owner ? (
+                            <span> · assigned to <span className="text-ink-strong">{t.owner.name}</span></span>
+                          ) : t.ownerRole ? (
+                            <span> · unassigned · role: {ROLE_LABEL[t.ownerRole]}</span>
+                          ) : null}
+                        </p>
+                        {t.description && <p className="text-xs text-ink-faint mt-1 leading-relaxed">{t.description}</p>}
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
-            </Card>
+            </section>
           );
         })
       )}
