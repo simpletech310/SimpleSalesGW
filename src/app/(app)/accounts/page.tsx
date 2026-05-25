@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { format } from "date-fns";
 import { Briefcase } from "lucide-react";
+import { Role } from "@prisma/client";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { customerVisibilityFilter } from "@/lib/rbac";
@@ -15,6 +16,11 @@ export const dynamic = "force-dynamic";
 export default async function AccountsPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
+
+  // v3.0.5 — SALESPERSON has no business in the post-handoff accounts world.
+  // That's the vCIO + COO surface. Send them back to the pipeline where
+  // their live deals are.
+  if (session.user.role === Role.SALESPERSON) redirect("/pipeline");
 
   const customers = await prisma.customer.findMany({
     where: customerVisibilityFilter(session.user.role, session.user.id),

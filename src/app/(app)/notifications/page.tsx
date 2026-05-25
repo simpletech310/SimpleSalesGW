@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { format } from "date-fns";
+import { Inbox } from "lucide-react";
 import { auth } from "@/auth";
 import { loadNotifications } from "@/lib/notifications";
 import { ListPage } from "@/components/templates";
 import { DashboardSection } from "@/components/templates/DashboardPage";
+import { EmptyState } from "@/components/help/EmptyState";
 import { HandoffRows, PricingApprovalRows } from "./NotificationsClient";
 import { cn } from "@/lib/utils";
 
@@ -71,9 +73,18 @@ export default async function NotificationsPage({
         ) : null
       }
       body={
+        data.total === 0 && filter === "all" ? (
+          <EmptyState
+            Icon={Inbox}
+            title="Inbox zero"
+            body="Nothing waiting on you right now. New handoffs, pricing approvals, overdue tasks, and discovery requests will land here automatically."
+            cta={{ label: "Open pipeline", href: "/pipeline" }}
+            secondaryCta={{ label: "Open help center", href: "/help" }}
+          />
+        ) : (
         <div className="space-y-4 max-w-4xl">
           {show("actions") && (
-            <Section title="Next actions due (next 7 days)" empty="Inbox zero — nothing scheduled.">
+            <Section title="Next actions due (next 7 days)" empty="Inbox zero — nothing scheduled." rows={data.openActions.length} filter={filter}>
               {data.openActions.map((a) => (
                 <Row key={a.activityId} href={`/leads/${a.leadId}`}>
                   <div className="min-w-0">
@@ -90,7 +101,7 @@ export default async function NotificationsPage({
           )}
 
           {show("assessments") && (
-            <Section title="Assessments awaiting completion" empty="No outstanding assessment links.">
+            <Section title="Assessments awaiting completion" empty="No outstanding assessment links." rows={data.assessmentsAwaiting.length} filter={filter}>
               {data.assessmentsAwaiting.map((a) => (
                 <Row key={a.id} href={`/leads/${a.leadId}`}>
                   <div className="min-w-0">
@@ -104,19 +115,19 @@ export default async function NotificationsPage({
           )}
 
           {show("approvals") && (
-            <Section title="Pricing approvals waiting on you" empty="No pricing approvals waiting.">
+            <Section title="Pricing approvals waiting on you" empty="No pricing approvals waiting." rows={data.pricingApprovalsPending.length} filter={filter}>
               <PricingApprovalRows rows={data.pricingApprovalsPending} role={session.user.role} />
             </Section>
           )}
 
           {show("handoffs") && (
-            <Section title="Handoffs to accept" empty="No handoffs waiting.">
+            <Section title="Handoffs to accept" empty="No handoffs waiting." rows={data.handoffsAwaiting.length} filter={filter}>
               <HandoffRows rows={data.handoffsAwaiting} role={session.user.role} />
             </Section>
           )}
 
           {show("onboarding") && (
-            <Section title="Overdue onboarding tasks" empty="No overdue onboarding tasks.">
+            <Section title="Overdue onboarding tasks" empty="No overdue onboarding tasks." rows={data.overdueOnboarding.length} filter={filter}>
               {data.overdueOnboarding.map((t) => (
                 <Row key={t.taskId} href={`/accounts/${t.customerId}`}>
                   <div className="min-w-0">
@@ -130,7 +141,7 @@ export default async function NotificationsPage({
           )}
 
           {show("qbrs") && (
-            <Section title="Upcoming QBRs (next 30 days)" empty="No QBRs scheduled in the next 30 days.">
+            <Section title="Upcoming QBRs (next 30 days)" empty="No QBRs scheduled in the next 30 days." rows={data.upcomingQbrs.length} filter={filter}>
               {data.upcomingQbrs.map((q) => (
                 <Row key={q.id} href={`/accounts/${q.customerId}/qbrs/${q.id}`}>
                   <p className="text-sm font-medium text-ink-strong">{q.customerName}</p>
@@ -141,7 +152,7 @@ export default async function NotificationsPage({
           )}
 
           {show("discovery") && (
-            <Section title="Discovery assessments in progress" empty="No active discovery assessments.">
+            <Section title="Discovery assessments in progress" empty="No active discovery assessments." rows={data.inProgressDiscovery.length} filter={filter}>
               {data.inProgressDiscovery.map((d) => (
                 <Row key={d.id} href={`/accounts/${d.customerId}/discovery/${d.id}`}>
                   <div className="min-w-0">
@@ -155,7 +166,7 @@ export default async function NotificationsPage({
           )}
 
           {show("presale") && (
-            <Section title="Pre-sale scoping requests" empty="No pre-sale scoping requests waiting.">
+            <Section title="Pre-sale scoping requests" empty="No pre-sale scoping requests waiting." rows={data.preSaleAssessments.length} filter={filter}>
               {data.preSaleAssessments.map((p) => (
                 <Row key={p.id} href={`/leads/${p.leadId}/discovery/${p.id}`}>
                   <div className="min-w-0">
@@ -172,12 +183,34 @@ export default async function NotificationsPage({
             </Section>
           )}
         </div>
+        )
       }
     />
   );
 }
 
-function Section({ title, empty, children }: { title: string; empty: string; children: React.ReactNode }) {
+/**
+ * Section — wraps a notifications group.
+ *
+ * v3.0.5 — When the user is on the "all" filter, sections with zero rows
+ * are hidden entirely (the page-level Inbox-zero empty state covers them).
+ * When the user explicitly filters to a section, the empty placeholder
+ * still renders so they can see "yes, this filter is on but it's empty".
+ */
+function Section({
+  title,
+  empty,
+  rows,
+  filter,
+  children,
+}: {
+  title: string;
+  empty: string;
+  rows: number;
+  filter: string;
+  children: React.ReactNode;
+}) {
+  if (rows === 0 && filter === "all") return null;
   const hasChildren = Array.isArray(children) ? children.length > 0 : Boolean(children);
   return (
     <DashboardSection title={title} flush>
