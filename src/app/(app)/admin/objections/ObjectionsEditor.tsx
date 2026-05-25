@@ -3,10 +3,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { Loader2, Plus, Trash2, X } from "lucide-react";
 import { Industry } from "@prisma/client";
-import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input, Label, Textarea } from "@/components/ui/Input";
+import { Badge } from "@/components/ui/Badge";
 import { OBJECTION_CATEGORIES } from "@/lib/objections/defaults";
 
 type Template = {
@@ -37,6 +38,9 @@ const EMPTY_DRAFT: Draft = {
   active: true,
 };
 
+/**
+ * v3.1.4 — objections editor on v3 tokens + Badge.
+ */
 export function ObjectionsEditor({ initial }: { initial: Template[] }) {
   const router = useRouter();
   const [items, setItems] = useState<Template[]>(initial);
@@ -109,44 +113,63 @@ export function ObjectionsEditor({ initial }: { initial: Template[] }) {
 
   return (
     <div className="space-y-4">
+      {/* Toolbar */}
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-2 flex-wrap">
           <Label className="text-xs">Filter:</Label>
           <select
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
-            className="h-8 rounded border border-input bg-white px-2 text-xs"
+            className="h-8 rounded-md border border-line bg-surface px-2.5 text-xs text-ink-strong hover:border-line-strong focus:outline-none focus:border-brand focus:ring-4 focus:ring-brand/15 transition-colors"
           >
             <option value="">All categories</option>
             {OBJECTION_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
-          <span className="text-xs text-gtn-grey-2">{filtered.length} of {items.length}</span>
+          <span className="text-xs text-ink-muted tabular">
+            {filtered.length} of {items.length}
+          </span>
         </div>
-        {editingId === null && <Button onClick={startNew}>+ New objection</Button>}
+        {editingId === null && (
+          <Button size="sm" onClick={startNew}>
+            <Plus className="h-3.5 w-3.5 mr-1.5" />
+            New objection
+          </Button>
+        )}
       </div>
 
+      {/* Edit form */}
       {editingId !== null && (
-        <Card>
-          <h2 className="text-sm font-semibold text-gtn-navy mb-3">
-            {editingId === "new" ? "New objection" : "Edit objection"}
-          </h2>
+        <div className="rounded-xl bg-surface border border-line-subtle p-4 md:p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-ink-strong">
+              {editingId === "new" ? "New objection" : "Edit objection"}
+            </h2>
+            <button
+              onClick={() => { setEditingId(null); setDraft(EMPTY_DRAFT); }}
+              disabled={saving}
+              className="text-ink-muted hover:text-ink-strong transition-colors p-1"
+              aria-label="Cancel"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
           <div className="grid sm:grid-cols-3 gap-3">
-            <div className="space-y-1">
-              <Label className="text-xs">Category *</Label>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Category <span className="text-danger">*</span></Label>
               <select
                 value={draft.category}
                 onChange={(e) => setDraft((d) => ({ ...d, category: e.target.value }))}
-                className="flex h-10 w-full rounded-md border border-input bg-white px-3 text-sm"
+                className="flex h-9 w-full rounded-md border border-line bg-surface px-3 text-sm text-ink-strong hover:border-line-strong focus:outline-none focus:border-brand focus:ring-4 focus:ring-brand/15 transition-colors"
               >
                 {OBJECTION_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               <Label className="text-xs">Industry (optional)</Label>
               <select
                 value={draft.industry}
                 onChange={(e) => setDraft((d) => ({ ...d, industry: e.target.value as Industry | "" }))}
-                className="flex h-10 w-full rounded-md border border-input bg-white px-3 text-sm"
+                className="flex h-9 w-full rounded-md border border-line bg-surface px-3 text-sm text-ink-strong hover:border-line-strong focus:outline-none focus:border-brand focus:ring-4 focus:ring-brand/15 transition-colors"
               >
                 <option value="">— All industries —</option>
                 {(Object.values(Industry) as Industry[]).map((i) => (
@@ -154,7 +177,7 @@ export function ObjectionsEditor({ initial }: { initial: Template[] }) {
                 ))}
               </select>
             </div>
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               <Label className="text-xs">Source citation (optional)</Label>
               <Input
                 value={draft.source}
@@ -163,67 +186,92 @@ export function ObjectionsEditor({ initial }: { initial: Template[] }) {
               />
             </div>
           </div>
-          <div className="space-y-1 mt-3">
-            <Label className="text-xs">Trigger * <span className="text-gtn-grey-2">{"— the line you'll hear"}</span></Label>
-            <Input value={draft.trigger} onChange={(e) => setDraft((d) => ({ ...d, trigger: e.target.value }))} />
+          <div className="space-y-1.5">
+            <Label className="text-xs">
+              Trigger <span className="text-danger">*</span>{" "}
+              <span className="text-ink-faint normal-case">— the line you&apos;ll hear</span>
+            </Label>
+            <Input
+              value={draft.trigger}
+              onChange={(e) => setDraft((d) => ({ ...d, trigger: e.target.value }))}
+              placeholder="&ldquo;Your pricing is way out of line with what we&apos;re paying now.&rdquo;"
+            />
           </div>
-          <div className="space-y-1 mt-3">
-            <Label className="text-xs">Rebuttal *</Label>
-            <Textarea rows={6} value={draft.rebuttal} onChange={(e) => setDraft((d) => ({ ...d, rebuttal: e.target.value }))} />
+          <div className="space-y-1.5">
+            <Label className="text-xs">Rebuttal <span className="text-danger">*</span></Label>
+            <Textarea
+              rows={6}
+              value={draft.rebuttal}
+              onChange={(e) => setDraft((d) => ({ ...d, rebuttal: e.target.value }))}
+            />
           </div>
-          <label className="flex items-center gap-2 text-xs mt-3">
+          <label className="flex items-center gap-2 text-xs text-ink-muted cursor-pointer">
             <input
               type="checkbox"
               checked={draft.active}
               onChange={(e) => setDraft((d) => ({ ...d, active: e.target.checked }))}
+              className="accent-gtn-purple h-4 w-4"
             />
-            <span>{"Active — surface in Lin's reference panel"}</span>
+            <span>Active — surface in Lin&apos;s reference panel</span>
           </label>
-          <div className="flex justify-end gap-2 mt-4">
-            <Button variant="ghost" onClick={() => { setEditingId(null); setDraft(EMPTY_DRAFT); }} disabled={saving}>Cancel</Button>
-            <Button onClick={save} disabled={saving}>{saving ? "Saving…" : editingId === "new" ? "Create" : "Save"}</Button>
+          <div className="flex justify-end gap-2 pt-2 border-t border-line-subtle">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => { setEditingId(null); setDraft(EMPTY_DRAFT); }}
+              disabled={saving}
+            >
+              Cancel
+            </Button>
+            <Button onClick={save} size="sm" disabled={saving}>
+              {saving && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}
+              {saving ? "Saving…" : editingId === "new" ? "Create" : "Save changes"}
+            </Button>
           </div>
-        </Card>
+        </div>
       )}
 
-      <Card className="p-0 overflow-hidden">
+      {/* List */}
+      <div className="rounded-xl bg-surface border border-line-subtle overflow-hidden">
         {filtered.length === 0 ? (
-          <p className="text-sm text-gtn-grey-2 p-4">No objections in this view.</p>
+          <p className="text-sm text-ink-faint italic p-6 text-center">No objections in this view.</p>
         ) : (
-          <ul className="divide-y divide-gtn-lavender-2">
+          <ul className="divide-y divide-line-subtle">
             {filtered.map((t) => (
-              <li key={t.id} className="px-4 py-3">
+              <li key={t.id} className="px-4 py-3.5 hover:bg-surface-3/30 transition-colors">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-[10px] uppercase tracking-wide font-semibold rounded-full bg-gtn-lavender text-gtn-navy px-2 py-0.5">
-                        {t.category}
-                      </span>
+                    <div className="flex items-center gap-1.5 flex-wrap mb-1.5">
+                      <Badge tone="brand" shape="pill" size="xs">{t.category}</Badge>
                       {t.industry && (
-                        <span className="text-[10px] uppercase tracking-wide rounded-full bg-gtn-lavender-2 text-gtn-purple px-2 py-0.5">
-                          {t.industry.replace(/_/g, " ")}
-                        </span>
+                        <Badge tone="accent" shape="pill" size="xs">{t.industry.replace(/_/g, " ")}</Badge>
                       )}
                       {!t.active && (
-                        <span className="text-[10px] uppercase tracking-wide font-semibold rounded-full bg-[#FBE9E7] text-gtn-red px-2 py-0.5">
-                          Inactive
-                        </span>
+                        <Badge tone="danger" shape="pill" size="xs">Inactive</Badge>
                       )}
                     </div>
-                    <p className="font-medium text-gtn-navy mt-1">{`"${t.trigger}"`}</p>
-                    <p className="text-xs text-gtn-grey-2 mt-1 whitespace-pre-wrap">{t.rebuttal}</p>
-                    {t.source && <p className="text-[10px] text-gtn-grey-3 mt-1">— {t.source}</p>}
+                    <p className="font-medium text-ink-strong">{`"${t.trigger}"`}</p>
+                    <p className="text-xs text-ink-muted mt-1.5 whitespace-pre-wrap leading-relaxed">{t.rebuttal}</p>
+                    {t.source && (
+                      <p className="text-[10px] text-ink-faint mt-1.5 italic">— {t.source}</p>
+                    )}
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
                     <Button size="sm" variant="secondary" onClick={() => startEdit(t)}>Edit</Button>
-                    <button onClick={() => remove(t.id)} className="text-xs text-gtn-red hover:underline">delete</button>
+                    <button
+                      onClick={() => remove(t.id)}
+                      className="text-ink-faint hover:text-danger transition-colors p-1"
+                      aria-label="Delete objection"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
                   </div>
                 </div>
               </li>
             ))}
           </ul>
         )}
-      </Card>
+      </div>
     </div>
   );
 }

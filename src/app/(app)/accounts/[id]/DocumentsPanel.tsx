@@ -5,10 +5,12 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { upload } from "@vercel/blob/client";
+import { FileText, Loader2, Plus, Trash2, X } from "lucide-react";
 import { SignedDocStatus, SignedDocType } from "@prisma/client";
-import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input, Label, Textarea } from "@/components/ui/Input";
+import { Badge } from "@/components/ui/Badge";
+import { EmptyState } from "@/components/help/EmptyState";
 
 type Doc = {
   id: string;
@@ -35,6 +37,9 @@ const TYPE_LABELS: Record<SignedDocType, string> = {
   OTHER: "Other",
 };
 
+/**
+ * v3.1.4 — Documents panel on v3 tokens + Badge + branded EmptyState.
+ */
 export function DocumentsPanel({
   scope,
   parentId,
@@ -76,7 +81,6 @@ export function DocumentsPanel({
       setUploadedName(file.name);
       if (urlInputRef.current) urlInputRef.current.value = blob.url;
       if (titleInputRef.current && !titleInputRef.current.value) {
-        // Auto-suggest a title from the filename
         titleInputRef.current.value = file.name.replace(/\.[^.]+$/, "");
       }
       toast.success("File uploaded — fill in metadata and save");
@@ -166,40 +170,52 @@ export function DocumentsPanel({
   }
 
   return (
-    <Card>
+    <div className="rounded-xl bg-surface border border-line-subtle p-4 md:p-5">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-gtn-navy">Signed documents</h3>
-        <Button size="sm" onClick={() => setOpen((o) => !o)}>{open ? "Cancel" : "+ Add document"}</Button>
+        <h3 className="text-sm font-semibold text-ink-strong">Signed documents</h3>
+        <Button size="sm" onClick={() => setOpen((o) => !o)}>
+          {open ? <X className="h-3.5 w-3.5 mr-1.5" /> : <Plus className="h-3.5 w-3.5 mr-1.5" />}
+          {open ? "Cancel" : "Add document"}
+        </Button>
       </div>
 
       {open && (
         <form
           onSubmit={(e) => { e.preventDefault(); void create(e.currentTarget); }}
-          className="space-y-3 mb-4 p-3 rounded-md bg-gtn-lavender"
+          className="space-y-4 mb-4 p-4 rounded-lg border border-line-subtle bg-surface-2/50"
         >
-          <div className="grid sm:grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label className="text-xs">Type *</Label>
-              <select name="type" required className="flex h-10 w-full rounded-md border border-input bg-white px-3 text-sm">
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="doc-type">Type <span className="text-danger">*</span></Label>
+              <select
+                id="doc-type"
+                name="type"
+                required
+                className="flex h-9 w-full rounded-md border border-line bg-surface px-3 text-sm text-ink-strong hover:border-line-strong focus:outline-none focus:border-brand focus:ring-4 focus:ring-brand/15 transition-colors"
+              >
                 {(Object.values(SignedDocType) as SignedDocType[]).map((t) => (
                   <option key={t} value={t}>{TYPE_LABELS[t]}</option>
                 ))}
               </select>
             </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Title *</Label>
-              <Input name="title" ref={titleInputRef} required maxLength={200} />
+            <div className="space-y-1.5">
+              <Label htmlFor="doc-title">Title <span className="text-danger">*</span></Label>
+              <Input id="doc-title" name="title" ref={titleInputRef} required maxLength={200} />
             </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Status</Label>
-              <select name="status" className="flex h-10 w-full rounded-md border border-input bg-white px-3 text-sm">
+            <div className="space-y-1.5">
+              <Label htmlFor="doc-status">Status</Label>
+              <select
+                id="doc-status"
+                name="status"
+                className="flex h-9 w-full rounded-md border border-line bg-surface px-3 text-sm text-ink-strong hover:border-line-strong focus:outline-none focus:border-brand focus:ring-4 focus:ring-brand/15 transition-colors"
+              >
                 {(Object.values(SignedDocStatus) as SignedDocStatus[]).map((s) => (
                   <option key={s} value={s}>{s}</option>
                 ))}
               </select>
             </div>
-            <div className="space-y-1 sm:col-span-2">
-              <Label className="text-xs">File (optional — uploads to secure storage)</Label>
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label>File (uploads to secure storage)</Label>
               <div className="flex items-center gap-2 flex-wrap">
                 <input
                   ref={fileInputRef}
@@ -209,15 +225,23 @@ export function DocumentsPanel({
                     const file = e.target.files?.[0];
                     if (file) void handleFile(file);
                   }}
-                  className="text-xs"
+                  className="text-xs text-ink-muted file:mr-2 file:rounded-md file:border-0 file:bg-surface-2 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-ink-strong hover:file:bg-surface-3"
                 />
-                {uploading && <span className="text-xs text-gtn-grey-2">Uploading…</span>}
+                {uploading && (
+                  <span className="text-xs text-ink-muted inline-flex items-center gap-1">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Uploading…
+                  </span>
+                )}
                 {uploadedUrl && !uploading && (
-                  <span className="text-xs text-gtn-green">✓ {uploadedName}</span>
+                  <span className="text-xs text-gtn-green inline-flex items-center gap-1">
+                    ✓ {uploadedName}
+                  </span>
                 )}
               </div>
-              <Label className="text-xs mt-2">Or paste a public URL</Label>
+              <Label htmlFor="doc-url" className="mt-2">Or paste a public URL</Label>
               <Input
+                id="doc-url"
                 name="publicUrl"
                 ref={urlInputRef}
                 type="url"
@@ -225,71 +249,87 @@ export function DocumentsPanel({
                 defaultValue={uploadedUrl ?? ""}
               />
             </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Signed by (name)</Label>
-              <Input name="signedByName" />
+            <div className="space-y-1.5">
+              <Label htmlFor="doc-signed-name">Signed by (name)</Label>
+              <Input id="doc-signed-name" name="signedByName" />
             </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Signed by (email)</Label>
-              <Input name="signedByEmail" type="email" />
+            <div className="space-y-1.5">
+              <Label htmlFor="doc-signed-email">Signed by (email)</Label>
+              <Input id="doc-signed-email" name="signedByEmail" type="email" />
             </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Signed on</Label>
-              <Input name="signedAt" type="date" />
+            <div className="space-y-1.5">
+              <Label htmlFor="doc-signed-at">Signed on</Label>
+              <Input id="doc-signed-at" name="signedAt" type="date" />
             </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Expires on</Label>
-              <Input name="expiresAt" type="date" />
+            <div className="space-y-1.5">
+              <Label htmlFor="doc-expires-at">Expires on</Label>
+              <Input id="doc-expires-at" name="expiresAt" type="date" />
             </div>
           </div>
-          <div className="space-y-1">
-            <Label className="text-xs">Notes</Label>
-            <Textarea name="notes" rows={2} />
+          <div className="space-y-1.5">
+            <Label htmlFor="doc-notes">Notes</Label>
+            <Textarea id="doc-notes" name="notes" rows={2} />
           </div>
-          <div className="flex justify-end">
-            <Button type="submit" disabled={saving || uploading}>
-              {saving ? "Saving…" : uploading ? "Wait — uploading file…" : "Add document"}
+          <div className="flex justify-end pt-2 border-t border-line-subtle">
+            <Button type="submit" size="sm" disabled={saving || uploading}>
+              {(saving || uploading) && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}
+              {saving ? "Saving…" : uploading ? "Wait — uploading…" : "Add document"}
             </Button>
           </div>
         </form>
       )}
 
       {items === null ? (
-        <p className="text-sm text-gtn-grey-2">Loading…</p>
+        <div className="flex items-center justify-center py-8 text-sm text-ink-muted">
+          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+          Loading…
+        </div>
       ) : items.length === 0 ? (
-        <p className="text-sm text-gtn-grey-2">No documents tracked yet.</p>
+        <EmptyState
+          Icon={FileText}
+          title="No documents tracked yet"
+          body="Upload signed MSAs, SOWs, BAAs and amendments here. Once added you can mark them signed, track expirations, and link the original file."
+        />
       ) : (
-        <ul className="divide-y divide-gtn-lavender-2">
+        <ul className="divide-y divide-line-subtle border-t border-line-subtle">
           {items.map((d) => (
             <li key={d.id} className="py-3 text-sm">
-              <div className="flex items-center justify-between gap-2 flex-wrap">
-                <div className="min-w-0">
-                  <p className="font-medium text-gtn-navy">
-                    <span className="inline-block bg-gtn-purple text-white text-[10px] uppercase tracking-wide rounded-full px-2 py-0.5 mr-2">
-                      {TYPE_LABELS[d.type]}
-                    </span>
+              <div className="flex items-start justify-between gap-3 flex-wrap">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Badge tone="accent" shape="pill" size="xs">{TYPE_LABELS[d.type]}</Badge>
                     {d.publicUrl ? (
-                      <a className="hover:underline" href={d.publicUrl} target="_blank" rel="noreferrer">{d.title}</a>
-                    ) : d.title}
-                  </p>
-                  <p className="text-xs text-gtn-grey-2">
+                      <a
+                        className="text-sm font-medium text-ink-strong hover:text-gtn-purple hover:underline"
+                        href={d.publicUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        {d.title}
+                      </a>
+                    ) : (
+                      <span className="text-sm font-medium text-ink-strong">{d.title}</span>
+                    )}
+                  </div>
+                  <p className="text-xs text-ink-muted mt-1">
                     {d.signedByName && <>Signed by {d.signedByName} · </>}
                     {d.signedAt && <>{format(new Date(d.signedAt), "PPP")} · </>}
                     {d.expiresAt && <>expires {format(new Date(d.expiresAt), "PPP")} · </>}
                     {d.uploadedBy.name} · {format(new Date(d.createdAt), "PPp")}
                   </p>
-                  {d.notes && <p className="text-xs text-gtn-grey-2 mt-1">{d.notes}</p>}
+                  {d.notes && <p className="text-xs text-ink-muted mt-1.5 italic">{d.notes}</p>}
                 </div>
-                <div className="flex items-center gap-2">
-                  <StatusPill status={d.status} expiresAt={d.expiresAt} />
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <StatusBadge status={d.status} expiresAt={d.expiresAt} />
                   {d.status !== SignedDocStatus.SIGNED && d.status !== SignedDocStatus.EXPIRED && (
                     <Button size="sm" variant="secondary" onClick={() => markSigned(d)}>Mark signed</Button>
                   )}
                   <button
                     onClick={() => remove(d.id)}
-                    className="text-xs text-gtn-red hover:underline"
+                    className="text-ink-faint hover:text-danger transition-colors p-1"
+                    aria-label="Delete document"
                   >
-                    delete
+                    <Trash2 className="h-3.5 w-3.5" />
                   </button>
                 </div>
               </div>
@@ -297,22 +337,22 @@ export function DocumentsPanel({
           ))}
         </ul>
       )}
-    </Card>
+    </div>
   );
 }
 
-function StatusPill({ status, expiresAt }: { status: SignedDocStatus; expiresAt: string | null }) {
+function StatusBadge({ status, expiresAt }: { status: SignedDocStatus; expiresAt: string | null }) {
   const isExpired = expiresAt && new Date(expiresAt) < new Date();
   const effective = isExpired && status !== SignedDocStatus.SUPERSEDED ? SignedDocStatus.EXPIRED : status;
-  const cls =
-    effective === SignedDocStatus.SIGNED ? "bg-gtn-green-bg text-gtn-green"
-      : effective === SignedDocStatus.EXPIRED ? "bg-[#FBE9E7] text-gtn-red"
-      : effective === SignedDocStatus.SUPERSEDED ? "bg-gtn-lavender text-gtn-grey-2"
-      : effective === SignedDocStatus.SENT ? "bg-[#FEF3E2] text-gtn-amber"
-      : "bg-gtn-lavender text-gtn-navy";
+  const tone: "success" | "danger" | "neutral" | "warn" | "brand" =
+    effective === SignedDocStatus.SIGNED ? "success"
+      : effective === SignedDocStatus.EXPIRED ? "danger"
+      : effective === SignedDocStatus.SUPERSEDED ? "neutral"
+      : effective === SignedDocStatus.SENT ? "warn"
+      : "brand";
   return (
-    <span className={`text-[10px] font-semibold uppercase tracking-wide rounded-full px-2 py-0.5 ${cls}`}>
-      {effective}
-    </span>
+    <Badge tone={tone} shape="pill" size="xs" dot>
+      {effective.toLowerCase()}
+    </Badge>
   );
 }

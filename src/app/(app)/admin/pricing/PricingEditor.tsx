@@ -6,7 +6,6 @@ import { toast } from "sonner";
 import { ChevronDown, ChevronRight, Loader2, Plus, RotateCcw, Save, Trash2 } from "lucide-react";
 import { ServiceBundle, ServiceLine } from "@prisma/client";
 import { Button } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
 import { Input, Label, Textarea } from "@/components/ui/Input";
 import {
   fmtUsd,
@@ -19,7 +18,9 @@ import {
 import { LINE_ITEM_STICKERS } from "@/lib/pricing/deal-kinds";
 
 /**
- * v2.19 — Form-based pricing editor.
+ * v3.1.4 — v3 token pass over the form-based pricing editor.
+ *
+ * Original v2.19:
  *
  * Replaces the raw JSON textarea with a tabbed, organized UI:
  *   - Bundles tab: per-bundle accordion with editable seat tiers, onboarding,
@@ -166,30 +167,30 @@ export function PricingEditor({
   return (
     <div className="space-y-4">
       {/* Sticky toolbar */}
-      <Card className="sticky top-0 z-10 shadow-sm">
+      <div className="sticky top-0 z-10 rounded-xl bg-surface border border-line-subtle p-4 shadow-sm">
         <div className="flex items-center justify-between flex-wrap gap-2">
-          <div>
-            <h2 className="text-sm font-semibold text-gtn-navy">Edit catalog</h2>
-            <p className="text-xs text-gtn-grey-2 mt-0.5">
-              Saved to <code className="gtn-code-pill">SystemConfig.pricing.catalog</code>.
+          <div className="min-w-0">
+            <h2 className="text-sm font-semibold text-ink-strong">Edit catalog</h2>
+            <p className="text-xs text-ink-muted mt-0.5">
+              Saved to <code className="font-mono text-[10px] bg-surface-2 px-1.5 py-0.5 rounded text-ink-strong">SystemConfig.pricing.catalog</code>.
               Propagates to every quote, PricingCard, and approval-tier calc instantly.
             </p>
           </div>
           <div className="flex gap-2">
             <Button variant="ghost" size="sm" onClick={resetToDefaults}>
-              <RotateCcw className="h-3.5 w-3.5 mr-1" />
+              <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
               Reset to defaults
             </Button>
-            <Button onClick={save} disabled={saving || (!dirty && tab !== "advanced")}>
-              {saving ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />}
-              {saving ? "Saving…" : "Save"}
+            <Button onClick={save} disabled={saving || (!dirty && tab !== "advanced")} size="sm">
+              {saving ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Save className="h-3.5 w-3.5 mr-1.5" />}
+              {saving ? "Saving…" : dirty ? "Save changes" : "Save"}
             </Button>
           </div>
         </div>
-      </Card>
+      </div>
 
       {/* Tabs */}
-      <div className="flex flex-wrap gap-2 border-b border-gtn-lavender-2">
+      <div className="flex flex-wrap gap-1 border-b border-line-subtle">
         {([
           { key: "bundles", label: "Bundles", count: Object.keys(catalog.bundles).length },
           { key: "standalone", label: "Standalone lines", count: Object.keys(catalog.standalone).length },
@@ -200,15 +201,15 @@ export function PricingEditor({
             key={t.key}
             type="button"
             onClick={() => switchTab(t.key)}
-            className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px transition ${
+            className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors duration-120 ${
               tab === t.key
-                ? "border-gtn-purple text-gtn-navy"
-                : "border-transparent text-gtn-grey-2 hover:text-gtn-navy"
+                ? "border-gtn-purple text-ink-strong"
+                : "border-transparent text-ink-muted hover:text-ink-strong"
             }`}
           >
             {t.label}
             {t.count != null && (
-              <span className="ml-1.5 text-xs text-gtn-grey-3 font-mono">{t.count}</span>
+              <span className="ml-1.5 text-[11px] text-ink-faint font-mono tabular">{t.count}</span>
             )}
           </button>
         ))}
@@ -228,11 +229,11 @@ export function PricingEditor({
       {tab === "perUnit" && <PerUnitReference />}
 
       {tab === "advanced" && (
-        <Card>
-          <div className="flex items-start justify-between mb-2 gap-2 flex-wrap">
+        <div className="rounded-xl bg-surface border border-line-subtle p-4 md:p-5">
+          <div className="flex items-start justify-between mb-3 gap-2 flex-wrap">
             <div>
-              <h3 className="text-sm font-semibold text-gtn-navy">Raw JSON editor</h3>
-              <p className="text-xs text-gtn-grey-2 mt-0.5">
+              <h3 className="text-sm font-semibold text-ink-strong">Raw JSON editor</h3>
+              <p className="text-xs text-ink-muted mt-0.5">
                 For bulk edits or pasting a known-good catalog from a backup. Form-tab changes are merged in when you switch back.
               </p>
             </div>
@@ -242,12 +243,12 @@ export function PricingEditor({
             onChange={(e) => { setRawText(e.target.value); setParseError(null); markDirty(); }}
             rows={28}
             spellCheck={false}
-            className="w-full font-mono text-xs rounded-md border border-input bg-white px-3 py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="w-full font-mono text-xs rounded-md border border-line bg-surface px-3 py-2 text-ink-strong focus:outline-none focus:border-brand focus:ring-4 focus:ring-brand/15 transition-colors"
           />
           {parseError && (
-            <p className="text-xs text-gtn-red mt-2">JSON error: {parseError}</p>
+            <p className="text-xs text-danger mt-2 font-medium">JSON error: {parseError}</p>
           )}
-        </Card>
+        </div>
       )}
     </div>
   );
@@ -292,26 +293,30 @@ function BundleAccordion({
   }, [bundle]);
 
   return (
-    <Card className="p-0 overflow-hidden">
+    <div className="rounded-xl bg-surface border border-line-subtle overflow-hidden">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="w-full px-4 py-3 flex items-center justify-between hover:bg-gtn-lavender/40 text-left"
+        className="w-full px-4 py-3 flex items-center justify-between hover:bg-surface-3/40 text-left transition-colors"
       >
         <div className="flex items-center gap-2 min-w-0">
-          {open ? <ChevronDown className="h-4 w-4 text-gtn-grey-2 flex-shrink-0" /> : <ChevronRight className="h-4 w-4 text-gtn-grey-2 flex-shrink-0" />}
+          {open ? (
+            <ChevronDown className="h-4 w-4 text-ink-muted flex-shrink-0" />
+          ) : (
+            <ChevronRight className="h-4 w-4 text-ink-muted flex-shrink-0" />
+          )}
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-gtn-navy">{bundle.label}</p>
-            <p className="text-xs text-gtn-grey-2 truncate">{summary}</p>
+            <p className="text-sm font-semibold text-ink-strong">{bundle.label}</p>
+            <p className="text-xs text-ink-muted truncate">{summary}</p>
           </div>
         </div>
-        <span className="text-[10px] uppercase tracking-wide bg-gtn-lavender text-gtn-purple rounded-full px-2 py-0.5 flex-shrink-0">
+        <span className="text-[10px] uppercase tracking-wide bg-brand-soft text-gtn-navy rounded-full px-2 py-0.5 flex-shrink-0 font-semibold">
           {bundle.id.replace(/_/g, " ")}
         </span>
       </button>
 
       {open && (
-        <div className="px-4 py-4 border-t border-gtn-lavender-2 space-y-4">
+        <div className="px-4 py-4 border-t border-line-subtle space-y-4 bg-surface-2/30">
           {/* Label + description */}
           <div className="grid sm:grid-cols-2 gap-3">
             <div className="space-y-1">
@@ -324,7 +329,7 @@ function BundleAccordion({
             </div>
             <div className="space-y-1">
               <Label>Bundle ID (locked)</Label>
-              <Input value={bundle.id} disabled className="bg-gtn-lavender-2 text-gtn-grey-2" />
+              <Input value={bundle.id} disabled className="bg-surface-3 text-ink-muted font-mono text-xs" />
             </div>
           </div>
           <div className="space-y-1">
@@ -380,7 +385,7 @@ function BundleAccordion({
           />
         </div>
       )}
-    </Card>
+    </div>
   );
 }
 
@@ -415,23 +420,23 @@ function SeatTiersEditor({
         </Button>
       </div>
       {tiers.length === 0 ? (
-        <p className="text-xs text-gtn-grey-2 italic">No tiers — pricing scoped per engagement.</p>
+        <p className="text-xs text-ink-faint italic">No tiers — pricing scoped per engagement.</p>
       ) : (
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto rounded-md border border-line-subtle">
           <table className="w-full text-xs min-w-[480px]">
-            <thead className="text-left uppercase tracking-wide text-gtn-grey-2">
+            <thead className="bg-surface-2 text-left uppercase tracking-wide text-ink-muted text-[10px]">
               <tr>
-                <th className="py-1 w-20">Min seats</th>
-                <th className="py-1 w-20">Max seats</th>
-                <th className="py-1 w-24">Sticker MRR</th>
-                <th className="py-1 w-24">Floor MRR</th>
+                <th className="px-2 py-1.5 w-20 font-semibold">Min seats</th>
+                <th className="px-2 py-1.5 w-20 font-semibold">Max seats</th>
+                <th className="px-2 py-1.5 w-24 font-semibold">Sticker MRR</th>
+                <th className="px-2 py-1.5 w-24 font-semibold">Floor MRR</th>
                 <th className="w-8"></th>
               </tr>
             </thead>
             <tbody>
               {tiers.map((t, i) => (
-                <tr key={i} className="border-t border-gtn-lavender-2">
-                  <td className="py-1 pr-2">
+                <tr key={i} className="border-t border-line-subtle">
+                  <td className="px-2 py-1">
                     <Input
                       type="number"
                       min={1}
@@ -440,7 +445,7 @@ function SeatTiersEditor({
                       className="h-7 text-xs"
                     />
                   </td>
-                  <td className="py-1 pr-2">
+                  <td className="px-2 py-1">
                     <Input
                       type="number"
                       min={1}
@@ -449,7 +454,7 @@ function SeatTiersEditor({
                       className="h-7 text-xs"
                     />
                   </td>
-                  <td className="py-1 pr-2">
+                  <td className="px-2 py-1">
                     <Input
                       type="number"
                       min={0}
@@ -458,7 +463,7 @@ function SeatTiersEditor({
                       className="h-7 text-xs"
                     />
                   </td>
-                  <td className="py-1 pr-2">
+                  <td className="px-2 py-1">
                     <Input
                       type="number"
                       min={0}
@@ -467,11 +472,11 @@ function SeatTiersEditor({
                       className="h-7 text-xs"
                     />
                   </td>
-                  <td className="py-1">
+                  <td className="px-2 py-1">
                     <button
                       type="button"
                       onClick={() => remove(i)}
-                      className="text-gtn-grey-2 hover:text-gtn-red"
+                      className="text-ink-faint hover:text-danger transition-colors"
                       aria-label="Remove tier"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
@@ -512,7 +517,7 @@ function AnnualAddOnsEditor({
         </Button>
       </div>
       {items.length === 0 ? (
-        <p className="text-xs text-gtn-grey-2 italic">No annual add-ons.</p>
+        <p className="text-xs text-ink-faint italic">No annual add-ons.</p>
       ) : (
         <ul className="space-y-2">
           {items.map((it, i) => (
@@ -528,13 +533,13 @@ function AnnualAddOnsEditor({
                 min={0}
                 value={it.amount}
                 onChange={(e) => update(i, { amount: Number(e.target.value) || 0 })}
-                className="h-8 text-xs w-28"
+                className="h-8 text-xs w-28 tabular"
                 placeholder="0"
               />
               <button
                 type="button"
                 onClick={() => remove(i)}
-                className="text-gtn-grey-2 hover:text-gtn-red"
+                className="text-ink-faint hover:text-danger transition-colors"
                 aria-label="Remove add-on"
               >
                 <Trash2 className="h-3.5 w-3.5" />
@@ -582,7 +587,7 @@ function IncludesEditor({
         </Button>
       </div>
       {rows.length === 0 ? (
-        <p className="text-xs text-gtn-grey-2 italic">No service lines defined for this bundle yet.</p>
+        <p className="text-xs text-ink-faint italic">No service lines defined for this bundle yet.</p>
       ) : (
         <ul className="space-y-2">
           {rows.map((r, i) => (
@@ -590,7 +595,7 @@ function IncludesEditor({
               <select
                 value={r.serviceLine}
                 onChange={(e) => update(i, { serviceLine: e.target.value as ServiceLine })}
-                className="h-8 rounded-md border border-input bg-white px-2 text-xs flex-1 min-w-[160px]"
+                className="h-8 rounded-md border border-line bg-surface px-2 text-xs flex-1 min-w-[160px] text-ink-strong hover:border-line-strong focus:outline-none focus:border-brand focus:ring-4 focus:ring-brand/15 transition-colors"
               >
                 {ALL_SERVICE_LINES.map((sl) => (
                   <option key={sl} value={sl}>{sl.replace(/_/g, " ")}</option>
@@ -605,7 +610,7 @@ function IncludesEditor({
               <button
                 type="button"
                 onClick={() => remove(i)}
-                className="text-gtn-grey-2 hover:text-gtn-red"
+                className="text-ink-faint hover:text-danger transition-colors"
                 aria-label="Remove line"
               >
                 <Trash2 className="h-3.5 w-3.5" />
@@ -630,29 +635,29 @@ function StandaloneEditor({
   onChange: (line: ServiceLine, patch: Partial<{ perSeatMrr: number; perSeatFloor: number; oneTime: number }>) => void;
 }) {
   return (
-    <Card>
-      <h3 className="text-sm font-semibold text-gtn-navy mb-1">Standalone service-line pricing</h3>
-      <p className="text-xs text-gtn-grey-2 mb-4">
+    <div className="rounded-xl bg-surface border border-line-subtle p-4 md:p-5">
+      <h3 className="text-sm font-semibold text-ink-strong mb-1">Standalone service-line pricing</h3>
+      <p className="text-xs text-ink-muted mb-4">
         Per-seat MRR + one-time when sold line-by-line (no bundle discount). Edit any cell;
         Save commits all changes at once.
       </p>
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto rounded-lg border border-line-subtle">
         <table className="w-full text-sm min-w-[560px]">
-          <thead className="text-left text-gtn-grey-2 border-b border-gtn-lavender-2">
+          <thead className="bg-surface-2">
             <tr>
-              <th className="py-2 pr-3 font-medium">Service line</th>
-              <th className="py-2 pr-3 font-medium w-32">Per-seat MRR</th>
-              <th className="py-2 pr-3 font-medium w-32">Floor / seat</th>
-              <th className="py-2 font-medium w-32">One-time setup</th>
+              <th className="ui-label text-left px-3 py-2.5">Service line</th>
+              <th className="ui-label text-left px-3 py-2.5 w-32">Per-seat MRR</th>
+              <th className="ui-label text-left px-3 py-2.5 w-32">Floor / seat</th>
+              <th className="ui-label text-left px-3 py-2.5 w-32">One-time setup</th>
             </tr>
           </thead>
           <tbody>
             {ALL_SERVICE_LINES.map((line) => {
               const entry = catalog.standalone[line] ?? { perSeatMrr: 0, perSeatFloor: 0, oneTime: 0 };
               return (
-                <tr key={line} className="border-b border-gtn-lavender-2 last:border-0">
-                  <td className="py-2 pr-3 font-medium text-gtn-navy">{line.replace(/_/g, " ")}</td>
-                  <td className="py-2 pr-3">
+                <tr key={line} className="border-t border-line-subtle">
+                  <td className="px-3 py-2 font-medium text-ink-strong capitalize">{line.replace(/_/g, " ").toLowerCase()}</td>
+                  <td className="px-3 py-2">
                     <Input
                       type="number"
                       min={0}
@@ -661,7 +666,7 @@ function StandaloneEditor({
                       className="h-8 text-xs"
                     />
                   </td>
-                  <td className="py-2 pr-3">
+                  <td className="px-3 py-2">
                     <Input
                       type="number"
                       min={0}
@@ -670,13 +675,13 @@ function StandaloneEditor({
                       className="h-8 text-xs"
                     />
                   </td>
-                  <td className="py-2">
+                  <td className="px-3 py-2">
                     <Input
                       type="number"
                       min={0}
                       value={entry.oneTime}
                       onChange={(e) => onChange(line, { oneTime: Number(e.target.value) || 0 })}
-                      className="h-8 text-xs"
+                      className="h-8 text-xs tabular"
                     />
                   </td>
                 </tr>
@@ -685,7 +690,7 @@ function StandaloneEditor({
           </tbody>
         </table>
       </div>
-    </Card>
+    </div>
   );
 }
 
@@ -695,37 +700,37 @@ function StandaloneEditor({
 
 function PerUnitReference() {
   return (
-    <Card>
-      <h3 className="text-sm font-semibold text-gtn-navy mb-1">Per-unit line-item stickers</h3>
-      <p className="text-xs text-gtn-grey-2 mb-4">
+    <div className="rounded-xl bg-surface border border-line-subtle p-4 md:p-5">
+      <h3 className="text-sm font-semibold text-ink-strong mb-1">Per-unit line-item stickers</h3>
+      <p className="text-xs text-ink-muted mb-4">
         Voice extensions, cable drops, door readers, cameras, NVR, install labor. Used by
         the ServiceQuoteCard line-item builder on non-bundle deals and by the v2.17
-        pre-sale scoring engines. <strong>Read-only here</strong> — these live in{" "}
-        <code className="gtn-code-pill">src/lib/pricing/deal-kinds.ts</code> and editing
+        pre-sale scoring engines. <strong className="text-ink-strong">Read-only here</strong> — these live in{" "}
+        <code className="font-mono text-[10px] bg-surface-2 px-1.5 py-0.5 rounded text-ink-strong">src/lib/pricing/deal-kinds.ts</code> and editing
         them from the UI is on the roadmap.
       </p>
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto rounded-lg border border-line-subtle">
         <table className="w-full text-sm min-w-[560px]">
-          <thead className="text-left text-gtn-grey-2 border-b border-gtn-lavender-2">
+          <thead className="bg-surface-2">
             <tr>
-              <th className="py-2 pr-3 font-medium">Line item</th>
-              <th className="py-2 pr-3 font-medium text-right">MRR each</th>
-              <th className="py-2 pr-3 font-medium text-right">One-time each</th>
-              <th className="py-2 font-medium">Notes</th>
+              <th className="ui-label text-left px-3 py-2.5">Line item</th>
+              <th className="ui-label text-right px-3 py-2.5">MRR each</th>
+              <th className="ui-label text-right px-3 py-2.5">One-time each</th>
+              <th className="ui-label text-left px-3 py-2.5">Notes</th>
             </tr>
           </thead>
           <tbody>
             {Object.entries(LINE_ITEM_STICKERS).map(([key, s]) => (
-              <tr key={key} className="border-b border-gtn-lavender-2 last:border-0 align-top">
-                <td className="py-2 pr-3 font-medium text-gtn-navy">{s.label}</td>
-                <td className="py-2 pr-3 text-right font-mono">{s.perUnitMrr > 0 ? fmtUsd(s.perUnitMrr) : "—"}</td>
-                <td className="py-2 pr-3 text-right font-mono">{s.perUnitOneTime > 0 ? fmtUsd(s.perUnitOneTime) : "—"}</td>
-                <td className="py-2 text-xs text-gtn-grey-2">{s.helpText}</td>
+              <tr key={key} className="border-t border-line-subtle align-top">
+                <td className="px-3 py-2 font-medium text-ink-strong">{s.label}</td>
+                <td className="px-3 py-2 text-right font-mono tabular text-ink-strong">{s.perUnitMrr > 0 ? fmtUsd(s.perUnitMrr) : <span className="text-ink-faint">—</span>}</td>
+                <td className="px-3 py-2 text-right font-mono tabular text-ink-strong">{s.perUnitOneTime > 0 ? fmtUsd(s.perUnitOneTime) : <span className="text-ink-faint">—</span>}</td>
+                <td className="px-3 py-2 text-xs text-ink-muted">{s.helpText}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-    </Card>
+    </div>
   );
 }

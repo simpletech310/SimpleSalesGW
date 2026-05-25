@@ -5,8 +5,10 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { ArrowRight, ClipboardList, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
+import { Badge } from "@/components/ui/Badge";
+import { EmptyState } from "@/components/help/EmptyState";
 import type { DiscoveryKind } from "@prisma/client";
 
 type Assessment = {
@@ -23,10 +25,6 @@ const KIND_LABEL: Record<DiscoveryKind, string> = {
   AI_READINESS: "AI Readiness Questionnaire",
   NIST_CSF: "NIST CSF 2.0 Self-Assessment",
   NIST_800_171: "NIST 800-171 / CMMC Readiness",
-  // v2.17 — pre-sale scoping kinds. Labels here are for completeness; the
-  // DiscoveryPanel on /accounts/[id] currently only surfaces the post-handoff
-  // four (see `kinds` array below), so these are mostly cosmetic for any
-  // pre-sale assessments that auto-migrated from a Lead.
   VOICE_SCOPING: "Voice Pre-Sale Scoping (from Lead)",
   CCTV_SCOPING: "CCTV Pre-Sale Scoping (from Lead)",
   ACCESS_CONTROL_SCOPING: "Access Control Pre-Sale Scoping (from Lead)",
@@ -42,6 +40,15 @@ const KIND_BLURB: Record<DiscoveryKind, string> = {
   ACCESS_CONTROL_SCOPING: "Pre-sale access-control scoping that ran on the lead — door count, hardware, cardholder roster.",
 };
 
+const STATUS_TONE: Record<Assessment["status"], "neutral" | "brand" | "success"> = {
+  NOT_STARTED: "neutral",
+  IN_PROGRESS: "brand",
+  COMPLETED: "success",
+};
+
+/**
+ * v3.1.4 — Discovery panel rebuilt on v3 tokens + Badge.
+ */
 export function DiscoveryPanel({
   customerId,
   assessments,
@@ -75,74 +82,90 @@ export function DiscoveryPanel({
 
   return (
     <div className="space-y-4">
-      <div className="grid md:grid-cols-3 gap-3">
+      {/* Assessment kind cards */}
+      <div className="grid md:grid-cols-2 gap-3">
         {kinds.map((kind) => {
           const inProgress = assessments.find((a) => a.kind === kind && a.status === "IN_PROGRESS");
           const completed = assessments.find((a) => a.kind === kind && a.status === "COMPLETED");
+          const isLoading = creating === kind;
           return (
-            <Card key={kind} className="flex flex-col gap-3">
+            <div
+              key={kind}
+              className="rounded-xl bg-surface border border-line-subtle p-4 md:p-5 flex flex-col gap-3 hover:border-line-strong transition-colors"
+            >
               <div>
-                <p className="text-xs uppercase tracking-wide text-gtn-grey-2">{kind.replace(/_/g, " ")}</p>
-                <h3 className="text-sm font-semibold text-gtn-navy mt-1">{KIND_LABEL[kind]}</h3>
-                <p className="text-xs text-gtn-grey-2 mt-1">{KIND_BLURB[kind]}</p>
+                <p className="ui-label">{kind.replace(/_/g, " ")}</p>
+                <h3 className="text-sm font-semibold text-ink-strong mt-1.5">{KIND_LABEL[kind]}</h3>
+                <p className="text-xs text-ink-muted mt-1.5 leading-relaxed">{KIND_BLURB[kind]}</p>
               </div>
-              <div className="flex flex-wrap gap-2 mt-auto">
+              <div className="flex flex-wrap items-center gap-2 mt-auto pt-2">
                 {inProgress ? (
-                  <Link
-                    href={`/accounts/${customerId}/discovery/${inProgress.id}`}
-                    className="inline-flex items-center justify-center rounded-md bg-gtn-navy text-white px-3 py-1.5 text-xs"
-                  >
-                    Continue
-                  </Link>
+                  <Button asChild size="sm">
+                    <Link href={`/accounts/${customerId}/discovery/${inProgress.id}`}>
+                      Continue
+                      <ArrowRight className="h-3.5 w-3.5 ml-1.5" />
+                    </Link>
+                  </Button>
                 ) : (
-                  <Button
-                    size="sm"
-                    disabled={creating === kind}
-                    onClick={() => startDiscovery(kind)}
-                  >
+                  <Button size="sm" disabled={isLoading} onClick={() => startDiscovery(kind)}>
+                    {isLoading && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}
                     {completed ? "Run again" : "Start"}
                   </Button>
                 )}
                 {completed && (
                   <Link
                     href={`/accounts/${customerId}/discovery/${completed.id}`}
-                    className="text-gtn-purple underline text-xs self-center"
+                    className="text-xs text-gtn-purple hover:underline font-medium"
                   >
-                    view last result
+                    view last result →
                   </Link>
                 )}
               </div>
-            </Card>
+            </div>
           );
         })}
       </div>
 
-      <Card className="p-0 overflow-hidden">
-        <div className="px-4 py-3 bg-gtn-lavender text-xs uppercase tracking-wide font-semibold text-gtn-navy">
-          History
+      {/* History */}
+      <div className="rounded-xl bg-surface border border-line-subtle overflow-hidden">
+        <div className="px-4 py-2.5 bg-surface-2 border-b border-line-subtle">
+          <h3 className="ui-label">Assessment history</h3>
         </div>
         {assessments.length === 0 ? (
-          <p className="px-4 py-6 text-sm text-gtn-grey-2 text-center">No discovery assessments yet.</p>
+          <div className="px-4 py-2">
+            <EmptyState
+              Icon={ClipboardList}
+              title="No assessments yet"
+              body="Pick one of the four discovery flows above. Most accounts start with the MSP Site Survey to capture a baseline."
+            />
+          </div>
         ) : (
-          <ul className="divide-y divide-gtn-lavender-2">
+          <ul className="divide-y divide-line-subtle">
             {assessments.map((a) => (
-              <li key={a.id} className="px-4 py-3 text-sm flex items-center justify-between gap-3">
-                <Link className="text-gtn-navy hover:underline" href={`/accounts/${customerId}/discovery/${a.id}`}>
+              <li key={a.id} className="px-4 py-3 text-sm flex items-center justify-between gap-3 hover:bg-surface-3/30 transition-colors">
+                <Link
+                  className="text-ink-strong hover:text-gtn-purple font-medium min-w-0 truncate"
+                  href={`/accounts/${customerId}/discovery/${a.id}`}
+                >
                   {KIND_LABEL[a.kind]}
                 </Link>
-                <span className="text-xs text-gtn-grey-3">
-                  {a.status} ·{" "}
-                  {a.completedAt
-                    ? `completed ${format(new Date(a.completedAt), "PP")}`
-                    : a.startedAt
-                    ? `started ${format(new Date(a.startedAt), "PP")}`
-                    : "not started"}
-                </span>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <Badge tone={STATUS_TONE[a.status]} shape="pill" size="xs">
+                    {a.status.toLowerCase().replace(/_/g, " ")}
+                  </Badge>
+                  <span className="text-xs text-ink-faint tabular hidden sm:inline">
+                    {a.completedAt
+                      ? format(new Date(a.completedAt), "MMM d, yyyy")
+                      : a.startedAt
+                      ? format(new Date(a.startedAt), "MMM d, yyyy")
+                      : "—"}
+                  </span>
+                </div>
               </li>
             ))}
           </ul>
         )}
-      </Card>
+      </div>
     </div>
   );
 }

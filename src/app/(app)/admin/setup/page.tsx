@@ -9,14 +9,18 @@ import {
   Mail,
   MessageSquare,
   ShieldCheck,
+  Trash2,
+  Wrench,
+  type LucideIcon,
 } from "lucide-react";
 import { auth } from "@/auth";
 import { can } from "@/lib/rbac";
 import { integrationHealth } from "@/lib/env";
 import { prisma } from "@/lib/prisma";
-import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
 import { HeroBand } from "@/components/brand";
+import { cn } from "@/lib/utils";
 import { ImportProspectsButton } from "./ImportProspectsButton";
 import { BackfillAccountsButton } from "./BackfillAccountsButton";
 import { WipeLeadsButton } from "./WipeLeadsButton";
@@ -24,18 +28,8 @@ import { WipeLeadsButton } from "./WipeLeadsButton";
 export const dynamic = "force-dynamic";
 
 /**
- * v2.14 — First-run setup wizard.
- *
- * Visible to SUPERADMIN + SALES_MANAGER. Walks the operator through:
- *   1. Environment health (auto-detected from env)
- *   2. Add real team
- *   3. Tune pricing catalog
- *   4. Import 25 starter prospects
- *   5. Customize objections / outreach
- *   6. Test email delivery (placeholder for a future "send myself a magic link")
- *
- * Designed so that on a fresh deploy, the operator hits /admin/setup once
- * and walks out with a tool their team can use tomorrow.
+ * v3.1.4 — Setup wizard rebuilt on v3 tokens. Step pills use the v3
+ * brand palette; environment-health uses Badge per row.
  */
 export default async function SetupPage() {
   const session = await auth();
@@ -47,14 +41,22 @@ export default async function SetupPage() {
 
   const health = integrationHealth();
 
-  // Count signals so the wizard can show progress
   const [userCount, leadCount, customerCount] = await Promise.all([
     prisma.user.count({ where: { active: true } }),
     prisma.lead.count(),
     prisma.customer.count(),
   ]);
-  const realTeamCount = userCount; // exact-count is enough for the hint
   const hasProspects = leadCount > 0;
+  const hasRealTeam = userCount > 5;
+
+  const completedCount = [
+    health.authSecretStable && health.database.configured,
+    hasRealTeam,
+    false, // pricing is manual review
+    hasProspects,
+    false, // libraries manual
+    health.resend.configured,
+  ].filter(Boolean).length;
 
   return (
     <div className="space-y-6">
@@ -63,21 +65,21 @@ export default async function SetupPage() {
         title="First-run setup"
         subtitle="Walk through these steps once and the portal is ready for your team to use day to day."
       >
-        <div className="grid grid-cols-3 gap-4 max-w-md">
-          <Stat label="Active users" value={realTeamCount} />
+        <div className="grid grid-cols-4 gap-4 max-w-lg">
+          <Stat label="Progress" value={`${completedCount}/6`} />
+          <Stat label="Users" value={userCount} />
           <Stat label="Leads" value={leadCount} />
           <Stat label="Customers" value={customerCount} />
         </div>
       </HeroBand>
 
-      {/* Step 1 — Environment health */}
       <Step
         n={1}
         title="Environment health"
         icon={ShieldCheck}
         complete={health.authSecretStable && health.database.configured}
       >
-        <ul className="text-sm space-y-2 mt-2">
+        <ul className="text-sm space-y-2.5 mt-3">
           <HealthRow
             label="AUTH_SECRET (stable session secret)"
             ok={health.authSecretStable}
@@ -111,161 +113,142 @@ export default async function SetupPage() {
             hint="Optional — without it, you can still scrape sources but won't get an auto summary"
           />
         </ul>
-        <p className="text-xs text-gtn-grey-2 mt-3">
-          Set missing values in <strong>Vercel → Project Settings → Environment Variables → Production</strong>,
+        <p className="text-xs text-ink-muted mt-4 pt-3 border-t border-line-subtle">
+          Set missing values in <strong className="text-ink-strong">Vercel → Project Settings → Environment Variables → Production</strong>,
           then trigger a redeploy.
         </p>
       </Step>
 
-      {/* Step 2 — Add real team */}
-      <Step
-        n={2}
-        title="Add your real team"
-        icon={Users}
-        complete={realTeamCount > 5}
-      >
-        <p className="text-sm text-gtn-grey-2 mt-2">
+      <Step n={2} title="Add your real team" icon={Users} complete={hasRealTeam}>
+        <p className="text-sm text-ink-muted mt-2 leading-relaxed">
           The portal seeds 5 fake users for the demo. Add yourself with your real email + role
-          SUPERADMIN, then add your COO, vCIO, and each salesperson. If <code>RESEND_API_KEY</code> is
+          <Badge tone="warn" shape="pill" size="xs" className="mx-1">SUPERADMIN</Badge>,
+          then add your COO, vCIO, and each salesperson. If <code className="font-mono text-[10px] bg-surface-2 px-1.5 py-0.5 rounded text-ink-strong">RESEND_API_KEY</code> is
           configured, each new user gets a magic-link invite automatically. Otherwise, share the
           password with them manually.
         </p>
-        <Button asChild className="mt-3">
+        <Button asChild className="mt-3" size="sm">
           <Link href="/admin/users">Open user manager</Link>
         </Button>
-        {realTeamCount <= 5 && (
-          <p className="text-xs text-gtn-amber mt-2">Only seed users exist so far. Add your real team.</p>
+        {!hasRealTeam && (
+          <p className="text-xs text-gtn-amber mt-3 inline-flex items-center gap-1.5">
+            <AlertCircle className="h-3.5 w-3.5" />
+            Only seed users exist so far. Add your real team.
+          </p>
         )}
       </Step>
 
-      {/* Step 3 — Review pricing */}
-      <Step
-        n={3}
-        title="Review pricing catalog"
-        icon={DollarSign}
-        complete={false /* manual step — always show */}
-      >
-        <p className="text-sm text-gtn-grey-2 mt-2">
+      <Step n={3} title="Review pricing catalog" icon={DollarSign} complete={false}>
+        <p className="text-sm text-ink-muted mt-2 leading-relaxed">
           Adjust bundle MRRs, seat tiers, onboarding fees, or floors. Changes propagate immediately
           to every quote, PricingCard auto-fill, and approval-tier calculation across the portal.
         </p>
-        <Button asChild className="mt-3" variant="secondary">
+        <Button asChild className="mt-3" variant="secondary" size="sm">
           <Link href="/admin/pricing">Edit pricing catalog</Link>
         </Button>
       </Step>
 
-      {/* Step 4 — Import prospects */}
-      <Step
-        n={4}
-        title="Import 25 starter prospects"
-        icon={Download}
-        complete={hasProspects}
-      >
-        <p className="text-sm text-gtn-grey-2 mt-2">
+      <Step n={4} title="Import 25 starter prospects" icon={Download} complete={hasProspects}>
+        <p className="text-sm text-ink-muted mt-2 leading-relaxed">
           Seed the 25-row Burbank-area prospect shortlist as Leads owned by{" "}
-          <code>lin@gatewaytelnet.com</code> (or your default salesperson). Idempotent — running
-          twice won&apos;t duplicate.
+          <code className="font-mono text-[10px] bg-surface-2 px-1.5 py-0.5 rounded text-ink-strong">lin@gatewaytelnet.com</code>{" "}
+          (or your default salesperson). Idempotent — running twice won&apos;t duplicate.
         </p>
         <div className="mt-3">
           <ImportProspectsButton />
         </div>
         {hasProspects && (
-          <p className="text-xs text-gtn-green mt-2">
+          <p className="text-xs text-gtn-green mt-3 inline-flex items-center gap-1.5">
+            <CheckCircle2 className="h-3.5 w-3.5" />
             {leadCount} lead{leadCount === 1 ? "" : "s"} already in the system.
           </p>
         )}
       </Step>
 
-      {/* Step 5 — Customize libraries */}
-      <Step
-        n={5}
-        title="Customize objections + outreach"
-        icon={MessageSquare}
-        complete={false}
-      >
-        <p className="text-sm text-gtn-grey-2 mt-2">
+      <Step n={5} title="Customize objections + outreach" icon={MessageSquare} complete={false}>
+        <p className="text-sm text-ink-muted mt-2 leading-relaxed">
           Review the seeded objection-rebuttal library and cold-outreach templates. Edit any that
           don&apos;t match your tone of voice.
         </p>
         <div className="flex gap-2 mt-3">
-          <Button asChild variant="secondary">
+          <Button asChild variant="secondary" size="sm">
             <Link href="/admin/objections">Objections</Link>
           </Button>
-          <Button asChild variant="secondary">
+          <Button asChild variant="secondary" size="sm">
             <Link href="/admin/outreach">Outreach</Link>
           </Button>
         </div>
       </Step>
 
-      {/* Step 6 — Test email */}
-      <Step
-        n={6}
-        title="Test email delivery"
-        icon={Mail}
-        complete={false}
-      >
-        <p className="text-sm text-gtn-grey-2 mt-2">
+      <Step n={6} title="Test email delivery" icon={Mail} complete={health.resend.configured}>
+        <p className="text-sm text-ink-muted mt-2 leading-relaxed">
           {health.resend.configured
             ? "Resend is configured. Sign out, sign back in via the magic-link tab using your real email to confirm delivery before your team relies on it."
             : "RESEND_API_KEY isn't set yet, so magic links won't send and outreach emails won't deliver. Set it in Vercel env, then come back here."}
         </p>
-        <Button asChild variant="secondary" className="mt-3">
+        <Button asChild variant="secondary" size="sm" className="mt-3">
           <Link href="/login">Go to login</Link>
         </Button>
       </Step>
 
-      {/* v2.18 — Destructive: wipe every Lead row + cascaded children.
-          Use after a demo run or whenever you want a clean slate for the
-          Burbank prospect bulk import. SUPERADMIN only; two-click confirm. */}
-      {can(role, "user:manage") && (
-        <Card>
-          <h2 className="text-base font-semibold text-gtn-navy mb-2">
-            Reset all leads
-          </h2>
-          <p className="text-sm text-gtn-grey-2 mb-3">
-            Permanently delete every <code>Lead</code> row (cascades to
-            Activities, Notes, Assessments, Handoffs, PricingApprovals,
-            DiscoveryAssessments, SignedDocuments, and any Customer whose
-            lead is removed). Use this before bulk-importing the prospect
-            shortlist if you want a clean DB. <strong>Irreversible.</strong>
+      {/* Maintenance actions */}
+      <div className="rounded-xl bg-surface border border-line-subtle p-4 md:p-5">
+        <div className="flex items-start gap-3 mb-4">
+          <Wrench className="h-5 w-5 text-ink-muted flex-shrink-0 mt-0.5" />
+          <div>
+            <h2 className="text-base font-semibold text-ink-strong">Maintenance</h2>
+            <p className="text-xs text-ink-muted mt-0.5">
+              Tools for keeping the database consistent. Safe to run anytime.
+            </p>
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-line-subtle p-4 bg-surface-2/40 mb-3">
+          <h3 className="text-sm font-semibold text-ink-strong">Recover orphaned accounts</h3>
+          <p className="text-sm text-ink-muted mt-1 mb-3 leading-relaxed">
+            If a Sales-to-Ops handoff was accepted but no Customer record exists
+            under <code className="font-mono text-[10px] bg-surface px-1.5 py-0.5 rounded text-ink-strong">/accounts</code>, click below. Scans all accepted handoffs
+            and creates the missing Customer rows. Idempotent — safe to run anytime.
           </p>
-          <WipeLeadsButton />
-        </Card>
-      )}
+          <BackfillAccountsButton />
+        </div>
 
-      {/* v2.15.2 — orphan-accounts recovery. If any accepted handoff
-          didn't produce a Customer (data drift from v2.0-B rollout, or a
-          partial accept-route failure), this button fixes them all. */}
-      <Card>
-        <h2 className="text-base font-semibold text-gtn-navy mb-2">
-          Recover orphaned accounts
-        </h2>
-        <p className="text-sm text-gtn-grey-2 mb-3">
-          If a Sales-to-Ops handoff was accepted but no Customer record exists
-          under <code>/accounts</code>, click below. Scans all accepted handoffs
-          and creates the missing Customer rows. Idempotent — safe to run anytime.
-        </p>
-        <BackfillAccountsButton />
-      </Card>
+        {can(role, "user:manage") && (
+          <div className="rounded-lg border border-danger/30 p-4 bg-danger-soft/30">
+            <h3 className="text-sm font-semibold text-gtn-red inline-flex items-center gap-1.5">
+              <Trash2 className="h-4 w-4" /> Reset all leads
+            </h3>
+            <p className="text-sm text-ink-muted mt-1 mb-3 leading-relaxed">
+              Permanently delete every <code className="font-mono text-[10px] bg-surface px-1.5 py-0.5 rounded text-ink-strong">Lead</code> row (cascades to
+              Activities, Notes, Assessments, Handoffs, PricingApprovals,
+              DiscoveryAssessments, SignedDocuments, and any Customer whose
+              lead is removed). Use this before bulk-importing the prospect
+              shortlist if you want a clean DB. <strong className="text-gtn-red">Irreversible.</strong>
+            </p>
+            <WipeLeadsButton />
+          </div>
+        )}
+      </div>
 
-      <Card className="bg-gtn-lavender border-gtn-purple/40">
-        <p className="text-sm text-gtn-navy">
-          <strong>Done?</strong> Run an end-to-end deal as a test:
-          sign in as <code>lin@</code> → create a lead from a prospect →
-          run discovery → request pricing → close-won → handoff → sign in as
-          <code> coo@</code> → accept the handoff → sign in as <code>teejay@</code> →
-          run the new customer through onboarding.
-        </p>
-      </Card>
+      {/* Walk-through card */}
+      <div className="rounded-xl bg-brand-soft border border-gtn-purple/30 p-4 md:p-5">
+        <h3 className="text-sm font-semibold text-gtn-navy mb-2">Done? Try an end-to-end deal as a test</h3>
+        <ol className="text-sm text-gtn-navy/90 leading-relaxed list-decimal list-inside space-y-1">
+          <li>Sign in as <code className="font-mono text-[10px] bg-surface px-1.5 py-0.5 rounded text-ink-strong">lin@</code> → create a lead from a prospect</li>
+          <li>Run discovery → request pricing → close-won → handoff</li>
+          <li>Sign in as <code className="font-mono text-[10px] bg-surface px-1.5 py-0.5 rounded text-ink-strong">coo@</code> → accept the handoff</li>
+          <li>Sign in as <code className="font-mono text-[10px] bg-surface px-1.5 py-0.5 rounded text-ink-strong">teejay@</code> → run the new customer through onboarding</li>
+        </ol>
+      </div>
     </div>
   );
 }
 
-function Stat({ label, value }: { label: string; value: number }) {
+function Stat({ label, value }: { label: string; value: number | string }) {
   return (
     <div>
       <p className="gtn-eyebrow">{label}</p>
-      <p className="text-2xl font-bold text-white">{value}</p>
+      <p className="text-2xl font-bold text-white tabular">{value}</p>
     </div>
   );
 }
@@ -279,28 +262,31 @@ function Step({
 }: {
   n: number;
   title: string;
-  icon: typeof Users;
+  icon: LucideIcon;
   complete: boolean;
   children: React.ReactNode;
 }) {
   return (
-    <Card>
+    <div className="rounded-xl bg-surface border border-line-subtle p-4 md:p-5">
       <div className="flex items-start gap-3">
         <div
-          className={`flex-shrink-0 h-10 w-10 rounded-full flex items-center justify-center text-sm font-bold ${
-            complete ? "bg-gtn-green-bg text-gtn-green" : "bg-gtn-lavender text-gtn-purple"
-          }`}
+          className={cn(
+            "flex-shrink-0 h-10 w-10 rounded-full flex items-center justify-center text-sm font-bold border",
+            complete
+              ? "bg-success-soft text-gtn-green border-transparent"
+              : "bg-brand-soft text-gtn-purple border-transparent",
+          )}
         >
           {complete ? <CheckCircle2 className="h-5 w-5" /> : n}
         </div>
         <div className="flex-1 min-w-0">
-          <h2 className="text-base font-semibold text-gtn-navy flex items-center gap-2">
+          <h2 className="text-base font-semibold text-ink-strong flex items-center gap-2">
             <Icon className="h-4 w-4 text-gtn-purple" /> {title}
           </h2>
           {children}
         </div>
       </div>
-    </Card>
+    </div>
   );
 }
 
@@ -318,17 +304,21 @@ function HealthRow({
   critical?: boolean;
 }) {
   return (
-    <li className="flex items-start gap-2">
+    <li className="flex items-start gap-2.5">
       {ok ? (
         <CheckCircle2 className="h-4 w-4 text-gtn-green flex-shrink-0 mt-0.5" />
       ) : (
-        <AlertCircle className={`h-4 w-4 flex-shrink-0 mt-0.5 ${critical ? "text-gtn-red" : "text-gtn-amber"}`} />
+        <AlertCircle
+          className={cn("h-4 w-4 flex-shrink-0 mt-0.5", critical ? "text-gtn-red" : "text-gtn-amber")}
+        />
       )}
       <div className="flex-1 min-w-0">
-        <span className="text-gtn-navy">{label}</span>
-        {!ok && (
-          <p className="text-xs text-gtn-grey-2 mt-0.5">
-            Set <code className="text-gtn-purple">{varName}</code> — {hint}
+        <span className="text-ink-strong">{label}</span>
+        {ok ? (
+          <span className="ml-2 text-[10px] uppercase tracking-wide text-gtn-green font-semibold">configured</span>
+        ) : (
+          <p className="text-xs text-ink-muted mt-0.5">
+            Set <code className="font-mono text-[10px] bg-surface-2 px-1.5 py-0.5 rounded text-gtn-purple font-semibold">{varName}</code> — {hint}
           </p>
         )}
       </div>
