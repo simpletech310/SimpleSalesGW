@@ -184,7 +184,14 @@ export function MyTasksView({
               ? "No onboarding tasks have rolled out for this role yet. They'll appear here as customers move through Discovery → Onboard → Stabilize."
               : "Nothing on your plate right now. Tasks land here automatically as customers hit each onboarding phase — check back after the next handoff."
           }
-          cta={{ label: "Open accounts", href: "/accounts" }}
+          /* v3.0.7 — CTA points back to the surface that matters for the
+             viewer's role. Salespeople don't see /accounts (it's blocked
+             for them), so send them to /leads where they actually work. */
+          cta={
+            userRole === Role.SALESPERSON
+              ? { label: "Open leads", href: "/leads" }
+              : { label: "Open accounts", href: "/accounts" }
+          }
           secondaryCta={{ label: "Open help center", href: "/help" }}
         />
       ) : (
