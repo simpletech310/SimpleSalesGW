@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { can } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
-import { Card } from "@/components/ui/Card";
+import { ListPage } from "@/components/templates";
 import { TerritoriesList } from "./TerritoriesList";
 
 export default async function SalesTerritoriesPage({
@@ -29,30 +29,24 @@ export default async function SalesTerritoriesPage({
 
   if (teams.length === 0) {
     return (
-      <div className="space-y-4">
-        <div>
-          <Link href="/sales" className="text-xs text-gtn-purple hover:underline">← Sales</Link>
-          <h1 className="text-2xl font-bold text-gtn-navy mt-1">Territories</h1>
-        </div>
-        <Card>
-          <p className="text-sm text-gtn-grey-2">
-            Territories belong to teams. <Link href="/sales/teams" className="text-gtn-purple underline">Create a team first →</Link>
-          </p>
-        </Card>
-      </div>
+      <ListPage
+        title="Territories"
+        crumbs={[{ href: "/sales", label: "Sales hub" }, { label: "Territories" }]}
+      >
+        <p className="text-sm text-ink-muted">
+          Territories belong to teams.{" "}
+          <Link href="/sales/teams" className="text-gtn-purple hover:underline font-medium">Create a team first →</Link>
+        </p>
+      </ListPage>
     );
   }
 
   return (
-    <div className="space-y-4">
-      <div>
-        <Link href="/sales" className="text-xs text-gtn-purple hover:underline">← Sales</Link>
-        <h1 className="text-2xl font-bold text-gtn-navy mt-1">Territories</h1>
-        <p className="text-sm text-gtn-grey-2 mt-1">
-          Hybrid coverage: by state, zip code, city, AND/OR a drawn polygon. Any match assigns the lead.
-        </p>
-      </div>
-
+    <ListPage
+      title="Territories"
+      subtitle="Hybrid coverage: by state, zip code, city, AND/OR a drawn polygon. Any match assigns the lead."
+      crumbs={[{ href: "/sales", label: "Sales hub" }, { label: "Territories" }]}
+    >
       <TerritoriesList
         initialTerritories={territories.map((t) => ({
           id: t.id,
@@ -68,6 +62,6 @@ export default async function SalesTerritoriesPage({
         teams={teams}
         defaultTeamId={teamFilter}
       />
-    </div>
+    </ListPage>
   );
 }

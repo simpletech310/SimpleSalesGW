@@ -3,10 +3,11 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { OnboardingTaskStatus, Role } from "@prisma/client";
 import { MyTasksView } from "./MyTasksView";
+import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { ListPage } from "@/components/templates";
 
-// v2.14 — completing or reassigning a task must show up immediately on
-// next page load. Without this, a stale rendered page can re-display a
-// completed task until cache TTL expires.
+// Completing or reassigning a task must show up immediately on next page load.
 export const dynamic = "force-dynamic";
 
 export default async function MyTasksPage({
@@ -26,7 +27,6 @@ export default async function MyTasksPage({
     if (session.user.role === Role.SUPERADMIN) lens = lensRaw as Role;
   }
 
-  // SSR initial fetch — direct DB query to avoid a roundtrip.
   const tasks = await prisma.onboardingTask.findMany({
     where: {
       ...(includeDone
@@ -44,7 +44,6 @@ export default async function MyTasksPage({
     },
   });
 
-  // v2.14 — bucket counts for the focus chips above the list.
   const now = Date.now();
   const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
   const FOURTEEN_DAYS = 14 * 24 * 60 * 60 * 1000;
@@ -63,60 +62,37 @@ export default async function MyTasksPage({
     else laterCount++;
   }
 
-  return (
-    <div className="space-y-4">
-      <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-bold text-gtn-navy">My tasks</h1>
-          <p className="text-sm text-gtn-grey-2 mt-1">
-            Onboarding work across every customer, role-filtered.
-          </p>
-        </div>
-        <a
-          href={`/my-tasks/print${lensRaw ? `?role=${lensRaw}` : ""}${includeDone ? `${lensRaw ? "&" : "?"}includeDone=true` : ""}`}
-          target="_blank"
-          rel="noreferrer"
-          className="text-xs text-gtn-purple underline self-end"
-        >
-          Print my checklist →
-        </a>
-      </div>
-      {/* v2.14 — at-a-glance focus chips. Tasks themselves stay in the
-          MyTasksView list below; this just gives users an immediate read
-          on what needs attention before they scan the table. */}
-      {tasks.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          <Chip label="Overdue" count={overdueCount} tone="red" />
-          <Chip label="Due this week" count={dueThisWeekCount} tone="amber" />
-          <Chip label="Next 14 days" count={dueNext14Count} tone="purple" />
-          <Chip label="Later" count={laterCount} tone="grey" />
-          {noDueCount > 0 && <Chip label="No due date" count={noDueCount} tone="grey" />}
-        </div>
-      )}
+  const printHref = `/my-tasks/print${lensRaw ? `?role=${lensRaw}` : ""}${includeDone ? `${lensRaw ? "&" : "?"}includeDone=true` : ""}`;
 
+  return (
+    <ListPage
+      title="My tasks"
+      subtitle="Onboarding work across every customer, role-filtered."
+      actions={
+        <Button asChild variant="secondary" size="sm">
+          <a href={printHref} target="_blank" rel="noreferrer">Print checklist</a>
+        </Button>
+      }
+      meta={
+        tasks.length > 0 ? (
+          <>
+            <Badge tone="danger"  shape="pill" size="sm" dot>Overdue <span className="ml-1 tabular font-semibold">{overdueCount}</span></Badge>
+            <Badge tone="warn"    shape="pill" size="sm" dot>This week <span className="ml-1 tabular font-semibold">{dueThisWeekCount}</span></Badge>
+            <Badge tone="brand"   shape="pill" size="sm" dot>Next 14d <span className="ml-1 tabular font-semibold">{dueNext14Count}</span></Badge>
+            <Badge tone="neutral" shape="pill" size="sm" dot>Later <span className="ml-1 tabular font-semibold">{laterCount}</span></Badge>
+            {noDueCount > 0 && (
+              <Badge tone="muted" shape="pill" size="sm">No due date <span className="ml-1 tabular font-semibold">{noDueCount}</span></Badge>
+            )}
+          </>
+        ) : null
+      }
+    >
       <MyTasksView
         initialTasks={tasks as never}
         userRole={session.user.role}
         lens={lens}
         includeDone={includeDone}
       />
-    </div>
-  );
-}
-
-function Chip({ label, count, tone }: { label: string; count: number; tone: "red" | "amber" | "purple" | "grey" }) {
-  const cls =
-    tone === "red"
-      ? "bg-[#FBE9E7] text-gtn-red"
-      : tone === "amber"
-      ? "bg-[#FEF3E2] text-gtn-amber"
-      : tone === "purple"
-      ? "bg-gtn-lavender text-gtn-purple"
-      : "bg-gtn-lavender-2 text-gtn-grey-2";
-  return (
-    <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${cls}`}>
-      {label}
-      <span className="font-mono">{count}</span>
-    </span>
+    </ListPage>
   );
 }

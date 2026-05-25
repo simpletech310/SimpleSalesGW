@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { can } from "@/lib/rbac";
+import { FormPage } from "@/components/templates";
 import { HandoffForm } from "./HandoffForm";
 
 export default async function HandoffPage({ params }: { params: Promise<{ id: string }> }) {
@@ -19,10 +20,17 @@ export default async function HandoffPage({ params }: { params: Promise<{ id: st
   if (!lead) notFound();
 
   return (
-    <div className="max-w-3xl mx-auto">
-      <h1 className="text-2xl font-bold text-gtn-navy">Sales-to-Ops handoff</h1>
-      <p className="text-sm text-gtn-grey-2 mb-6">{lead.businessName}</p>
+    <FormPage
+      title="Sales-to-Ops handoff"
+      subtitle={lead.businessName}
+      crumbs={[
+        { href: "/leads", label: "Leads" },
+        { href: `/leads/${id}`, label: lead.businessName },
+        { label: "Handoff" },
+      ]}
+      width="lg"
+    >
       <HandoffForm lead={lead as never} />
-    </div>
+    </FormPage>
   );
 }

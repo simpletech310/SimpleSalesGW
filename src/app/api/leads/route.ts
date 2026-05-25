@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { DealKind, Industry, LeadSource, type Prisma, type PipelineStage } from "@prisma/client";
+import { DealKind, Industry, LeadSource, MspSatisfaction, type Prisma, type PipelineStage } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { writeAudit } from "@/lib/audit";
 import { can, leadVisibilityFilter } from "@/lib/rbac";
@@ -19,10 +19,17 @@ const createSchema = z.object({
   addressZip: z.string().max(20).optional(),
   websiteUrl: z.string().url().optional().or(z.literal("")),
   linkedinCompanyUrl: z.string().url().optional().or(z.literal("")),
+  googleBusinessUrl: z.string().url().optional().or(z.literal("")),
   primaryContactName: z.string().max(200).optional(),
   primaryContactTitle: z.string().max(200).optional(),
   primaryContactEmail: z.string().email().optional().or(z.literal("")),
   primaryContactPhone: z.string().max(50).optional(),
+  // v3.1 — executive sponsor + current IT environment captured at intake so
+  // the discovery / qualification engines have something to chew on day-1.
+  executiveSponsorName: z.string().max(200).optional(),
+  executiveSponsorTitle: z.string().max(200).optional(),
+  currentMspName: z.string().max(200).optional(),
+  currentMspSatisfaction: z.nativeEnum(MspSatisfaction).default(MspSatisfaction.NONE),
   source: z.nativeEnum(LeadSource).default(LeadSource.INBOUND),
   // v2.15 — what kind of deal is this. Drives PricingCard form + onboarding template.
   dealKind: z.nativeEnum(DealKind).default(DealKind.MANAGED_IT_BUNDLE),
@@ -74,6 +81,7 @@ export async function POST(req: Request) {
         ...leadFields,
         websiteUrl: leadFields.websiteUrl || null,
         linkedinCompanyUrl: leadFields.linkedinCompanyUrl || null,
+        googleBusinessUrl: leadFields.googleBusinessUrl || null,
         primaryContactEmail: leadFields.primaryContactEmail || null,
         ownerUserId: user.id,
       },

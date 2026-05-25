@@ -2,30 +2,26 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { format } from "date-fns";
 import { AiFeatureKind } from "@prisma/client";
+import { Sparkles } from "lucide-react";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { can } from "@/lib/rbac";
-import { Card } from "@/components/ui/Card";
+import { StatCard } from "@/components/ui/StatCard";
+import { DataTable, type Column } from "@/components/ui/DataTable";
+import { DashboardPage, DashboardSection } from "@/components/templates";
 import { loadBudget, spendForOrg } from "@/lib/ai/budget";
 
 const FEATURE_LABEL: Record<AiFeatureKind, string> = {
-  RESEARCH_SUMMARY: "Research summary",
-  OBJECTION_REBUTTAL: "Objection coach",
-  DISCOVERY_PREP: "Discovery prep",
-  OUTREACH_PERSONALIZE: "Outreach personalize",
-  PRESALE_NARRATIVE: "Pre-sale narrative",
-  HANDOFF_QC: "Handoff QC",
-  SALES_COACH: "Sales coach",
+  RESEARCH_SUMMARY:    "Research summary",
+  OBJECTION_REBUTTAL:  "Objection coach",
+  DISCOVERY_PREP:      "Discovery prep",
+  OUTREACH_PERSONALIZE:"Outreach personalize",
+  PRESALE_NARRATIVE:   "Pre-sale narrative",
+  HANDOFF_QC:          "Handoff QC",
+  SALES_COACH:         "Sales coach",
   VCIO_RECOMMENDATION: "vCIO recommendations",
 };
 
-/**
- * v2.20f — /admin/ai-usage
- *
- * Org-wide month-to-date Claude spend with per-feature breakdown and the
- * 100 most recent AiUsageLog rows. Filterable by feature + lead via query
- * string (?feature=RESEARCH_SUMMARY&lead=<id>).
- */
 export default async function AiUsagePage({
   searchParams,
 }: {
@@ -62,145 +58,145 @@ export default async function AiUsagePage({
   ]);
 
   const orgPct = Math.min(100, (org.costUsdThisMonth / config.orgMonthlyCostUsd) * 100);
+  const remaining = Math.max(0, config.orgMonthlyCostUsd - org.costUsdThisMonth);
+
+  type FeatureRow = (typeof perFeature)[number];
+  const featureColumns: Column<FeatureRow>[] = [
+    {
+      key: "feature",
+      header: "Feature",
+      cell: (row) => (
+        <Link href={`/admin/ai-usage?feature=${row.feature}`} className="text-gtn-purple hover:underline font-medium">
+          {FEATURE_LABEL[row.feature]}
+        </Link>
+      ),
+    },
+    { key: "calls",  header: "Calls",         numeric: true, cell: (r) => r._count._all },
+    { key: "in",     header: "Input tokens",  numeric: true, cell: (r) => (r._sum.inputTokens ?? 0).toLocaleString() },
+    { key: "out",    header: "Output tokens", numeric: true, cell: (r) => (r._sum.outputTokens ?? 0).toLocaleString() },
+    {
+      key: "cost",
+      header: "Spend",
+      numeric: true,
+      cell: (r) => `$${Number(r._sum.estimatedCostUsd ?? 0).toFixed(4)}`,
+    },
+  ];
+
+  type LogRow = (typeof recent)[number];
+  const logColumns: Column<LogRow>[] = [
+    {
+      key: "when",
+      header: "When",
+      width: "120px",
+      cell: (r) => <span className="text-xs text-ink-muted tabular">{format(r.createdAt, "MMM d HH:mm")}</span>,
+    },
+    {
+      key: "feature",
+      header: "Feature",
+      cell: (r) => (
+        <Link href={`/admin/ai-usage?feature=${r.feature}`} className="text-gtn-purple hover:underline text-xs">
+          {FEATURE_LABEL[r.feature]}
+        </Link>
+      ),
+    },
+    {
+      key: "lead",
+      header: "Lead",
+      cell: (r) =>
+        r.lead ? (
+          <Link href={`/leads/${r.lead.id}`} className="text-ink-strong text-xs hover:text-gtn-purple">
+            {r.lead.businessName}
+          </Link>
+        ) : (
+          <span className="text-ink-faint">—</span>
+        ),
+    },
+    {
+      key: "user",
+      header: "User",
+      hideOnMobile: true,
+      cell: (r) =>
+        r.user ? <span className="text-xs text-ink-muted">{r.user.name ?? r.user.email}</span> : <span className="text-ink-faint">—</span>,
+    },
+    {
+      key: "tokens",
+      header: "In / Out tokens",
+      numeric: true,
+      cell: (r) => `${r.inputTokens} / ${r.outputTokens}`,
+    },
+    {
+      key: "cost",
+      header: "Cost",
+      numeric: true,
+      cell: (r) => `$${Number(r.estimatedCostUsd).toFixed(4)}`,
+    },
+  ];
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-2xl font-bold text-gtn-navy">AI usage</h1>
-      <p className="text-sm text-gtn-grey-2 -mt-2">
-        Month-to-date Claude spend. Caps: per-lead {config.perLeadMonthlyCallCap} calls /
-        ${config.perLeadMonthlyCostUsd.toFixed(2)}, org ${config.orgMonthlyCostUsd.toFixed(2)}.
-        Tune in <Link href="/admin/config" className="text-gtn-purple underline">System config</Link>.
-      </p>
-
-      {/* Org-wide tile */}
-      <Card>
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div>
-            <p className="text-xs uppercase tracking-wide text-gtn-grey-2">Org month-to-date</p>
-            <p className="text-2xl font-bold text-gtn-navy mt-1">
-              ${org.costUsdThisMonth.toFixed(2)}
-              <span className="text-sm text-gtn-grey-2 font-normal"> of ${config.orgMonthlyCostUsd.toFixed(2)}</span>
-            </p>
-            <p className="text-xs text-gtn-grey-2 mt-1">
-              {org.callsThisMonth} call{org.callsThisMonth === 1 ? "" : "s"} this month
-            </p>
-          </div>
-          <div className="w-48">
-            <div className="h-2 bg-gtn-lavender rounded-full overflow-hidden">
-              <div
-                className={`h-full ${orgPct >= 90 ? "bg-gtn-red" : orgPct >= 70 ? "bg-gtn-amber" : "bg-gtn-green"}`}
-                style={{ width: `${orgPct.toFixed(1)}%` }}
-              />
-            </div>
-            <p className="text-[10px] text-gtn-grey-2 text-right mt-1">{orgPct.toFixed(1)}% used</p>
-          </div>
-        </div>
-      </Card>
-
-      {/* Per-feature breakdown */}
-      <Card>
-        <h2 className="text-sm font-semibold text-gtn-navy mb-3">By feature this month</h2>
+    <DashboardPage
+      eyebrow="Administration"
+      title="AI usage"
+      subtitle={
+        <>
+          Month-to-date Claude spend. Caps: per-lead {config.perLeadMonthlyCallCap} calls / ${config.perLeadMonthlyCostUsd.toFixed(2)}, org $
+          {config.orgMonthlyCostUsd.toFixed(2)}. Tune in{" "}
+          <Link href="/admin/config" className="text-gtn-purple hover:underline font-medium">System config</Link>.
+        </>
+      }
+      crumbs={[{ href: "/admin", label: "Admin" }, { label: "AI usage" }]}
+      kpis={
+        <>
+          <StatCard
+            label="Spend month-to-date"
+            value={`$${org.costUsdThisMonth.toFixed(2)}`}
+            sub={`of $${config.orgMonthlyCostUsd.toFixed(2)} budget`}
+            icon={Sparkles}
+            tone={orgPct >= 90 ? "danger" : orgPct >= 70 ? "warn" : "success"}
+          />
+          <StatCard label="Calls this month" value={org.callsThisMonth} icon={Sparkles} tone="brand" />
+          <StatCard label="Budget used" value={`${orgPct.toFixed(1)}%`} icon={Sparkles} tone={orgPct >= 90 ? "danger" : orgPct >= 70 ? "warn" : "success"} />
+          <StatCard label="Remaining" value={`$${remaining.toFixed(2)}`} icon={Sparkles} tone="neutral" />
+        </>
+      }
+    >
+      <DashboardSection title="By feature this month" flush>
         {perFeature.length === 0 ? (
-          <p className="text-sm text-gtn-grey-2">No Claude calls this month yet.</p>
+          <p className="px-4 md:px-5 py-6 text-sm text-ink-muted">No Claude calls this month yet.</p>
         ) : (
-          <table className="w-full text-sm">
-            <thead className="text-left text-xs uppercase tracking-wide text-gtn-grey-2">
-              <tr>
-                <th className="py-2">Feature</th>
-                <th className="py-2 text-right">Calls</th>
-                <th className="py-2 text-right">Input tokens</th>
-                <th className="py-2 text-right">Output tokens</th>
-                <th className="py-2 text-right">Spend</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gtn-lavender-2">
-              {perFeature
-                .slice()
-                .sort((a, b) => Number(b._sum.estimatedCostUsd ?? 0) - Number(a._sum.estimatedCostUsd ?? 0))
-                .map((row) => (
-                  <tr key={row.feature}>
-                    <td className="py-2">
-                      <Link
-                        href={`/admin/ai-usage?feature=${row.feature}`}
-                        className="text-gtn-purple underline"
-                      >
-                        {FEATURE_LABEL[row.feature]}
-                      </Link>
-                    </td>
-                    <td className="py-2 text-right font-mono">{row._count._all}</td>
-                    <td className="py-2 text-right font-mono">{(row._sum.inputTokens ?? 0).toLocaleString()}</td>
-                    <td className="py-2 text-right font-mono">{(row._sum.outputTokens ?? 0).toLocaleString()}</td>
-                    <td className="py-2 text-right font-mono">${Number(row._sum.estimatedCostUsd ?? 0).toFixed(4)}</td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
+          <DataTable
+            columns={featureColumns}
+            rows={perFeature
+              .slice()
+              .sort((a, b) => Number(b._sum.estimatedCostUsd ?? 0) - Number(a._sum.estimatedCostUsd ?? 0))}
+            getRowKey={(r) => r.feature}
+            density="default"
+            className="border-0 rounded-none"
+          />
         )}
-      </Card>
+      </DashboardSection>
 
-      {/* Recent calls log */}
-      <Card className="p-0 overflow-hidden">
-        <div className="px-4 py-3 border-b border-gtn-lavender-2 flex items-center justify-between gap-2 flex-wrap">
-          <h2 className="text-sm font-semibold text-gtn-navy">
-            Recent calls {featureFilter ? `· ${FEATURE_LABEL[featureFilter]}` : ""}{leadFilter ? ` · lead filter` : ""}
-          </h2>
-          {(featureFilter || leadFilter) && (
-            <Link href="/admin/ai-usage" className="text-xs text-gtn-purple underline">
-              clear filters
+      <DashboardSection
+        title={`Recent calls${featureFilter ? ` · ${FEATURE_LABEL[featureFilter]}` : ""}${leadFilter ? " · lead filter" : ""}`}
+        subtitle="Last 100 Claude calls"
+        actions={
+          (featureFilter || leadFilter) && (
+            <Link href="/admin/ai-usage" className="text-xs text-gtn-purple hover:underline font-medium">
+              Clear filters
             </Link>
-          )}
-        </div>
-        {recent.length === 0 ? (
-          <p className="px-4 py-3 text-sm text-gtn-grey-2">No matching calls.</p>
-        ) : (
-          <table className="w-full text-sm">
-            <thead className="bg-gtn-lavender text-left text-xs uppercase tracking-wide text-gtn-grey-2">
-              <tr>
-                <th className="px-3 py-3">When</th>
-                <th className="px-3 py-3">Feature</th>
-                <th className="px-3 py-3">Lead</th>
-                <th className="px-3 py-3">User</th>
-                <th className="px-3 py-3 text-right">In/Out tokens</th>
-                <th className="px-3 py-3 text-right">Cost</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gtn-lavender-2">
-              {recent.map((r) => (
-                <tr key={r.id}>
-                  <td className="px-3 py-2 text-xs text-gtn-grey-2">
-                    {format(r.createdAt, "MMM d HH:mm")}
-                  </td>
-                  <td className="px-3 py-2 text-xs">
-                    <Link
-                      href={`/admin/ai-usage?feature=${r.feature}`}
-                      className="text-gtn-purple underline"
-                    >
-                      {FEATURE_LABEL[r.feature]}
-                    </Link>
-                  </td>
-                  <td className="px-3 py-2 text-xs">
-                    {r.lead ? (
-                      <Link href={`/leads/${r.lead.id}`} className="text-gtn-purple underline">
-                        {r.lead.businessName}
-                      </Link>
-                    ) : <span className="text-gtn-grey-3">—</span>}
-                  </td>
-                  <td className="px-3 py-2 text-xs">
-                    {r.user?.name ?? r.user?.email ?? <span className="text-gtn-grey-3">—</span>}
-                  </td>
-                  <td className="px-3 py-2 text-xs text-right font-mono">
-                    {r.inputTokens} / {r.outputTokens}
-                  </td>
-                  <td className="px-3 py-2 text-xs text-right font-mono">
-                    ${Number(r.estimatedCostUsd).toFixed(4)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </Card>
-    </div>
+          )
+        }
+        flush
+      >
+        <DataTable
+          columns={logColumns}
+          rows={recent}
+          getRowKey={(r) => r.id}
+          density="compact"
+          empty="No matching calls."
+          className="border-0 rounded-none"
+        />
+      </DashboardSection>
+    </DashboardPage>
   );
 }
 

@@ -179,29 +179,52 @@ export function PricingCard({ leadId, role, suggestedBundle, seatCount }: Props)
   const canApproveManager = role === "SALES_MANAGER" || role === "SUPERADMIN";
   const canApproveCoo = role === "COO" || role === "SUPERADMIN";
 
-  // v2.15.1 — header sticker preview. Always-visible compact summary of the
-  // currently-suggested bundle's MRR + one-time, so the salesperson sees
-  // the going price without opening the form.
+  // v3.1 — header sticker preview is gated on REAL signal.
+  //
+  // Old behavior (v2.15.1) defaulted to PROFESSIONAL × 1 seat when nothing was
+  // known yet — which produced a meaningless dollar figure on every brand-new
+  // lead and confused users into thinking the system had quoted a price.
+  //
+  // New rule: show the always-visible sticker only when we have both
+  //   1. a concrete `suggestedBundle` from the scoring engine, AND
+  //   2. a real `seatCount` (> 0).
+  //
+  // When ungated, render an empty-state with links so the rep knows exactly
+  // what to fill in next.
+  const hasRealSignal =
+    Boolean(suggestedBundle) &&
+    suggestedBundle !== ServiceBundle.CUSTOM &&
+    typeof seatCount === "number" &&
+    seatCount > 0;
+
   const headerSticker = useMemo(() => {
-    if (!catalog) return null;
-    const baseBundle = suggestedBundle ?? ServiceBundle.PROFESSIONAL;
-    const baseSeats = seatCount && seatCount > 0 ? seatCount : 1;
-    if (baseBundle === ServiceBundle.CUSTOM) return null;
-    return computeSticker(catalog, baseBundle, baseSeats);
-  }, [catalog, suggestedBundle, seatCount]);
+    if (!catalog || !hasRealSignal) return null;
+    return computeSticker(catalog, suggestedBundle!, seatCount!);
+  }, [catalog, hasRealSignal, suggestedBundle, seatCount]);
+
+  // What's missing? Used by the empty-state hint.
+  const missing: string[] = [];
+  if (!seatCount || seatCount <= 0) missing.push("seat count");
+  if (!suggestedBundle) missing.push("recommended bundle");
 
   return (
     <Card>
       <div className="flex items-start justify-between gap-3 mb-3 flex-wrap">
         <div className="min-w-0">
           <h3 className="text-sm font-semibold text-gtn-navy">Pricing</h3>
-          {suggestedBundle && (
+          {hasRealSignal ? (
             <p className="text-xs text-gtn-grey-2 mt-0.5">
-              Scoring engine suggests <strong>{suggestedBundle.replace(/_/g, " ")}</strong>
-              {seatCount ? ` for ${seatCount} seats` : ""}
+              Scoring engine suggests <strong>{suggestedBundle!.replace(/_/g, " ")}</strong>
+              {` for ${seatCount} seats`}
+            </p>
+          ) : (
+            <p className="text-xs text-gtn-grey-2 mt-0.5">
+              No pricing yet — we need {missing.join(" and ")} before showing a sticker.
             </p>
           )}
-          {/* v2.15.1 — sticker MRR + one-time band, always visible */}
+
+          {/* v3.1 — Header sticker only renders when we have real signal
+              (scoring-engine bundle suggestion + actual seat count). */}
           {headerSticker && (
             <div className="mt-2 inline-flex items-center gap-3 rounded-md bg-gtn-lavender px-3 py-2 text-sm">
               <span>
@@ -226,9 +249,33 @@ export function PricingCard({ leadId, role, suggestedBundle, seatCount }: Props)
           )}
         </div>
         <Button variant="secondary" onClick={() => setOpen((o) => !o)}>
-          {open ? "Cancel" : "Request approval"}
+          {open ? "Cancel" : hasRealSignal ? "Request approval" : "Quote manually"}
         </Button>
       </div>
+
+      {/* v3.1 — Empty-state hint when ungated. Tells the rep what to do next. */}
+      {!hasRealSignal && !open && (
+        <div className="rounded-md bg-gtn-callout-bg border-l-4 border-gtn-purple px-4 py-3 mb-2 text-sm">
+          <p className="text-gtn-navy">
+            <strong>Pricing appears here once the lead is qualified.</strong>{" "}
+            {!seatCount || seatCount <= 0 ? (
+              <>
+                Add a seat count under{" "}
+                <a href={`/leads/${leadId}/edit`} className="text-gtn-purple hover:underline font-medium">
+                  Edit lead
+                </a>
+                {!suggestedBundle ? " and " : "."}
+              </>
+            ) : null}
+            {!suggestedBundle ? (
+              <>
+                run the <strong>Qualification</strong> card below to let the scoring engine recommend a bundle, or
+                click <strong>Quote manually</strong> to enter a custom price.
+              </>
+            ) : null}
+          </p>
+        </div>
+      )}
 
       {open && catalog && (
         <form onSubmit={submit} className="space-y-4 border-b border-gtn-lavender-2 pb-4 mb-4">

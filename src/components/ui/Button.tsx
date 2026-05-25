@@ -3,23 +3,58 @@ import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
+/**
+ * v3.0 — refined-SaaS button.
+ *
+ * Existing variant keys preserved (default, secondary, ghost, destructive,
+ * link, accent) so call sites don't break. Visual language updated:
+ * - calmer borders and surfaces
+ * - tighter hover/active states
+ * - consistent focus ring (handled globally via :focus-visible)
+ * - new sizes: xs (24), sm (32), md/default (36), lg (44)
+ */
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
+  [
+    "inline-flex items-center justify-center gap-1.5 whitespace-nowrap",
+    "rounded-md font-medium select-none",
+    "transition-all duration-120 ease-smooth",
+    "disabled:pointer-events-none disabled:opacity-50",
+    "active:scale-[.98]",
+  ].join(" "),
   {
     variants: {
       variant: {
-        default: "bg-gtn-navy text-white hover:bg-gtn-navy-2",
-        secondary: "bg-white text-gtn-navy border border-gtn-navy hover:bg-gtn-lavender",
-        ghost: "text-gtn-navy hover:bg-gtn-lavender",
-        destructive: "bg-gtn-red text-white hover:opacity-90",
-        link: "text-gtn-purple underline-offset-4 hover:underline",
-        accent: "bg-gtn-purple text-white hover:bg-gtn-purple-3",
+        // Primary CTA — purple, the strongest action on the page
+        default:
+          "bg-gtn-purple text-white shadow-card hover:bg-[#4a3fb8] hover:shadow-[0_2px_8px_rgba(91,79,207,0.25)]",
+        // Dark navy alt — used when primary purple conflicts with surrounding purple chrome
+        primary:
+          "bg-gtn-navy text-white hover:bg-gtn-navy-2 shadow-card",
+        // Quiet outlined button
+        secondary:
+          "bg-surface text-ink-strong border border-line hover:bg-surface-3 hover:border-line-strong",
+        // Outline — same shape, no fill
+        outline:
+          "bg-transparent text-ink-strong border border-line hover:bg-surface-3",
+        // Borderless
+        ghost:
+          "bg-transparent text-ink hover:bg-surface-3 hover:text-ink-strong",
+        destructive:
+          "bg-gtn-red text-white hover:bg-[#b53127] shadow-card",
+        link:
+          "text-gtn-purple underline-offset-4 hover:underline px-0",
+        // Legacy alias for "accent" — keep purple primary behavior
+        accent:
+          "bg-gtn-purple text-white hover:bg-[#4a3fb8] shadow-card",
       },
       size: {
-        default: "h-10 px-4 py-2",
-        sm: "h-9 rounded-md px-3",
-        lg: "h-12 rounded-md px-6 text-base",
-        icon: "h-10 w-10",
+        xs:      "h-7 px-2 text-xs",
+        sm:      "h-8 px-3 text-sm",
+        default: "h-9 px-3.5 text-sm",
+        md:      "h-9 px-3.5 text-sm",
+        lg:      "h-11 px-5 text-base",
+        icon:    "h-9 w-9 p-0",
+        "icon-sm": "h-8 w-8 p-0",
       },
     },
     defaultVariants: { variant: "default", size: "default" },

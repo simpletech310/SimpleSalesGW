@@ -1,11 +1,10 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { format } from "date-fns";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { can, canSeeCustomer } from "@/lib/rbac";
-import { Card } from "@/components/ui/Card";
-import { PageHeaderBand } from "@/components/brand";
+import { Badge } from "@/components/ui/Badge";
+import { DetailPage } from "@/components/templates";
 import { AccountTabs } from "./AccountTabs";
 import { ArchiveButton } from "./ArchiveButton";
 import { AccountManagerPicker } from "./AccountManagerPicker";
@@ -36,44 +35,50 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
   if (!customer) notFound();
   if (!canSeeCustomer(session.user.role, session.user.id, customer.lead.ownerUserId)) {
     return (
-      <Card>
-        <p className="text-sm text-gtn-grey-2">You don&apos;t have permission to view this account.</p>
-      </Card>
+      <div className="rounded-xl bg-surface border border-line-subtle p-6 max-w-md">
+        <p className="text-sm text-ink-muted">You don&apos;t have permission to view this account.</p>
+      </div>
     );
   }
 
   const lead = customer.lead;
+  const completedDiscoveries = customer.discoveryAssessments.filter((d) => d.status === "COMPLETED").length;
 
   return (
-    <div className="space-y-6">
-      <PageHeaderBand pageTitle={`Account · ${lead.businessName}`} />
-      {/* Header */}
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="min-w-0">
-          <p className="text-xs text-gtn-grey-3">
-            <Link className="hover:underline" href={`/leads/${lead.id}`}>← back to original lead</Link>
-          </p>
-          <h1 className="text-2xl font-bold text-gtn-navy truncate mt-1">{lead.businessName}</h1>
-          <div className="flex flex-wrap gap-2 mt-2 text-sm">
-            <span className="inline-block rounded-full bg-gtn-purple text-white text-xs px-3 py-1">
-              {customer.currentPhase.replace(/_/g, " ")}
-            </span>
-            <StatusBadge status={customer.status} />
-            <span className="text-gtn-grey-2">{lead.industry.replace(/_/g, " ")}</span>
-            {lead.seatCount && <span className="text-gtn-grey-2">· {lead.seatCount} seats</span>}
-          </div>
-        </div>
-        {can(session.user.role, "customer:archive") && (
+    <DetailPage
+      crumbs={[
+        { href: "/accounts", label: "Accounts" },
+        { href: `/leads/${lead.id}`, label: "Original lead" },
+        { label: lead.businessName },
+      ]}
+      eyebrow="Account"
+      title={lead.businessName}
+      subtitle={
+        <>
+          {lead.industry.replace(/_/g, " ").toLowerCase()}
+          {lead.seatCount ? <> · {lead.seatCount} seats</> : null}
+        </>
+      }
+      badges={
+        <>
+          <Badge tone="brand" shape="pill" size="sm">
+            {customer.currentPhase.replace(/_/g, " ").toLowerCase()}
+          </Badge>
+          <StatusBadge status={customer.status} />
+        </>
+      }
+      actions={
+        can(session.user.role, "customer:archive") && (
           <ArchiveButton
             customerId={customer.id}
             customerName={lead.businessName}
             alreadyArchived={Boolean(customer.archivedAt)}
           />
-        )}
-      </div>
-
+        )
+      }
+    >
       {/* Quick stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3 md:gap-4">
         <StatTile
           label="Account manager"
           value={
@@ -95,7 +100,7 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
         />
         <StatTile
           label="Discovery"
-          value={`${customer.discoveryAssessments.filter((d) => d.status === "COMPLETED").length}/${customer.discoveryAssessments.length} done`}
+          value={`${completedDiscoveries}/${customer.discoveryAssessments.length} done`}
         />
       </div>
 
@@ -117,28 +122,24 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
           completedAt: q.completedAt?.toISOString() ?? null,
         }))}
       />
-    </div>
+    </DetailPage>
   );
 }
 
 function StatTile({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="gtn-card p-3">
-      <p className="text-[10px] uppercase tracking-wide text-gtn-grey-2">{label}</p>
-      <div className="text-sm font-medium text-gtn-navy mt-1">{value}</div>
+    <div className="rounded-xl bg-surface border border-line-subtle p-3.5">
+      <p className="ui-label">{label}</p>
+      <div className="text-sm font-medium text-ink-strong mt-1.5">{value}</div>
     </div>
   );
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const cls =
-    status === "ACTIVE" ? "bg-gtn-green-bg text-gtn-green"
-      : status === "ONBOARDING" ? "bg-[#FEF3E2] text-gtn-amber"
-      : status === "PAUSED" ? "bg-gtn-lavender text-gtn-grey-2"
-      : "bg-[#FBE9E7] text-gtn-red";
-  return (
-    <span className={`text-[10px] font-semibold uppercase tracking-wide rounded-full px-2 py-0.5 ${cls}`}>
-      {status}
-    </span>
-  );
+  const tone =
+    status === "ACTIVE" ? "success" :
+    status === "ONBOARDING" ? "warn" :
+    status === "PAUSED" ? "neutral" :
+    "danger";
+  return <Badge tone={tone} shape="pill" size="xs">{status.toLowerCase()}</Badge>;
 }

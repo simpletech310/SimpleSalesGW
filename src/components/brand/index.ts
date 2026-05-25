@@ -12,6 +12,8 @@ export { MetaBlock } from "./MetaBlock";
 export { IconTile } from "./IconTile";
 export { HeroBand } from "./HeroBand";
 export { PageHeaderBand } from "./PageHeaderBand";
+export { PageHeader, SectionHeader } from "./PageHeader";
+export type { PageHeaderProps } from "./PageHeader";
 export { BrandedFooter } from "./BrandedFooter";
 export { Pill } from "./Pill";
 export type { PillTone } from "./Pill";

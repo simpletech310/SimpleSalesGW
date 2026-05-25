@@ -1,44 +1,37 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { can } from "@/lib/rbac";
-import { Card } from "@/components/ui/Card";
+import { Badge } from "@/components/ui/Badge";
 import { loadCatalog } from "@/lib/pricing/loader";
 import { DEFAULT_CATALOG } from "@/lib/pricing/catalog";
+import { ListPage } from "@/components/templates";
 import { PricingEditor } from "./PricingEditor";
 
 export default async function AdminPricingPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
-  // v2.14 — Sales Manager now also has full pricing catalog edit.
   if (!can(session.user.role, "pricing:catalog:edit")) redirect("/");
 
   const catalog = await loadCatalog();
   const isOverride = catalog.version !== DEFAULT_CATALOG.version;
 
   return (
-    <div className="max-w-4xl space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold text-gtn-navy">Pricing catalog</h1>
-        <p className="text-sm text-gtn-grey-2">
-          Drives sticker math + below-floor enforcement on every pricing approval request.
-        </p>
-      </div>
-
-      <Card>
-        <p className="text-sm">
-          Active version: <code className="gtn-code-pill">{catalog.version}</code>{" "}
-          {isOverride ? (
-            <span className="text-gtn-purple ml-2">override</span>
-          ) : (
-            <span className="text-gtn-grey-2 ml-2">using committed defaults</span>
-          )}
-        </p>
-        <p className="text-xs text-gtn-grey-2 mt-2">
-          Bundles defined: {Object.keys(catalog.bundles).length} · Standalone service lines: {Object.keys(catalog.standalone).length}
-        </p>
-      </Card>
-
+    <ListPage
+      title="Pricing catalog"
+      subtitle="Drives sticker math + below-floor enforcement on every pricing approval request."
+      crumbs={[{ href: "/admin", label: "Admin" }, { label: "Pricing catalog" }]}
+      meta={
+        <>
+          <Badge tone={isOverride ? "brand" : "neutral"} shape="pill" size="sm" dot>
+            v{catalog.version} {isOverride ? "override" : "default"}
+          </Badge>
+          <span className="text-xs text-ink-muted">
+            {Object.keys(catalog.bundles).length} bundles · {Object.keys(catalog.standalone).length} standalone lines
+          </span>
+        </>
+      }
+    >
       <PricingEditor initialCatalog={catalog} defaultCatalog={DEFAULT_CATALOG} />
-    </div>
+    </ListPage>
   );
 }

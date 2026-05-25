@@ -1,15 +1,16 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Pencil } from "lucide-react";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { can, leadIsVisible } from "@/lib/rbac";
 import { userTeamIds } from "@/lib/sales/teams";
 import { STRINGS } from "@/lib/strings";
-import { scoreBadgeClass, formatScore } from "@/lib/utils";
+import { formatScore } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
-import { PageHeaderBand, Callout } from "@/components/brand";
+import { Badge, ScoreBadge } from "@/components/ui/Badge";
+import { Callout } from "@/components/brand";
+import { DetailPage } from "@/components/templates";
 import { StageTimeline } from "@/components/process/StageTimeline";
 import { LeadTabs } from "./LeadTabs";
 import { PricingCard } from "./PricingCard";
@@ -23,7 +24,6 @@ import { DealKindPicker } from "./DealKindPicker";
 import { ServiceQuoteCard } from "./ServiceQuoteCard";
 import { PreSaleAssessmentPanel } from "./PreSaleAssessmentPanel";
 import { AiUsageMeter } from "./AiUsageMeter";
-// v2.22 — sales workflow surfaces
 import { EngagementPanel } from "./EngagementPanel";
 import { VideoCallButton } from "./VideoCallButton";
 import { SalesCoachPanel } from "./SalesCoachPanel";
@@ -57,47 +57,35 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
     },
   });
   if (!lead) notFound();
-  // v2.23.3 — team membership feeds both the visibility check and the
-  // edit-button gating below, so SALESPERSONs on the lead's team can
-  // both open + edit it even if they aren't the personal owner.
+
   const teamIds = await userTeamIds(session.user.id);
   const onTeam = lead.teamId ? teamIds.includes(lead.teamId) : false;
-  // v2.17.1 — VCIO's `leadIsVisible` short-circuits to PRE_SALES+, which
-  // would block them from opening an early-stage lead they were explicitly
-  // asked to scope. If a pre-sale DiscoveryAssessment exists on this lead
-  // and the viewer can edit discoveries, grant access — they have a
-  // legitimate scoping reason to see the lead context.
-  let leadVisible = leadIsVisible(session.user.role, session.user.id, lead.ownerUserId, lead.pipelineStage, lead.teamId, teamIds);
+  let leadVisible = leadIsVisible(
+    session.user.role,
+    session.user.id,
+    lead.ownerUserId,
+    lead.pipelineStage,
+    lead.teamId,
+    teamIds,
+  );
   if (!leadVisible && can(session.user.role, "discovery:edit")) {
-    const hasPreSale = await prisma.discoveryAssessment.count({
-      where: { leadId: id },
-    });
+    const hasPreSale = await prisma.discoveryAssessment.count({ where: { leadId: id } });
     if (hasPreSale > 0) leadVisible = true;
   }
   if (!leadVisible) {
     return (
-      <Card>
-        <h2 className="text-lg font-semibold text-gtn-navy">{STRINGS.auth.notAuthorized}</h2>
-      </Card>
+      <div className="rounded-xl bg-surface border border-line-subtle p-6 max-w-md">
+        <h2 className="text-lg font-semibold text-ink-strong">{STRINGS.auth.notAuthorized}</h2>
+      </div>
     );
   }
 
-  // v2.14 — handoff-state probe for the CLOSED_WON-without-handoff CTA.
-  // We pull the latest handoff so the banner can either nudge "initiate
-  // one" or surface "waiting on COO" depending on status.
   const latestHandoff = await prisma.handoff.findFirst({
     where: { leadId: id },
     orderBy: { createdAt: "desc" },
-    select: {
-      id: true,
-      status: true,
-      initiator: { select: { name: true } },
-    },
+    select: { id: true, status: true, initiator: { select: { name: true } } },
   });
 
-  // v2.15.2 — orphan-detection: did the accepted handoff actually produce a
-  // Customer? If not, HandoffCard surfaces a "Create account now" button so
-  // ops can recover without filing a ticket.
   const existingCustomer = await prisma.customer.findUnique({
     where: { leadId: id },
     select: { id: true },
@@ -112,47 +100,120 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
       })
     : [];
 
-  // v2.14 — banner decision tree:
-  //   CLOSED_WON + no handoff at all (or only DRAFT)
-  //     → "Initiate handoff" warn CTA
-  //   CLOSED_WON + INITIATED handoff
-  //     → "Waiting on COO" info CTA
-  //   Otherwise: no banner
   const closedWon = lead.pipelineStage === PipelineStage.CLOSED_WON;
-  const hasLiveHandoff =
-    latestHandoff != null && latestHandoff.status !== HandoffStatus.DRAFT;
-  const handoffWaitingAcceptance =
-    latestHandoff?.status === HandoffStatus.INITIATED;
+  const hasLiveHandoff = latestHandoff != null && latestHandoff.status !== HandoffStatus.DRAFT;
+  const handoffWaitingAcceptance = latestHandoff?.status === HandoffStatus.INITIATED;
   const handoffAccepted = latestHandoff?.status === HandoffStatus.ACCEPTED;
 
+  const canEditLead = lead.ownerUserId === session.user.id || can(session.user.role, "lead:edit:any");
+  const canEditLeadOrTeam = canEditLead || onTeam;
+
   return (
-    <div className="space-y-6">
-      <PageHeaderBand pageTitle={`Lead · ${lead.businessName}`} />
-
-      {/* v2.20 — inline AI usage meter (per-lead month-to-date) */}
-      <div className="flex items-center justify-end gap-2 -mt-2">
-        {/* v2.22 — in-portal Daily.co video / audio calls */}
-        <VideoCallButton leadId={lead.id} />
-        <AiUsageMeter leadId={lead.id} />
-      </div>
-
-      {/* v2.22 — engagement quick-actions + AI sales coach */}
-      <div className="grid lg:grid-cols-3 gap-4">
+    <DetailPage
+      crumbs={[{ href: "/leads", label: "Leads" }, { label: lead.businessName }]}
+      eyebrow="Lead"
+      title={
+        <span className="inline-flex items-center gap-2">
+          {lead.businessName}
+          {canEditLeadOrTeam && (
+            <Link
+              href={`/leads/${lead.id}/edit`}
+              aria-label="Edit lead"
+              title="Edit lead"
+              className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-line-subtle bg-surface text-ink-muted hover:text-gtn-purple hover:border-brand hover:bg-brand-soft transition-colors duration-120 ease-smooth"
+            >
+              <Pencil className="h-4 w-4" />
+            </Link>
+          )}
+        </span>
+      }
+      subtitle={
+        <>
+          {lead.industry.replace(/_/g, " ").toLowerCase()}
+          {lead.seatCount ? <> · {lead.seatCount} seats</> : null}
+          {lead.addressCity ? <> · {lead.addressCity}, {lead.addressState}</> : null}
+          {lead.owner?.name && (
+            <>
+              {" · "}Owner:{" "}
+              <span className={lead.ownerUserId === session.user.id ? "text-gtn-purple font-medium" : "text-ink"}>
+                {lead.owner.name}
+                {lead.ownerUserId === session.user.id ? " (you)" : ""}
+              </span>
+            </>
+          )}
+        </>
+      }
+      badges={
+        <>
+          <Badge tone="brand" shape="pill" size="sm">
+            {STRINGS.pipeline.stages[lead.pipelineStage]}
+          </Badge>
+          {lead.nonStrategicFlag && (
+            <Badge tone="danger" shape="pill" size="xs">non-strategic</Badge>
+          )}
+          <DealKindPicker
+            leadId={lead.id}
+            currentKind={lead.dealKind}
+            canEdit={canEditLead}
+          />
+        </>
+      }
+      actions={
+        <>
+          {/* Edit FIRST so it never gets crowded out behind other buttons. */}
+          {canEditLeadOrTeam && (
+            <Button asChild variant="secondary" size="sm">
+              <Link href={`/leads/${lead.id}/edit`} className="inline-flex items-center gap-1.5">
+                <Pencil className="h-3.5 w-3.5" />
+                Edit lead
+              </Link>
+            </Button>
+          )}
+          {can(session.user.role, "assessment:run") && (
+            <Button asChild variant="secondary" size="sm">
+              <Link href={`/leads/${lead.id}/assessment/start`}>Run assessment</Link>
+            </Button>
+          )}
+          {can(session.user.role, "outreach:send") && (
+            <Button asChild variant="secondary" size="sm">
+              <Link href={`/leads/${lead.id}/outreach`}>Send outreach</Link>
+            </Button>
+          )}
+          {canEditLead && (
+            <Button asChild variant="secondary" size="sm">
+              <Link href={`/leads/${lead.id}/discovery-call`}>Discovery call</Link>
+            </Button>
+          )}
+          <VideoCallButton leadId={lead.id} />
+          <AiUsageMeter leadId={lead.id} />
+          {can(session.user.role, "lead:assign") && lead.ownerUserId !== session.user.id && (
+            <AssignToMeButton leadId={lead.id} currentOwnerName={lead.owner.name} />
+          )}
+          {can(session.user.role, "handoff:initiate") && (
+            <Button asChild size="sm">
+              <Link href={`/leads/${lead.id}/handoff`}>Handoff to Ops</Link>
+            </Button>
+          )}
+          {can(session.user.role, "lead:delete") && (
+            <DeleteLeadButton leadId={lead.id} businessName={lead.businessName} />
+          )}
+        </>
+      }
+    >
+      {/* Engagement + AI coach */}
+      <div className="grid lg:grid-cols-3 gap-4 md:gap-5">
         <div className="lg:col-span-2">
           <EngagementPanel leadId={lead.id} />
         </div>
         <SalesCoachPanel leadId={lead.id} />
       </div>
 
-
-      {/* v2.14 — Closed-won-without-handoff: the most common "why isn't there
-          an account?" footgun. Surface it loud at the top of the page. */}
+      {/* Closed-won handoff banner */}
       {closedWon && !hasLiveHandoff && (
         <Callout kind="warning" label="Action needed">
           <p className="mb-2">
-            This deal is closed-won but no handoff is on the way yet. An Account
-            won&apos;t be created under <strong>/accounts</strong> until you initiate
-            a Sales-to-Ops handoff and the COO accepts it.
+            This deal is closed-won but no handoff is on the way yet. An Account won&apos;t be created under{" "}
+            <strong>/accounts</strong> until you initiate a Sales-to-Ops handoff and the COO accepts it.
           </p>
           {can(session.user.role, "handoff:initiate") ? (
             <Link
@@ -162,7 +223,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
               Initiate handoff to Ops <ArrowRight size={14} />
             </Link>
           ) : (
-            <p className="text-xs text-gtn-grey-2">
+            <p className="text-xs text-ink-muted">
               Ask {lead.owner.name} (the lead owner) to initiate a handoff.
             </p>
           )}
@@ -171,9 +232,9 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
       {closedWon && handoffWaitingAcceptance && (
         <Callout kind="note" label="Waiting on Ops">
           <p>
-            Handoff sent <strong>{latestHandoff?.initiator.name ?? "by the owner"}</strong>.
-            Waiting on the COO to accept — once they do, an Account will appear under{" "}
-            <Link href="/accounts" className="text-gtn-purple hover:underline">/accounts</Link>{" "}
+            Handoff sent <strong>{latestHandoff?.initiator.name ?? "by the owner"}</strong>. Waiting on the COO
+            to accept — once they do, an Account will appear under{" "}
+            <Link href="/accounts" className="text-gtn-purple hover:underline font-medium">/accounts</Link>{" "}
             and the vCIO takes over Discovery + onboarding.
           </p>
         </Callout>
@@ -182,88 +243,26 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
         <Callout kind="tip" label="Handoff accepted">
           <p>
             This deal is now a Customer under{" "}
-            <Link href="/accounts" className="text-gtn-purple hover:underline inline-flex items-center gap-1">
+            <Link href="/accounts" className="text-gtn-purple hover:underline inline-flex items-center gap-1 font-medium">
               /accounts <ArrowRight size={12} />
             </Link>
           </p>
         </Callout>
       )}
-      {/* Header */}
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-bold text-gtn-navy truncate">{lead.businessName}</h1>
-          <div className="flex flex-wrap gap-2 mt-2 text-sm">
-            <span className="gtn-stage-chip">{STRINGS.pipeline.stages[lead.pipelineStage]}</span>
-            <span className="text-gtn-grey-2">{lead.industry.replace(/_/g, " ")}</span>
-            {lead.seatCount && <span className="text-gtn-grey-2">· {lead.seatCount} seats</span>}
-            {lead.addressCity && (
-              <span className="text-gtn-grey-2">· {lead.addressCity}, {lead.addressState}</span>
-            )}
-            {lead.nonStrategicFlag && (
-              <span className="text-xs uppercase font-semibold text-gtn-red">Non-strategic</span>
-            )}
-          </div>
-          {/* v2.15 — deal-kind inline editor */}
-          <div className="mt-2">
-            <DealKindPicker
-              leadId={lead.id}
-              currentKind={lead.dealKind}
-              canEdit={lead.ownerUserId === session.user.id || can(session.user.role, "lead:edit:any")}
-            />
-          </div>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {can(session.user.role, "assessment:run") && (
-            <Button asChild variant="secondary">
-              <Link href={`/leads/${lead.id}/assessment/start`}>Run assessment</Link>
-            </Button>
-          )}
-          {can(session.user.role, "outreach:send") && (
-            <Button asChild variant="secondary">
-              <Link href={`/leads/${lead.id}/outreach`}>Send outreach</Link>
-            </Button>
-          )}
-          {(lead.ownerUserId === session.user.id || can(session.user.role, "lead:edit:any")) && (
-            <Button asChild variant="secondary">
-              <Link href={`/leads/${lead.id}/discovery-call`}>Discovery call</Link>
-            </Button>
-          )}
-          {(lead.ownerUserId === session.user.id || can(session.user.role, "lead:edit:any") || onTeam) && (
-            <Button asChild variant="secondary">
-              <Link href={`/leads/${lead.id}/edit`}>Edit lead</Link>
-            </Button>
-          )}
-          {/* v2.23.3 — managers + superadmins can self-assign any lead */}
-          {can(session.user.role, "lead:assign") && lead.ownerUserId !== session.user.id && (
-            <AssignToMeButton
-              leadId={lead.id}
-              currentOwnerName={lead.owner.name}
-            />
-          )}
-          {can(session.user.role, "handoff:initiate") && (
-            <Button asChild>
-              <Link href={`/leads/${lead.id}/handoff`}>Handoff to Ops</Link>
-            </Button>
-          )}
-          {can(session.user.role, "lead:delete") && (
-            <DeleteLeadButton leadId={lead.id} businessName={lead.businessName} />
-          )}
-        </div>
-      </div>
 
-      {/* 14-stage unified process timeline (v2.3) */}
+      {/* 14-stage process timeline */}
       <StageTimeline leadId={lead.id} />
 
-      {/* Close-deal controls — terminal stages aren't on the Kanban */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <p className="text-xs text-gtn-grey-2">
+      {/* Close-deal controls */}
+      <div className="flex items-center justify-between gap-3 flex-wrap rounded-xl bg-surface border border-line-subtle p-3.5">
+        <p className="text-sm text-ink-muted">
           Close this deal once signed, mark lost with a reason, or move to Nurture for later.
         </p>
         <CloseDealButtons leadId={lead.id} currentStage={lead.pipelineStage} />
       </div>
 
       {/* Score strip */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4">
         <ScoreTile label={STRINGS.scoring.services} value={lead.servicesScore} />
         <ScoreTile label={STRINGS.scoring.customer} value={lead.customerScore} />
         <ScoreTile
@@ -284,31 +283,23 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
       </div>
 
       {lead.nonStrategicFlag && (
-        <div className="gtn-callout gtn-callout--warning">
+        <Callout kind="warning" label="Non-strategic">
           <strong>{STRINGS.assessment.nonStrategicBanner}</strong>
           {lead.nonStrategicApprovalUserId && (
             <p className="text-sm mt-1">Approved · {lead.nonStrategicApprovalReason}</p>
           )}
-        </div>
+        </Callout>
       )}
 
-      <QualificationCard
-        leadId={lead.id}
-        canEdit={lead.ownerUserId === session.user.id || can(session.user.role, "lead:edit:any")}
-      />
+      <QualificationCard leadId={lead.id} canEdit={canEditLead} />
 
-      {/* v2.17 — Pre-sale technical scoping by the vCIO. Lin requests it
-          right from here; once complete the recommended line items can be
-          adopted into the ServiceQuoteCard with one click. */}
       <PreSaleAssessmentPanel
         leadId={lead.id}
         dealKind={lead.dealKind}
-        canEdit={lead.ownerUserId === session.user.id || can(session.user.role, "lead:edit:any")}
+        canEdit={canEditLead}
         canRunDiscovery={can(session.user.role, "discovery:edit")}
       />
 
-      {/* v2.15 — branch on deal kind: MSP bundles use the seat-tier PricingCard;
-          everything else gets the line-item ServiceQuoteCard. */}
       {lead.dealKind === DealKind.MANAGED_IT_BUNDLE ? (
         <PricingCard
           leadId={lead.id}
@@ -326,7 +317,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
               ? ((lead.dealLineItems as { lines?: LineItem[] }).lines ?? null)
               : null
           }
-          canEdit={lead.ownerUserId === session.user.id || can(session.user.role, "lead:edit:any")}
+          canEdit={canEditLead}
         />
       )}
 
@@ -338,29 +329,46 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
 
       <LeadTabs
         lead={lead as never}
-        canEdit={lead.ownerUserId === session.user.id || can(session.user.role, "lead:edit:any")}
+        canEdit={canEditLead}
         auditLogs={auditLogs}
       />
-    </div>
+    </DetailPage>
   );
 }
 
-function ScoreTile({ label, value, primary, override }: { label: string; value: number; primary?: boolean; override?: React.ReactNode }) {
+function ScoreTile({
+  label,
+  value,
+  primary,
+  override,
+}: {
+  label: string;
+  value: number;
+  primary?: boolean;
+  override?: React.ReactNode;
+}) {
+  if (primary) {
+    return (
+      <div className="rounded-xl bg-gtn-navy text-white p-4 md:p-5 relative overflow-hidden">
+        <div className="absolute -right-12 -top-12 w-32 h-32 rounded-full bg-gtn-purple/30 pointer-events-none" />
+        <div className="relative flex items-center justify-between gap-2">
+          <p className="text-[10px] uppercase tracking-wider text-white/70 font-semibold">{label}</p>
+          {override}
+        </div>
+        <p className="relative mt-2 ui-stat text-4xl">{formatScore(value)}</p>
+      </div>
+    );
+  }
   return (
-    <div className={primary ? "gtn-card p-4 bg-gtn-navy text-white" : "gtn-card p-4"}>
+    <div className="rounded-xl bg-surface border border-line-subtle p-4 md:p-5">
       <div className="flex items-center justify-between gap-2">
-        <p className={primary ? "text-xs uppercase tracking-wide text-white/70" : "text-xs uppercase tracking-wide text-gtn-grey-2"}>
-          {label}
-        </p>
+        <p className="ui-label">{label}</p>
         {override}
       </div>
-      {primary ? (
-        <p className="text-3xl font-mono font-bold mt-1">{formatScore(value)}</p>
-      ) : (
-        <p className="mt-1 inline-block">
-          <span className={scoreBadgeClass(value)}>{formatScore(value)}</span>
-        </p>
-      )}
+      <div className="mt-2.5 flex items-baseline gap-3">
+        <p className="ui-stat text-3xl">{formatScore(value)}</p>
+        <ScoreBadge score={value} />
+      </div>
     </div>
   );
 }

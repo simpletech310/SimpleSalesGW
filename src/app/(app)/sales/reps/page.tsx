@@ -1,10 +1,9 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Role } from "@prisma/client";
 import { auth } from "@/auth";
 import { can } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
-import { Card } from "@/components/ui/Card";
+import { ListPage } from "@/components/templates";
 import { RepsList } from "./RepsList";
 
 export default async function SalesRepsPage() {
@@ -30,15 +29,11 @@ export default async function SalesRepsPage() {
   });
 
   return (
-    <div className="space-y-4">
-      <div>
-        <Link href="/sales" className="text-xs text-gtn-purple hover:underline">← Sales</Link>
-        <h1 className="text-2xl font-bold text-gtn-navy mt-1">Sales reps</h1>
-        <p className="text-sm text-gtn-grey-2 mt-1">
-          Hire new reps + see existing ones. Manage team membership from each team&apos;s page.
-        </p>
-      </div>
-
+    <ListPage
+      title="Sales reps"
+      subtitle="Hire new reps + see existing ones. Manage team membership from each team's page."
+      crumbs={[{ href: "/sales", label: "Sales hub" }, { label: "Reps" }]}
+    >
       <RepsList
         initialReps={reps.map((r) => ({
           id: r.id,
@@ -53,10 +48,8 @@ export default async function SalesRepsPage() {
       />
 
       {reps.length === 0 && (
-        <Card>
-          <p className="text-sm text-gtn-grey-2 italic">No reps yet. Click &ldquo;+ New rep&rdquo; above to hire your first.</p>
-        </Card>
+        <p className="mt-4 text-sm text-ink-muted italic">No reps yet. Click &ldquo;+ New rep&rdquo; above to hire your first.</p>
       )}
-    </div>
+    </ListPage>
   );
 }

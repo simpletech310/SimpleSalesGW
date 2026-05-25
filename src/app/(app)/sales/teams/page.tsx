@@ -1,10 +1,8 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { can } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
-import { Card } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
+import { ListPage } from "@/components/templates";
 import { TeamsList } from "./TeamsList";
 
 export default async function SalesTeamsPage() {
@@ -18,17 +16,11 @@ export default async function SalesTeamsPage() {
   });
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between gap-2 flex-wrap">
-        <div>
-          <Link href="/sales" className="text-xs text-gtn-purple hover:underline">← Sales</Link>
-          <h1 className="text-2xl font-bold text-gtn-navy mt-1">Sales teams</h1>
-          <p className="text-sm text-gtn-grey-2 mt-1">
-            Group reps by service focus. Lead routing matches services against territory.
-          </p>
-        </div>
-      </div>
-
+    <ListPage
+      title="Sales teams"
+      subtitle="Group reps by service focus. Lead routing matches services against territory."
+      crumbs={[{ href: "/sales", label: "Sales hub" }, { label: "Teams" }]}
+    >
       <TeamsList
         initialTeams={teams.map((t) => ({
           id: t.id,
@@ -43,17 +35,10 @@ export default async function SalesTeamsPage() {
       />
 
       {teams.length === 0 && (
-        <Card>
-          <p className="text-sm text-gtn-grey-2 italic">
-            No teams yet. Create your first team above to start routing leads.
-          </p>
-          <div className="mt-2">
-            <Button asChild size="sm" variant="ghost">
-              <Link href="/sales">← back</Link>
-            </Button>
-          </div>
-        </Card>
+        <p className="mt-4 text-sm text-ink-muted italic">
+          No teams yet. Create your first team above to start routing leads.
+        </p>
       )}
-    </div>
+    </ListPage>
   );
 }

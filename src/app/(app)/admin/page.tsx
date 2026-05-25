@@ -1,15 +1,25 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import {
+  Users,
+  ScrollText,
+  Settings,
+  DollarSign,
+  Mail,
+  MessageCircle,
+  Sparkles,
+  Building2,
+  Zap,
+  type LucideIcon,
+} from "lucide-react";
 import { auth } from "@/auth";
 import { can } from "@/lib/rbac";
-import { Card } from "@/components/ui/Card";
+import { DashboardPage } from "@/components/templates";
 
 export default async function AdminHomePage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
   const role = session.user.role;
-  // v2.14 — widen the admit-gate to include pricing:catalog:edit so
-  // Sales Manager can land here for the pricing editor.
   if (
     !can(role, "user:manage") &&
     !can(role, "audit:view") &&
@@ -20,65 +30,86 @@ export default async function AdminHomePage() {
   }
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-2xl font-bold text-gtn-navy">Admin</h1>
-
-      {/* v2.14 — First-run setup tile, top of grid, two-column wide */}
+    <DashboardPage
+      eyebrow="Administration"
+      title="Admin"
+      subtitle="Manage users, system config, pricing, content, and audit history."
+    >
       {(can(role, "pricing:catalog:edit") || can(role, "user:manage")) && (
-        <Link href="/admin/setup" className="block">
-          <Card className="bg-gtn-lavender border-gtn-purple/40 hover:border-gtn-purple">
-            <h2 className="text-lg font-semibold text-gtn-purple">⚡ First-run setup</h2>
-            <p className="text-sm text-gtn-grey-2 mt-1">
-              Walk through the 6 steps to make this portal usable for your team day to day —
-              env health, real users, pricing catalog, prospect import, library customization,
-              and email test.
-            </p>
-          </Card>
+        <Link
+          href="/admin/setup"
+          className="block rounded-xl bg-gradient-to-br from-brand-soft to-surface border border-line p-5 hover:border-brand transition-colors group"
+        >
+          <div className="flex items-start gap-4">
+            <span className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gtn-purple text-white shadow-card">
+              <Zap className="h-6 w-6" />
+            </span>
+            <div className="flex-1 min-w-0">
+              <h2 className="text-lg font-bold text-ink-strong">First-run setup</h2>
+              <p className="text-sm text-ink-muted mt-1 max-w-2xl">
+                Walk through the 6 steps to make this portal usable for your team day-to-day — env health, real users, pricing catalog, prospect import, library customization, and email test.
+              </p>
+            </div>
+            <span className="text-gtn-purple text-2xl group-hover:translate-x-1 transition-transform">→</span>
+          </div>
         </Link>
       )}
 
-      <div className="grid md:grid-cols-3 gap-3">
+      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
         {can(role, "user:manage") && (
-          <Link href="/admin/users" className="block">
-            <Card><h2 className="text-lg font-semibold">Users</h2><p className="text-sm text-gtn-grey-2 mt-1">Create, edit, deactivate accounts.</p></Card>
-          </Link>
+          <AdminTile icon={Users} href="/admin/users" title="Users" desc="Create, edit, deactivate accounts." />
         )}
         {can(role, "audit:view") && (
-          <Link href="/admin/audit" className="block">
-            <Card><h2 className="text-lg font-semibold">Audit log</h2><p className="text-sm text-gtn-grey-2 mt-1">Every state change is recorded here.</p></Card>
-          </Link>
+          <AdminTile icon={ScrollText} href="/admin/audit" title="Audit log" desc="Every state change is recorded here." />
         )}
         {can(role, "system:config") && (
-          <Link href="/admin/config" className="block">
-            <Card><h2 className="text-lg font-semibold">System config</h2><p className="text-sm text-gtn-grey-2 mt-1">Tune scoring thresholds + weights.</p></Card>
-          </Link>
+          <AdminTile icon={Settings} href="/admin/config" title="System config" desc="Tune scoring thresholds + weights." />
         )}
         {can(role, "pricing:catalog:edit") && (
-          <Link href="/admin/pricing" className="block">
-            <Card><h2 className="text-lg font-semibold">Pricing catalog</h2><p className="text-sm text-gtn-grey-2 mt-1">Edit bundle prices, floors, and onboarding fees.</p></Card>
-          </Link>
+          <AdminTile icon={DollarSign} href="/admin/pricing" title="Pricing catalog" desc="Edit bundle prices, floors, and onboarding fees." />
         )}
         {can(role, "system:config") && (
-          <Link href="/admin/outreach" className="block">
-            <Card><h2 className="text-lg font-semibold">Outreach templates</h2><p className="text-sm text-gtn-grey-2 mt-1">Manage the cold-outreach + follow-up library.</p></Card>
-          </Link>
+          <AdminTile icon={Mail} href="/admin/outreach" title="Outreach templates" desc="Manage the cold-outreach + follow-up library." />
         )}
         {can(role, "system:config") && (
-          <Link href="/admin/objections" className="block">
-            <Card><h2 className="text-lg font-semibold">Objections library</h2><p className="text-sm text-gtn-grey-2 mt-1">Catalog of objections + tested rebuttals.</p></Card>
-          </Link>
+          <AdminTile icon={MessageCircle} href="/admin/objections" title="Objections library" desc="Catalog of objections + tested rebuttals." />
         )}
         {can(role, "audit:view") && (
-          <Link href="/admin/ai-usage" className="block">
-            <Card><h2 className="text-lg font-semibold">AI usage</h2><p className="text-sm text-gtn-grey-2 mt-1">Month-to-date Claude spend by feature, lead, and user.</p></Card>
-          </Link>
+          <AdminTile icon={Sparkles} href="/admin/ai-usage" title="AI usage" desc="Month-to-date Claude spend by feature, lead, and user." />
         )}
         {can(role, "msp:profile:edit") && (
-          <Link href="/admin/msp-profile" className="block">
-            <Card><h2 className="text-lg font-semibold">MSP profile</h2><p className="text-sm text-gtn-grey-2 mt-1">Mission, brand voice, services emphasis, win stories — feeds every Claude prompt.</p></Card>
-          </Link>
+          <AdminTile icon={Building2} href="/admin/msp-profile" title="MSP profile" desc="Mission, brand voice, services emphasis, win stories — feeds every Claude prompt." />
         )}
       </div>
-    </div>
+    </DashboardPage>
+  );
+}
+
+function AdminTile({
+  icon: Icon,
+  href,
+  title,
+  desc,
+}: {
+  icon: LucideIcon;
+  href: string;
+  title: string;
+  desc: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="group block rounded-xl bg-surface border border-line-subtle p-4 md:p-5 hover:border-line-strong hover:shadow-card transition-all duration-120 ease-smooth"
+    >
+      <div className="flex items-start gap-3">
+        <span className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-brand-soft text-gtn-purple flex-shrink-0">
+          <Icon className="h-4.5 w-4.5" style={{ width: 18, height: 18 }} />
+        </span>
+        <div className="min-w-0">
+          <h2 className="text-base font-semibold text-ink-strong">{title}</h2>
+          <p className="text-sm text-ink-muted mt-0.5 line-clamp-2">{desc}</p>
+        </div>
+      </div>
+    </Link>
   );
 }

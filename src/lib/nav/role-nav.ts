@@ -18,82 +18,84 @@ import { can } from "@/lib/rbac";
 import { STRINGS } from "@/lib/strings";
 
 /**
- * v2.13 — role-aware navigation.
+ * v3.0 — grouped, role-aware navigation.
  *
- * Why: the AppShell was rendering every nav link for every role, even though
- * a vCIO has no business adding a lead and a salesperson has no business
- * archiving an account. Each role gets a tailored set keyed off their RBAC
- * permissions + the surfaces they actually drive.
+ * Sidebar now renders nav as labeled sections (Work / Pipeline / Manage /
+ * Account) instead of one flat list. Each role still gets a tailored set
+ * keyed off RBAC permissions — only the *grouping* and *visual shell* are
+ * unified.
  *
- * Returned shape:
- *   desktop — full set, ordered as it should appear in the top app bar
- *   mobile  — top 5 (the iPhone bottom-nav budget). The 3rd slot is the
- *             "primary" floating action; for roles without lead-create the
- *             primary slot is whatever their highest-frequency action is.
+ * Mobile bottom-bar shape is unchanged from v2.13 (Apple-friendly 5
+ * tap-target pattern) — see `mobile` field.
  */
 
 export type NavItem = {
   href: string;
   label: string;
   icon: LucideIcon;
-  /** Mobile bottom nav highlights one entry as the big floating action. */
+  /** Mobile bottom nav highlights one entry as the big primary action. */
   primary?: boolean;
 };
 
+export type NavGroup = {
+  /** Quiet uppercase label shown above the group, or null for ungrouped first section */
+  label: string | null;
+  items: ReadonlyArray<NavItem>;
+};
+
 const NAV = {
-  home: { href: "/", label: STRINGS.nav.home, icon: Home },
-  leads: { href: "/leads", label: STRINGS.nav.leads, icon: Users },
-  newLead: { href: "/leads/new", label: STRINGS.nav.newLead, icon: Plus, primary: true },
-  pipeline: { href: "/pipeline", label: STRINGS.nav.pipeline, icon: Layers },
-  accounts: { href: "/accounts", label: STRINGS.nav.accounts, icon: Briefcase },
+  home:          { href: "/",              label: STRINGS.nav.home,          icon: Home },
+  myTasks:       { href: "/my-tasks",      label: STRINGS.nav.myTasks,       icon: CheckSquare },
   notifications: { href: "/notifications", label: STRINGS.nav.notifications, icon: Bell },
-  myTasks: { href: "/my-tasks", label: STRINGS.nav.myTasks, icon: CheckSquare },
-  pricing: { href: "/pricing", label: STRINGS.nav.pricing, icon: DollarSign },
-  me: { href: "/me", label: STRINGS.nav.me, icon: User },
-  help: { href: "/help", label: STRINGS.nav.help, icon: HelpCircle },
-  admin: { href: "/admin", label: STRINGS.nav.admin, icon: Shield },
-  // v2.22 — Sales-management hub for managers.
-  // v2.23.1 — leadsMap removed; the map now lives at the top of /leads.
-  sales: { href: "/sales", label: "Sales", icon: UsersRound },
+
+  leads:         { href: "/leads",         label: STRINGS.nav.leads,         icon: Users },
+  newLead:       { href: "/leads/new",     label: STRINGS.nav.newLead,       icon: Plus, primary: true },
+  pipeline:      { href: "/pipeline",      label: STRINGS.nav.pipeline,      icon: Layers },
+  accounts:      { href: "/accounts",      label: STRINGS.nav.accounts,      icon: Briefcase },
+  pricing:       { href: "/pricing",       label: STRINGS.nav.pricing,       icon: DollarSign },
+
+  sales:         { href: "/sales",         label: "Sales hub",               icon: UsersRound },
+  admin:         { href: "/admin",         label: STRINGS.nav.admin,         icon: Shield },
+
+  me:            { href: "/me",            label: STRINGS.nav.me,            icon: User },
+  help:          { href: "/help",          label: STRINGS.nav.help,          icon: HelpCircle },
 } as const satisfies Record<string, NavItem>;
 
-/** "Primary" alternates that replace +New for roles that don't create leads. */
 const NAV_ALT = {
   /** vCIO's most-used action is opening their accounts portfolio. */
-  accountsPrimary: { ...NAV.accounts, primary: true },
-  /** COO's most-used action is accepting handoffs (lives in notifications). */
+  accountsPrimary:      { ...NAV.accounts,      primary: true },
+  /** COO's most-used action is accepting handoffs. */
   notificationsPrimary: { ...NAV.notifications, primary: true },
 } as const;
 
 export type RoleNav = {
-  desktop: ReadonlyArray<NavItem>;
-  mobile: ReadonlyArray<NavItem>;
+  /** Grouped desktop sidebar */
+  desktop: ReadonlyArray<NavGroup>;
+  /** Mobile bottom-bar (max 5 items; one may be `primary`) */
+  mobile:  ReadonlyArray<NavItem>;
 };
 
-export function navForRole(role: Role): RoleNav {
-  // v2.14 — add pricing:catalog:edit so Sales Manager sees the Admin link.
-  const adminTail = (
+function adminTailFor(role: Role): NavItem[] {
+  const allowed =
     can(role, "user:manage") ||
     can(role, "audit:view") ||
     can(role, "system:config") ||
     can(role, "pricing:catalog:edit") ||
-    // v2.21 — MSP profile editor lives under /admin; SUPERADMIN-gated
-    // by its own permission key.
-    can(role, "msp:profile:edit")
-  )
-    ? [NAV.admin]
-    : [];
+    can(role, "msp:profile:edit");
+  return allowed ? [NAV.admin] : [];
+}
+
+export function navForRole(role: Role): RoleNav {
+  const admin = adminTailFor(role);
 
   switch (role) {
     case Role.SALESPERSON: {
-      // v2.23.1 — Map merged into /leads (top section). NAV.leadsMap
-      // removed from desktop; /leads/map redirects to /leads.
       return {
         desktop: [
-          NAV.home, NAV.leads, NAV.newLead, NAV.pipeline,
-          NAV.notifications, NAV.myTasks, NAV.pricing, NAV.me, NAV.help,
+          { label: null,       items: [NAV.home, NAV.myTasks, NAV.notifications] },
+          { label: "Pipeline", items: [NAV.leads, NAV.newLead, NAV.pipeline, NAV.pricing] },
+          { label: "Account",  items: [NAV.me, NAV.help] },
         ],
-        // Bottom nav: Home · Leads · +New (primary) · Notifications · Me
         mobile: [NAV.home, NAV.leads, NAV.newLead, NAV.notifications, NAV.me],
       };
     }
@@ -101,51 +103,45 @@ export function navForRole(role: Role): RoleNav {
     case Role.SALES_MANAGER: {
       return {
         desktop: [
-          NAV.home, NAV.leads, NAV.newLead, NAV.pipeline,
-          NAV.sales, NAV.notifications, NAV.myTasks, NAV.accounts,
-          NAV.pricing, NAV.me, NAV.help,
-          ...adminTail,
+          { label: null,       items: [NAV.home, NAV.myTasks, NAV.notifications] },
+          { label: "Pipeline", items: [NAV.leads, NAV.newLead, NAV.pipeline, NAV.accounts, NAV.pricing] },
+          { label: "Manage",   items: [NAV.sales, ...admin] },
+          { label: "Account",  items: [NAV.me, NAV.help] },
         ],
-        // Same as salesperson — same primary action.
         mobile: [NAV.home, NAV.leads, NAV.newLead, NAV.notifications, NAV.me],
       };
     }
 
     case Role.VCIO: {
-      // No /leads, no +New. Their world is /accounts, discoveries, QBRs, onboarding tasks.
       return {
         desktop: [
-          NAV.home, NAV.accounts, NAV.myTasks, NAV.notifications,
-          NAV.pricing, NAV.me, NAV.help,
+          { label: null,       items: [NAV.home, NAV.myTasks, NAV.notifications] },
+          { label: "Portfolio", items: [NAV.accounts, NAV.pricing] },
+          { label: "Account",  items: [NAV.me, NAV.help] },
         ],
-        // Bottom nav: Home · Accounts · Accounts(primary) · My tasks · Me
-        // The primary floating button is "Accounts" for one-tap access.
         mobile: [NAV.home, NAV.myTasks, NAV_ALT.accountsPrimary, NAV.notifications, NAV.me],
       };
     }
 
     case Role.COO: {
-      // Ops focus: accept handoffs (notifications), browse accounts, see pipeline.
-      // No +New. Notifications is the primary because handoffs land there.
       return {
         desktop: [
-          NAV.home, NAV.notifications, NAV.accounts, NAV.pipeline, NAV.leads,
-          NAV.myTasks, NAV.pricing, NAV.me, NAV.help,
-          ...adminTail,
+          { label: null,       items: [NAV.home, NAV.myTasks, NAV.notifications] },
+          { label: "Pipeline", items: [NAV.accounts, NAV.pipeline, NAV.leads, NAV.pricing] },
+          { label: "Manage",   items: [...admin] },
+          { label: "Account",  items: [NAV.me, NAV.help] },
         ],
         mobile: [NAV.home, NAV.accounts, NAV_ALT.notificationsPrimary, NAV.myTasks, NAV.me],
       };
     }
 
     case Role.SUPERADMIN: {
-      // Sees everything. Bottom nav matches sales manager for "default sales
-      // operator" mode; admin lives at the end of desktop nav.
       return {
         desktop: [
-          NAV.home, NAV.leads, NAV.newLead, NAV.pipeline,
-          NAV.sales, NAV.accounts, NAV.notifications, NAV.myTasks,
-          NAV.pricing, NAV.me, NAV.help,
-          ...adminTail,
+          { label: null,       items: [NAV.home, NAV.myTasks, NAV.notifications] },
+          { label: "Pipeline", items: [NAV.leads, NAV.newLead, NAV.pipeline, NAV.accounts, NAV.pricing] },
+          { label: "Manage",   items: [NAV.sales, NAV.admin] },
+          { label: "Account",  items: [NAV.me, NAV.help] },
         ],
         mobile: [NAV.home, NAV.leads, NAV.newLead, NAV.accounts, NAV.me],
       };
@@ -156,10 +152,10 @@ export function navForRole(role: Role): RoleNav {
 /** Short noun describing the role for headers and badges. */
 export function roleDisplay(role: Role): { label: string; tagline: string } {
   switch (role) {
-    case Role.SALESPERSON: return { label: "Salesperson", tagline: "Hunt, qualify, close." };
+    case Role.SALESPERSON:   return { label: "Salesperson",  tagline: "Hunt, qualify, close." };
     case Role.SALES_MANAGER: return { label: "Sales Manager", tagline: "Team pipeline + pricing approvals." };
-    case Role.VCIO: return { label: "vCIO", tagline: "Discovery, QBRs, strategic roadmap." };
-    case Role.COO: return { label: "COO", tagline: "Handoffs, accounts, ops oversight." };
-    case Role.SUPERADMIN: return { label: "Superadmin", tagline: "Everything." };
+    case Role.VCIO:          return { label: "vCIO",         tagline: "Discovery, QBRs, strategic roadmap." };
+    case Role.COO:           return { label: "COO",          tagline: "Handoffs, accounts, ops oversight." };
+    case Role.SUPERADMIN:    return { label: "Superadmin",   tagline: "Everything." };
   }
 }

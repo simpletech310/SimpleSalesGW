@@ -1,8 +1,8 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { can } from "@/lib/rbac";
+import { FormPage } from "@/components/templates";
 import { DiscoveryCallForm } from "./DiscoveryCallForm";
 import { DiscoveryPrepButton } from "./DiscoveryPrepButton";
 
@@ -32,38 +32,37 @@ export default async function DiscoveryCallPage({ params }: { params: Promise<{ 
   });
 
   return (
-    <div className="max-w-4xl mx-auto space-y-4">
-      <div>
-        <Link href={`/leads/${id}`} className="text-sm text-gtn-purple underline">← {lead.businessName}</Link>
-        <h1 className="text-2xl font-bold text-gtn-navy mt-2">Discovery call</h1>
-        <p className="text-sm text-gtn-grey-2 mt-1">
-          Structured note capture following the 45-minute Discovery Call Script
-          (opening · business · tech · decision · mini-pitch · close).
-        </p>
-      </div>
-
+    <FormPage
+      title="Discovery call"
+      subtitle="Structured note capture following the 45-minute Discovery Call Script (opening · business · tech · decision · mini-pitch · close)."
+      crumbs={[
+        { href: "/leads", label: "Leads" },
+        { href: `/leads/${id}`, label: lead.businessName },
+        { label: "Discovery call" },
+      ]}
+      width="lg"
+    >
       <DiscoveryPrepButton leadId={id} />
-
       <DiscoveryCallForm leadId={id} contactName={lead.primaryContactName ?? ""} />
 
       {recent.length > 0 && (
-        <div className="space-y-2">
-          <h2 className="text-sm font-semibold text-gtn-navy">Recent calls on this lead</h2>
-          <ul className="divide-y divide-gtn-lavender-2 border border-gtn-lavender-2 rounded-md text-sm">
+        <section className="rounded-xl bg-surface border border-line-subtle p-4 md:p-5">
+          <h2 className="text-sm font-semibold text-ink-strong mb-3">Recent calls on this lead</h2>
+          <ul className="divide-y divide-line-subtle -my-2">
             {recent.map((n) => (
-              <li key={n.id} className="px-4 py-3">
-                <p className="font-medium text-gtn-navy">
+              <li key={n.id} className="py-2.5">
+                <p className="font-medium text-ink-strong text-sm">
                   {new Date(n.conductedAt).toLocaleString()}{" "}
-                  <span className="text-xs text-gtn-grey-2">
+                  <span className="text-xs text-ink-muted font-normal">
                     · {n.durationMinutes ?? "~45"} min · {n.conductedBy.name}
                   </span>
                 </p>
-                {n.nextStep && <p className="text-xs text-gtn-grey-2 mt-1">Next step: {n.nextStep}</p>}
+                {n.nextStep && <p className="text-xs text-ink-muted mt-0.5">Next step: {n.nextStep}</p>}
               </li>
             ))}
           </ul>
-        </div>
+        </section>
       )}
-    </div>
+    </FormPage>
   );
 }

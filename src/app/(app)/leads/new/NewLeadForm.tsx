@@ -3,13 +3,14 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { DealKind, Industry, LeadSource } from "@prisma/client";
+import { DealKind, Industry, LeadSource, MspSatisfaction } from "@prisma/client";
 import { DEAL_KIND_META, listDealKinds } from "@/lib/pricing/deal-kinds";
 import { Button } from "@/components/ui/Button";
-import { Input, Label, Textarea } from "@/components/ui/Input";
-import { Card } from "@/components/ui/Card";
+import { Input, Textarea } from "@/components/ui/Input";
+import { FormSection, FormField, FormActions } from "@/components/templates";
 import { FieldHelp } from "@/components/help/FieldHelp";
 import { HELP } from "@/lib/help-copy";
+import { cn } from "@/lib/utils";
 
 const INDUSTRY_LABELS: Record<Industry, string> = {
   MEDICAL: "Medical / Healthcare",
@@ -24,6 +25,18 @@ const INDUSTRY_LABELS: Record<Industry, string> = {
   OTHER: "Other",
 };
 
+const MSP_SATISFACTION_LABELS: Record<MspSatisfaction, string> = {
+  NONE: "No current MSP / unsure",
+  HAPPY: "Happy with current MSP",
+  NEUTRAL: "Neutral — open to alternatives",
+  LEAVING: "Actively leaving current MSP",
+};
+
+const SELECT_CLASS =
+  "flex h-9 w-full rounded-md border border-line bg-surface px-3 text-sm text-ink-strong " +
+  "transition-colors duration-120 ease-smooth hover:border-line-strong " +
+  "focus:outline-none focus:border-brand focus:ring-4 focus:ring-brand/15";
+
 export function NewLeadForm() {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
@@ -34,20 +47,43 @@ export function NewLeadForm() {
     const form = e.currentTarget;
     const fd = new FormData(form);
     const payload = {
+      // Business
       businessName: fd.get("businessName"),
+      dbaName: nullableStr(fd.get("dbaName")),
       industry: fd.get("industry"),
+      subindustry: nullableStr(fd.get("subindustry")),
       seatCount: fd.get("seatCount") ? Number(fd.get("seatCount")) : undefined,
       siteCount: fd.get("siteCount") ? Number(fd.get("siteCount")) : 1,
-      addressCity: fd.get("addressCity") || undefined,
-      addressState: fd.get("addressState") || undefined,
-      websiteUrl: fd.get("websiteUrl") || undefined,
-      primaryContactName: fd.get("primaryContactName") || undefined,
-      primaryContactTitle: fd.get("primaryContactTitle") || undefined,
-      primaryContactEmail: fd.get("primaryContactEmail") || undefined,
-      primaryContactPhone: fd.get("primaryContactPhone") || undefined,
       source: fd.get("source") || "INBOUND",
       dealKind: fd.get("dealKind") || DealKind.MANAGED_IT_BUNDLE,
-      notes: fd.get("notes") || undefined,
+
+      // Address
+      addressStreet: nullableStr(fd.get("addressStreet")),
+      addressCity: nullableStr(fd.get("addressCity")),
+      addressState: nullableStr(fd.get("addressState")),
+      addressZip: nullableStr(fd.get("addressZip")),
+
+      // Online presence
+      websiteUrl: nullableStr(fd.get("websiteUrl")),
+      linkedinCompanyUrl: nullableStr(fd.get("linkedinCompanyUrl")),
+      googleBusinessUrl: nullableStr(fd.get("googleBusinessUrl")),
+
+      // Primary contact
+      primaryContactName: nullableStr(fd.get("primaryContactName")),
+      primaryContactTitle: nullableStr(fd.get("primaryContactTitle")),
+      primaryContactEmail: nullableStr(fd.get("primaryContactEmail")),
+      primaryContactPhone: nullableStr(fd.get("primaryContactPhone")),
+
+      // Executive sponsor
+      executiveSponsorName: nullableStr(fd.get("executiveSponsorName")),
+      executiveSponsorTitle: nullableStr(fd.get("executiveSponsorTitle")),
+
+      // Current IT environment
+      currentMspName: nullableStr(fd.get("currentMspName")),
+      currentMspSatisfaction: fd.get("currentMspSatisfaction") || MspSatisfaction.NONE,
+
+      // Notes
+      notes: nullableStr(fd.get("notes")),
     };
     try {
       const res = await fetch("/api/leads", {
@@ -68,136 +104,214 @@ export function NewLeadForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-6">
-      {/* v2.15 — Deal-kind picker. Decides what PricingCard form to show + which
-          onboarding tasks get seeded on handoff acceptance. */}
-      <Card>
-        <h2 className="text-lg font-semibold text-gtn-navy mb-2">What&apos;s this deal about?</h2>
-        <p className="text-xs text-gtn-grey-2 mb-3">
-          Pick the closest match. Drives pricing + post-handoff onboarding. You can change it later from the lead page.
-        </p>
-        <div className="grid sm:grid-cols-2 gap-2">
-          {listDealKinds().map((dk) => (
-            <label
-              key={dk.kind}
-              className="cursor-pointer rounded-md border border-gtn-lavender-2 p-3 hover:border-gtn-purple/40 has-[:checked]:border-gtn-purple has-[:checked]:bg-gtn-lavender/30 block"
-            >
-              <input
-                type="radio"
-                name="dealKind"
-                value={dk.kind}
-                defaultChecked={dk.kind === DEAL_KIND_META.MANAGED_IT_BUNDLE.kind}
-                className="sr-only"
-              />
-              <p className="text-sm font-semibold text-gtn-navy">{dk.label}</p>
-              <p className="text-xs text-gtn-grey-2 mt-0.5">{dk.tagline}</p>
-            </label>
-          ))}
-        </div>
-      </Card>
-
-      <Card>
-        <h2 className="text-lg font-semibold text-gtn-navy mb-4">Business</h2>
-        <div className="grid md:grid-cols-2 gap-4">
-          <div className="space-y-2 md:col-span-2">
-            <Label htmlFor="businessName">Business name *</Label>
-            <Input id="businessName" name="businessName" required maxLength={200} />
+    <form onSubmit={onSubmit}>
+      <div className="space-y-4 md:space-y-5 pb-24 md:pb-0">
+        {/* Deal kind picker */}
+        <FormSection
+          title="What's this deal about?"
+          subtitle="Pick the closest match. Drives pricing + post-handoff onboarding. You can change it later from the lead page."
+        >
+          <div className="grid sm:grid-cols-2 gap-2 md:col-span-2">
+            {listDealKinds().map((dk) => (
+              <label
+                key={dk.kind}
+                className={cn(
+                  "cursor-pointer rounded-lg border border-line-subtle p-3 block transition-colors duration-120 ease-smooth",
+                  "hover:border-brand/50 has-[:checked]:border-brand has-[:checked]:bg-brand-soft/40",
+                )}
+              >
+                <input
+                  type="radio"
+                  name="dealKind"
+                  value={dk.kind}
+                  defaultChecked={dk.kind === DEAL_KIND_META.MANAGED_IT_BUNDLE.kind}
+                  className="sr-only"
+                />
+                <p className="text-sm font-semibold text-ink-strong">{dk.label}</p>
+                <p className="text-xs text-ink-muted mt-0.5">{dk.tagline}</p>
+              </label>
+            ))}
           </div>
-          <div className="space-y-2">
-            <div className="flex items-center gap-1">
-              <Label htmlFor="industry">Industry *</Label>
-              <FieldHelp>{HELP.lead.industry}</FieldHelp>
-            </div>
-            <select
-              id="industry"
-              name="industry"
-              required
-              defaultValue="OTHER"
-              className="flex h-10 w-full rounded-md border border-input bg-white px-3 text-sm"
-            >
+        </FormSection>
+
+        {/* Business */}
+        <FormSection title="Business" subtitle="Who is this lead and what do they do?" cols={2}>
+          <FormField label="Business name" htmlFor="businessName" required full>
+            <Input id="businessName" name="businessName" required maxLength={200} placeholder="Acme Manufacturing, Inc." />
+          </FormField>
+          <FormField label="DBA / trade name" htmlFor="dbaName" hint="Optional — only if different from legal name">
+            <Input id="dbaName" name="dbaName" maxLength={200} placeholder="Acme" />
+          </FormField>
+          <FormField
+            label={
+              <span className="inline-flex items-center gap-1">
+                Industry <FieldHelp>{HELP.lead.industry}</FieldHelp>
+              </span>
+            }
+            htmlFor="industry"
+            required
+          >
+            <select id="industry" name="industry" required defaultValue="OTHER" className={SELECT_CLASS}>
               {(Object.keys(INDUSTRY_LABELS) as Industry[]).map((k) => (
                 <option key={k} value={k}>{INDUSTRY_LABELS[k]}</option>
               ))}
             </select>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="source">Source</Label>
-            <select
-              id="source"
-              name="source"
-              defaultValue={LeadSource.INBOUND}
-              className="flex h-10 w-full rounded-md border border-input bg-white px-3 text-sm"
-            >
+          </FormField>
+          <FormField label="Sub-industry" htmlFor="subindustry" hint='Optional — e.g. "Orthopedic clinic", "Boutique law firm"'>
+            <Input id="subindustry" name="subindustry" maxLength={200} />
+          </FormField>
+          <FormField label="Source" htmlFor="source">
+            <select id="source" name="source" defaultValue={LeadSource.INBOUND} className={SELECT_CLASS}>
               {(Object.values(LeadSource) as LeadSource[]).map((v) => (
-                <option key={v} value={v}>{v}</option>
+                <option key={v} value={v}>{v.replace(/_/g, " ")}</option>
               ))}
             </select>
-          </div>
-          <div className="space-y-2">
-            <div className="flex items-center gap-1">
-              <Label htmlFor="seatCount">Seat count</Label>
-              <FieldHelp>{HELP.lead.seatCount}</FieldHelp>
-            </div>
-            <Input id="seatCount" name="seatCount" type="number" min={0} />
-          </div>
-          <div className="space-y-2">
-            <div className="flex items-center gap-1">
-              <Label htmlFor="siteCount">Sites</Label>
-              <FieldHelp>{HELP.lead.siteCount}</FieldHelp>
-            </div>
+          </FormField>
+          <FormField
+            label={
+              <span className="inline-flex items-center gap-1">
+                Seat count <FieldHelp>{HELP.lead.seatCount}</FieldHelp>
+              </span>
+            }
+            htmlFor="seatCount"
+            hint="Pricing won't show until we know this"
+          >
+            <Input id="seatCount" name="seatCount" type="number" min={0} placeholder="e.g. 25" />
+          </FormField>
+          <FormField
+            label={
+              <span className="inline-flex items-center gap-1">
+                Sites <FieldHelp>{HELP.lead.siteCount}</FieldHelp>
+              </span>
+            }
+            htmlFor="siteCount"
+          >
             <Input id="siteCount" name="siteCount" type="number" min={1} defaultValue={1} />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="addressCity">City</Label>
-            <Input id="addressCity" name="addressCity" />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="addressState">State</Label>
-            <Input id="addressState" name="addressState" maxLength={2} />
-          </div>
-          <div className="space-y-2 md:col-span-2">
-            <div className="flex items-center gap-1">
-              <Label htmlFor="websiteUrl">Website</Label>
-              <FieldHelp>{HELP.lead.websiteUrl}</FieldHelp>
-            </div>
+          </FormField>
+        </FormSection>
+
+        {/* Address */}
+        <FormSection
+          title="Address"
+          subtitle="Geocoded automatically to drop a pin on the leads map and auto-match a sales territory."
+          cols={2}
+        >
+          <FormField label="Street" htmlFor="addressStreet" full>
+            <Input id="addressStreet" name="addressStreet" maxLength={200} placeholder="123 Main St" />
+          </FormField>
+          <FormField label="City" htmlFor="addressCity">
+            <Input id="addressCity" name="addressCity" maxLength={100} placeholder="Lake Elsinore" />
+          </FormField>
+          <FormField label="State" htmlFor="addressState">
+            <Input id="addressState" name="addressState" maxLength={2} placeholder="CA" className="uppercase" />
+          </FormField>
+          <FormField label="Zip" htmlFor="addressZip">
+            <Input id="addressZip" name="addressZip" maxLength={10} placeholder="92530" />
+          </FormField>
+        </FormSection>
+
+        {/* Online presence */}
+        <FormSection title="Online presence" subtitle="Feeds the AI research summary and pre-call brief." cols={2}>
+          <FormField
+            label={
+              <span className="inline-flex items-center gap-1">
+                Website <FieldHelp>{HELP.lead.websiteUrl}</FieldHelp>
+              </span>
+            }
+            htmlFor="websiteUrl"
+            full
+          >
             <Input id="websiteUrl" name="websiteUrl" type="url" placeholder="https://" />
-          </div>
-        </div>
-      </Card>
+          </FormField>
+          <FormField label="LinkedIn company URL" htmlFor="linkedinCompanyUrl">
+            <Input
+              id="linkedinCompanyUrl"
+              name="linkedinCompanyUrl"
+              type="url"
+              placeholder="https://www.linkedin.com/company/…"
+            />
+          </FormField>
+          <FormField label="Google Business profile" htmlFor="googleBusinessUrl">
+            <Input id="googleBusinessUrl" name="googleBusinessUrl" type="url" placeholder="https://…" />
+          </FormField>
+        </FormSection>
 
-      <Card>
-        <h2 className="text-lg font-semibold text-gtn-navy mb-4">Primary contact</h2>
-        <div className="grid md:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="primaryContactName">Name</Label>
-            <Input id="primaryContactName" name="primaryContactName" />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="primaryContactTitle">Title</Label>
-            <Input id="primaryContactTitle" name="primaryContactTitle" />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="primaryContactEmail">Email</Label>
+        {/* Primary contact */}
+        <FormSection title="Primary contact" subtitle="Who you actually talk to. Day-to-day operator, not necessarily the decision-maker." cols={2}>
+          <FormField label="Name" htmlFor="primaryContactName">
+            <Input id="primaryContactName" name="primaryContactName" maxLength={200} />
+          </FormField>
+          <FormField label="Title" htmlFor="primaryContactTitle">
+            <Input id="primaryContactTitle" name="primaryContactTitle" maxLength={200} placeholder="Office Manager" />
+          </FormField>
+          <FormField label="Email" htmlFor="primaryContactEmail">
             <Input id="primaryContactEmail" name="primaryContactEmail" type="email" />
+          </FormField>
+          <FormField label="Phone" htmlFor="primaryContactPhone">
+            <Input id="primaryContactPhone" name="primaryContactPhone" type="tel" placeholder="(555) 555-5555" />
+          </FormField>
+        </FormSection>
+
+        {/* Executive sponsor */}
+        <FormSection
+          title="Executive sponsor"
+          subtitle="The person who actually signs the deal — often different from the primary contact. Knowing the sponsor early speeds up close."
+          cols={2}
+        >
+          <FormField label="Name" htmlFor="executiveSponsorName">
+            <Input id="executiveSponsorName" name="executiveSponsorName" maxLength={200} />
+          </FormField>
+          <FormField label="Title" htmlFor="executiveSponsorTitle">
+            <Input id="executiveSponsorTitle" name="executiveSponsorTitle" maxLength={200} placeholder="CEO / Owner" />
+          </FormField>
+        </FormSection>
+
+        {/* Current IT environment */}
+        <FormSection
+          title="Current IT environment"
+          subtitle="What's in place today. Drives the discovery script and identifies displacement opportunities."
+          cols={2}
+        >
+          <FormField label="Current MSP / IT provider" htmlFor="currentMspName" hint="Leave blank if none / in-house">
+            <Input id="currentMspName" name="currentMspName" maxLength={200} placeholder="Acme IT" />
+          </FormField>
+          <FormField label="Satisfaction" htmlFor="currentMspSatisfaction">
+            <select
+              id="currentMspSatisfaction"
+              name="currentMspSatisfaction"
+              defaultValue={MspSatisfaction.NONE}
+              className={SELECT_CLASS}
+            >
+              {(Object.keys(MSP_SATISFACTION_LABELS) as MspSatisfaction[]).map((k) => (
+                <option key={k} value={k}>{MSP_SATISFACTION_LABELS[k]}</option>
+              ))}
+            </select>
+          </FormField>
+        </FormSection>
+
+        {/* Notes */}
+        <FormSection
+          title="First-impression note"
+          subtitle="Optional. Anything you heard in the first conversation that's worth pinning to the top of this lead."
+        >
+          <div className="md:col-span-2">
+            <Textarea name="notes" placeholder="They mentioned their phones drop calls during peak hours and they're frustrated with their current MSP's response time…" />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="primaryContactPhone">Phone</Label>
-            <Input id="primaryContactPhone" name="primaryContactPhone" type="tel" />
-          </div>
+        </FormSection>
+      </div>
+
+      {/* Sticky action footer */}
+      <div className="sticky bottom-0 md:static inset-x-0 z-10 mt-5 -mx-4 md:mx-0 px-4 md:px-0">
+        <div className="rounded-t-xl md:rounded-xl bg-surface border border-line-subtle px-4 md:px-5 py-3 flex items-center justify-end gap-2 shadow-pop md:shadow-card">
+          <FormActions cancelHref="/leads" submitLabel={saving ? "Creating…" : "Create lead"} busy={saving} />
         </div>
-      </Card>
-
-      <Card>
-        <h2 className="text-lg font-semibold text-gtn-navy mb-2">Optional pinned note</h2>
-        <p className="text-sm text-gtn-grey-2 mb-3">Add any first-impression notes — pinned to the top of this lead.</p>
-        <Textarea name="notes" placeholder="What did you hear in the first conversation?" />
-      </Card>
-
-      <div className="flex justify-end gap-2">
-        <Button type="submit" disabled={saving} size="lg">
-          {saving ? "Creating…" : "Create lead"}
-        </Button>
       </div>
     </form>
   );
+}
+
+function nullableStr(v: FormDataEntryValue | null): string | undefined {
+  if (v == null) return undefined;
+  const s = String(v).trim();
+  return s.length === 0 ? undefined : s;
 }

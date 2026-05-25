@@ -6,6 +6,9 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { customerVisibilityFilter } from "@/lib/rbac";
 import { EmptyState } from "@/components/help/EmptyState";
+import { Badge } from "@/components/ui/Badge";
+import { DataTable, type Column } from "@/components/ui/DataTable";
+import { ListPage } from "@/components/templates";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +21,6 @@ export default async function AccountsPage() {
     include: {
       lead: { select: { id: true, businessName: true, industry: true } },
       accountManager: { select: { name: true } },
-      // v2.14 — health needs done-vs-total task count + last completed QBR
       onboardingTasks: { select: { status: true } },
       qbrs: {
         orderBy: { scheduledAt: "desc" },
@@ -30,10 +32,7 @@ export default async function AccountsPage() {
     orderBy: { createdAt: "desc" },
   });
 
-  // v2.14 — derive a simple health signal per customer.
-  // Green  = onboarding ≥80% OR a QBR has happened in the last 90 days
-  // Amber  = onboarding 40–79% AND no recent QBR
-  // Red    = onboarding <40% AND >30 days since creation, or no QBR for 120+ days
+  // Health signal per customer (preserved from v2.14)
   type Health = "green" | "amber" | "red";
   const now = Date.now();
   const NINETY_DAYS = 90 * 24 * 60 * 60 * 1000;
@@ -58,109 +57,144 @@ export default async function AccountsPage() {
     healthByCustomer.set(c.id, { dot, onboardingPct: pct, daysSinceQbr });
   }
 
-  return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold text-gtn-navy">Accounts</h1>
-        <p className="text-sm text-gtn-grey-2">
-          {customers.length} {customers.length === 1 ? "customer" : "customers"} · post-handoff lifecycle
-        </p>
-      </div>
-
-      {customers.length === 0 ? (
-        <EmptyState
-          Icon={Briefcase}
-          title="No customers yet"
-          body="An Account appears here the moment a Sales-to-Ops handoff is accepted. Once it does, the vCIO takes over Discovery, Inventory, QBRs, and the strategic roadmap."
-          cta={{ label: "Open notifications", href: "/notifications" }}
-          secondaryCta={{ label: "Open help center", href: "/help" }}
-        />
-      ) : (
-        <div className="gtn-card overflow-hidden p-0">
-          {/* v2.18 — horizontal scroll on narrow viewports so the table doesn't get clipped */}
-          <div className="overflow-x-auto">
-          <table className="w-full text-sm min-w-[640px]">
-            <thead className="bg-gtn-lavender text-left text-xs uppercase tracking-wide text-gtn-grey-2">
-              <tr>
-                <th className="px-4 py-3">Business</th>
-                <th className="px-4 py-3 text-center" title="Customer health · green/amber/red">Health</th>
-                <th className="px-4 py-3 hidden md:table-cell">Status</th>
-                <th className="px-4 py-3 hidden md:table-cell">Phase</th>
-                <th className="px-4 py-3 hidden lg:table-cell">Account manager</th>
-                <th className="px-4 py-3 text-right">Onboarding</th>
-                <th className="px-4 py-3 hidden md:table-cell">Started</th>
-              </tr>
-            </thead>
-            <tbody>
-              {customers.map((c) => {
-                const h = healthByCustomer.get(c.id);
-                return (
-                <tr key={c.id} className="border-t border-gtn-lavender-2 hover:bg-gtn-lavender/40">
-                  <td className="px-4 py-3">
-                    <Link href={`/accounts/${c.id}`} className="text-gtn-navy font-medium hover:underline">
-                      {c.lead.businessName}
-                    </Link>
-                    <p className="text-xs text-gtn-grey-3">{c.lead.industry.replace(/_/g, " ")}</p>
-                  </td>
-                  <td className="px-4 py-3 text-center" title={
-                    h ? `${h.onboardingPct}% onboarding · ${h.daysSinceQbr === null ? "no QBR yet" : `${h.daysSinceQbr}d since last QBR`}` : ""
-                  }>
-                    <HealthDot dot={h?.dot ?? "amber"} />
-                  </td>
-                  <td className="px-4 py-3 hidden md:table-cell">
-                    <StatusBadge status={c.status} />
-                  </td>
-                  <td className="px-4 py-3 hidden md:table-cell text-xs">
-                    <span className="inline-block rounded-full bg-gtn-lavender px-2 py-0.5 text-gtn-navy">
-                      {c.currentPhase.replace(/_/g, " ")}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 hidden lg:table-cell text-gtn-grey-2">
-                    {c.accountManager?.name ?? "—"}
-                  </td>
-                  <td className="px-4 py-3 text-right font-mono text-xs text-gtn-grey-2">
-                    {h?.onboardingPct ?? 0}% · {c._count.onboardingTasks} tasks
-                  </td>
-                  <td className="px-4 py-3 hidden md:table-cell text-xs text-gtn-grey-3">
-                    {c.onboardingStartedAt ? format(new Date(c.onboardingStartedAt), "PPP") : "—"}
-                  </td>
-                </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          </div>
+  type AccountRow = (typeof customers)[number];
+  const columns: Column<AccountRow>[] = [
+    {
+      key: "business",
+      header: "Business",
+      cell: (c) => (
+        <div className="min-w-0">
+          <Link href={`/accounts/${c.id}`} className="text-ink-strong font-medium hover:text-gtn-purple truncate block">
+            {c.lead.businessName}
+          </Link>
+          <p className="text-xs text-ink-muted truncate">{c.lead.industry.replace(/_/g, " ").toLowerCase()}</p>
         </div>
-      )}
+      ),
+    },
+    {
+      key: "health",
+      header: "Health",
+      align: "center",
+      width: "84px",
+      cell: (c) => {
+        const h = healthByCustomer.get(c.id);
+        const title = h
+          ? `${h.onboardingPct}% onboarding · ${h.daysSinceQbr === null ? "no QBR yet" : `${h.daysSinceQbr}d since last QBR`}`
+          : "";
+        return <HealthDot dot={h?.dot ?? "amber"} title={title} />;
+      },
+    },
+    {
+      key: "status",
+      header: "Status",
+      hideOnMobile: true,
+      cell: (c) => <StatusBadge status={c.status} />,
+    },
+    {
+      key: "phase",
+      header: "Phase",
+      hideOnMobile: true,
+      cell: (c) => (
+        <Badge tone="brand" shape="pill" size="xs">
+          {c.currentPhase.replace(/_/g, " ").toLowerCase()}
+        </Badge>
+      ),
+    },
+    {
+      key: "manager",
+      header: "Account manager",
+      hideOnMobile: true,
+      cell: (c) => <span className="text-ink-muted">{c.accountManager?.name ?? "—"}</span>,
+    },
+    {
+      key: "onboarding",
+      header: "Onboarding",
+      align: "right",
+      numeric: true,
+      cell: (c) => {
+        const h = healthByCustomer.get(c.id);
+        return (
+          <span className="text-ink-muted">
+            {h?.onboardingPct ?? 0}% · {c._count.onboardingTasks} tasks
+          </span>
+        );
+      },
+    },
+    {
+      key: "started",
+      header: "Started",
+      hideOnMobile: true,
+      cell: (c) => (
+        <span className="text-xs text-ink-faint">
+          {c.onboardingStartedAt ? format(new Date(c.onboardingStartedAt), "PPP") : "—"}
+        </span>
+      ),
+    },
+  ];
 
-      {/* v2.14 — make the "where's the account I just closed?" failure mode
-          discoverable. Customers only appear after a handoff is accepted. */}
-      <p className="text-xs text-gtn-grey-2 mt-4">
-        Looking for a customer that should be here? A Customer only appears
-        after a Sales-to-Ops handoff has been accepted by the COO.{" "}
-        <Link href="/leads" className="text-gtn-purple hover:underline">
-          See your closed-won leads →
-        </Link>
-      </p>
-    </div>
+  return (
+    <ListPage
+      title="Accounts"
+      subtitle={
+        <>
+          {customers.length} {customers.length === 1 ? "customer" : "customers"} · post-handoff lifecycle
+        </>
+      }
+      body={
+        customers.length === 0 ? (
+          <div className="rounded-xl bg-surface border border-line-subtle p-4 md:p-5">
+            <EmptyState
+              Icon={Briefcase}
+              title="No customers yet"
+              body="An Account appears here the moment a Sales-to-Ops handoff is accepted. Once it does, the vCIO takes over Discovery, Inventory, QBRs, and the strategic roadmap."
+              cta={{ label: "Open notifications", href: "/notifications" }}
+              secondaryCta={{ label: "Open help center", href: "/help" }}
+            />
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <DataTable
+              columns={columns}
+              rows={customers}
+              getRowKey={(c) => c.id}
+              getRowHref={(c) => `/accounts/${c.id}`}
+              empty="No customers yet."
+            />
+            <p className="text-xs text-ink-muted">
+              Looking for a customer that should be here? A Customer only appears after a Sales-to-Ops handoff
+              has been accepted by the COO.{" "}
+              <Link href="/leads" className="text-gtn-purple hover:underline font-medium">
+                See your closed-won leads →
+              </Link>
+            </p>
+          </div>
+        )
+      }
+    />
   );
 }
 
-function HealthDot({ dot }: { dot: "green" | "amber" | "red" }) {
+function HealthDot({ dot, title }: { dot: "green" | "amber" | "red"; title?: string }) {
   const cls =
-    dot === "green" ? "bg-gtn-green" : dot === "red" ? "bg-gtn-red" : "bg-gtn-amber";
-  return <span className={`inline-block h-2.5 w-2.5 rounded-full ${cls}`} aria-label={`Health: ${dot}`} />;
+    dot === "green" ? "bg-success" : dot === "red" ? "bg-danger" : "bg-warn";
+  return (
+    <span
+      className={`inline-block h-2.5 w-2.5 rounded-full ${cls}`}
+      aria-label={`Health: ${dot}`}
+      title={title}
+    />
+  );
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const cls =
-    status === "ACTIVE" ? "bg-gtn-green-bg text-gtn-green"
-      : status === "ONBOARDING" ? "bg-[#FEF3E2] text-gtn-amber"
-      : status === "PAUSED" ? "bg-gtn-lavender text-gtn-grey-2"
-      : "bg-[#FBE9E7] text-gtn-red";
+  const tone =
+    status === "ACTIVE" ? "success" :
+    status === "ONBOARDING" ? "warn" :
+    status === "PAUSED" ? "neutral" :
+    "danger";
   return (
-    <span className={`text-[10px] font-semibold uppercase tracking-wide rounded-full px-2 py-0.5 ${cls}`}>
-      {status}
-    </span>
+    <Badge tone={tone} shape="pill" size="xs">
+      {status.toLowerCase()}
+    </Badge>
   );
 }

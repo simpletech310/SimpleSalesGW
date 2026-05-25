@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { ListPage } from "@/components/templates";
 import { OutreachEditor } from "./OutreachEditor";
 
 export default async function AdminOutreachPage() {
@@ -13,14 +14,12 @@ export default async function AdminOutreachPage() {
   });
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold text-gtn-navy">Outreach templates</h1>
-        <p className="text-sm text-gtn-grey-2 mt-1">
-          {"DB-backed library. Vertical + trigger filters apply when Lin opens a Lead's outreach composer."}
-        </p>
-      </div>
+    <ListPage
+      title="Outreach templates"
+      subtitle="DB-backed library. Vertical + trigger filters apply when Lin opens a Lead's outreach composer."
+      crumbs={[{ href: "/admin", label: "Admin" }, { label: "Outreach" }]}
+    >
       <OutreachEditor initial={templates as never} />
-    </div>
+    </ListPage>
   );
 }

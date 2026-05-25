@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { can } from "@/lib/rbac";
-import { Card } from "@/components/ui/Card";
+import { FormPage, FormSection } from "@/components/templates";
 import { ConfigForm } from "./ConfigForm";
 import { SCORING_DEFAULTS } from "@/lib/scoring/engine";
 
@@ -12,21 +12,28 @@ export default async function ConfigPage() {
   if (!can(session.user.role, "system:config")) redirect("/");
 
   const thresholdRow = await prisma.systemConfig.findUnique({ where: { key: "scoring.thresholds" } });
-  const thresholds = (thresholdRow?.value as { servicesBelow?: number; dealQualityBelow?: number }) ?? SCORING_DEFAULTS.nonStrategic;
+  const thresholds =
+    (thresholdRow?.value as { servicesBelow?: number; dealQualityBelow?: number }) ??
+    SCORING_DEFAULTS.nonStrategic;
 
   return (
-    <div className="max-w-2xl space-y-4">
-      <h1 className="text-2xl font-bold text-gtn-navy">System config</h1>
-      <Card>
+    <FormPage
+      title="System config"
+      subtitle="Tune the scoring thresholds the lead-quality engine uses to flag non-strategic deals."
+      crumbs={[{ href: "/admin", label: "Admin" }, { label: "System config" }]}
+      width="md"
+    >
+      <FormSection title="Non-strategic thresholds" subtitle="Leads below these values are flagged with the non-strategic badge.">
         <ConfigForm
           servicesBelow={thresholds.servicesBelow ?? SCORING_DEFAULTS.nonStrategic.servicesBelow}
           dealQualityBelow={thresholds.dealQualityBelow ?? SCORING_DEFAULTS.nonStrategic.dealQualityBelow}
         />
-      </Card>
-      <Card>
-        <h2 className="text-sm font-semibold mb-2">Default weights (read-only — change scoring engine to edit)</h2>
-        <pre className="text-xs bg-gtn-lavender p-3 rounded overflow-x-auto">{JSON.stringify(SCORING_DEFAULTS, null, 2)}</pre>
-      </Card>
-    </div>
+      </FormSection>
+      <FormSection title="Default weights" subtitle="Read-only — change the scoring engine source to edit.">
+        <pre className="text-xs bg-surface-2 border border-line-subtle p-3 rounded-md overflow-x-auto leading-relaxed">
+          {JSON.stringify(SCORING_DEFAULTS, null, 2)}
+        </pre>
+      </FormSection>
+    </FormPage>
   );
 }

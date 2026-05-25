@@ -1,9 +1,10 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { Role } from "@prisma/client";
 import { auth } from "@/auth";
 import { can } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
+import { Badge } from "@/components/ui/Badge";
+import { DetailPage } from "@/components/templates";
 import { TeamEditor } from "./TeamEditor";
 
 export default async function SalesTeamDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -25,7 +26,6 @@ export default async function SalesTeamDetailPage({ params }: { params: Promise<
   });
   if (!team) notFound();
 
-  // For the "add member" picker — list every active SALESPERSON in the org
   const availableReps = await prisma.user.findMany({
     where: { active: true, role: Role.SALESPERSON },
     select: { id: true, name: true, email: true },
@@ -33,13 +33,24 @@ export default async function SalesTeamDetailPage({ params }: { params: Promise<
   });
 
   return (
-    <div className="space-y-4">
-      <div>
-        <Link href="/sales/teams" className="text-xs text-gtn-purple hover:underline">← Sales teams</Link>
-        <h1 className="text-2xl font-bold text-gtn-navy mt-1">{team.name}</h1>
-        {team.description && <p className="text-sm text-gtn-grey-2 mt-1">{team.description}</p>}
-      </div>
-
+    <DetailPage
+      crumbs={[
+        { href: "/sales", label: "Sales hub" },
+        { href: "/sales/teams", label: "Teams" },
+        { label: team.name },
+      ]}
+      eyebrow="Sales team"
+      title={team.name}
+      subtitle={team.description}
+      badges={
+        <>
+          <Badge tone={team.active ? "success" : "neutral"} shape="pill" size="sm" dot>
+            {team.active ? "active" : "inactive"}
+          </Badge>
+          <Badge tone="brand" shape="pill" size="xs">{team._count.leads} leads</Badge>
+        </>
+      }
+    >
       <TeamEditor
         team={{
           id: team.id,
@@ -66,6 +77,6 @@ export default async function SalesTeamDetailPage({ params }: { params: Promise<
         leadCount={team._count.leads}
         availableReps={availableReps}
       />
-    </div>
+    </DetailPage>
   );
 }

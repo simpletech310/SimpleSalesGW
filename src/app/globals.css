@@ -4,65 +4,128 @@
 
 @layer base {
   :root {
-    /* Gateway brand palette — keep in sync with tailwind.config.ts.
-       v2.4: extended to match the SOP PDF visual language. */
-    --gtn-navy: #0F0E2E;            /* deep cover background, header bands */
-    --gtn-navy-2: #1A1840;           /* secondary deep — card hover, page chrome */
-    --gtn-navy-3: #2D2A55;           /* icon-tile background, accent surfaces */
-    --gtn-purple: #5B4FCF;           /* primary CTA */
-    --gtn-purple-2: #6A5ACD;         /* hover state */
-    --gtn-purple-3: #8B7FE8;         /* aka --gtn-lilac, soft accent */
-    --gtn-lilac: #8B7FE8;            /* alias of purple-3, used in callouts */
-    --gtn-eyebrow: #B5ADF0;          /* lavender used for eyebrow text on dark */
-    --gtn-lavender: #EFEEFB;         /* page tint, soft surfaces */
-    --gtn-lavender-2: #E4E1F8;       /* divider tint */
-    --gtn-callout-bg: #F5F3FC;       /* TIP / IMPORTANT body background */
+    /* ----------------------------------------------------------------
+       Gateway brand palette (v2.4) — keep in sync with tailwind.config.
+       UNCHANGED hex values: print/PDF surfaces depend on these exact
+       tokens. v3.0 layered semantic tokens on top instead of editing.
+       ---------------------------------------------------------------- */
+    --gtn-navy: #0F0E2E;
+    --gtn-navy-2: #1A1840;
+    --gtn-navy-3: #2D2A55;
+    --gtn-purple: #5B4FCF;
+    --gtn-purple-2: #6A5ACD;
+    --gtn-purple-3: #8B7FE8;
+    --gtn-lilac: #8B7FE8;
+    --gtn-eyebrow: #B5ADF0;
+    --gtn-lavender: #EFEEFB;
+    --gtn-lavender-2: #E4E1F8;
+    --gtn-callout-bg: #F5F3FC;
     --gtn-grey: #4A4A4A;
     --gtn-grey-2: #6B6B6B;
     --gtn-grey-3: #ABABAB;
     --gtn-green: #2BB673;
     --gtn-green-bg: #E6F8EF;
     --gtn-amber: #E89422;
+    --gtn-amber-bg: #FEF3E2;
     --gtn-red: #D03A2E;
+    --gtn-red-bg: #FBE9E7;
     --gtn-text: #1F1F2D;
 
-    /* shadcn semantic tokens mapped onto Gateway palette */
-    --background: 240 30% 99%;
-    --foreground: 240 18% 15%;
+    /* ----------------------------------------------------------------
+       v3.0 — semantic neutrals for the refined-SaaS surface system.
+       Every shadcn token below is mapped onto these so a swap here
+       restyles 100% of components.
+       ---------------------------------------------------------------- */
+    --surface:        #FFFFFF;  /* cards, popovers, primary surface */
+    --surface-2:      #FAFAFC;  /* page background */
+    --surface-3:      #F4F3FA;  /* hovered rows, subtle fills */
+    --surface-sunken: #ECEAF5;  /* inset wells, dividers */
+
+    --border-subtle: #ECEAF5;
+    --border:        #DFDCEF;
+    --border-strong: #C9C4E2;
+
+    --text-strong: #1F1F2D;
+    --text:        #3A3A4F;
+    --text-muted:  #6B6B82;
+    --text-faint:  #9C9CB0;
+    --text-inverse:#FFFFFF;
+
+    --brand-accent:      var(--gtn-purple);
+    --brand-accent-soft: var(--gtn-lavender);
+    --brand-ring:        rgba(91, 79, 207, 0.35);
+
+    /* Status — bg + fg pairs */
+    --success:    var(--gtn-green);
+    --success-bg: var(--gtn-green-bg);
+    --warn:       var(--gtn-amber);
+    --warn-bg:    var(--gtn-amber-bg);
+    --danger:     var(--gtn-red);
+    --danger-bg:  var(--gtn-red-bg);
+    --info:       var(--gtn-purple);
+    --info-bg:    var(--gtn-callout-bg);
+
+    /* ----------------------------------------------------------------
+       shadcn semantic tokens — mapped onto v3.0 neutrals.
+       Values use HSL channels (no hsl() wrapper) per shadcn convention.
+       ---------------------------------------------------------------- */
+    --background: 240 27% 99%;          /* surface-2 */
+    --foreground: 240 18% 15%;          /* text-strong */
     --card: 0 0% 100%;
     --card-foreground: 240 18% 15%;
     --popover: 0 0% 100%;
     --popover-foreground: 240 18% 15%;
-    --primary: 244 36% 12%;            /* navy */
+    --primary: 244 36% 12%;             /* navy */
     --primary-foreground: 0 0% 100%;
-    --secondary: 245 70% 96%;          /* lavender */
+    --secondary: 245 70% 96%;           /* lavender */
     --secondary-foreground: 244 36% 12%;
-    --muted: 245 70% 96%;
-    --muted-foreground: 240 6% 42%;
-    --accent: 249 58% 56%;             /* purple */
+    --muted: 247 35% 96%;               /* surface-3 */
+    --muted-foreground: 240 11% 46%;    /* text-muted */
+    --accent: 249 58% 56%;              /* purple */
     --accent-foreground: 0 0% 100%;
     --destructive: 4 67% 50%;
     --destructive-foreground: 0 0% 100%;
-    --border: 246 33% 92%;
-    --input: 246 33% 92%;
+    --border: 248 25% 90%;              /* border */
+    --input: 248 25% 90%;
     --ring: 249 58% 56%;
     --radius: 0.5rem;
   }
 
   * {
-    @apply border-border;
+    border-color: hsl(var(--border));
   }
 
   html, body {
-    @apply bg-background text-foreground antialiased;
+    background-color: var(--surface-2);
+    color: var(--text-strong);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
     -webkit-tap-highlight-color: transparent;
+    text-rendering: optimizeLegibility;
   }
 
   body {
-    /* v2.4 — Carlito is the Gateway brand body font (Calibri-compatible),
-       Inter is the fallback. JetBrains Mono stays for code. */
+    /* Carlito = brand body; Inter fallback; JetBrains Mono for code. */
     font-family: var(--font-carlito), var(--font-inter), system-ui, sans-serif;
-    color: var(--gtn-text);
+    font-feature-settings: "cv11", "ss01", "ss03";
+  }
+
+  /* Refined typographic defaults */
+  h1, h2, h3, h4 {
+    color: var(--text-strong);
+    letter-spacing: -0.011em;
+    line-height: 1.2;
+  }
+
+  /* Numeric columns in tables get tabular figures so digits line up */
+  .tabular { font-variant-numeric: tabular-nums; }
+
+  /* One consistent focus ring across the whole app */
+  *:focus { outline: none; }
+  *:focus-visible {
+    outline: 2px solid var(--brand-accent);
+    outline-offset: 2px;
+    border-radius: 4px;
   }
 
   /* Tap targets ≥ 44pt on mobile */
@@ -71,9 +134,24 @@
       min-height: 44px;
     }
   }
+
+  /* Custom scrollbars — subtle, brand-aligned */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: var(--border-strong);
+    border-radius: 999px;
+    border: 2px solid var(--surface-2);
+  }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-faint); }
 }
 
 @layer components {
+  /* ----------------------------------------------------------------
+     Legacy gtn-* utilities — kept verbatim for print/PDF compatibility.
+     Do not edit hex values here; print routes depend on them.
+     ---------------------------------------------------------------- */
+
   .gtn-card {
     @apply rounded-lg bg-card border shadow-card;
   }
@@ -117,10 +195,9 @@
   .gtn-score-badge--red   { background-color: #FBE9E7; color: var(--gtn-red); }
 
   /* ---------------------------------------------------------------
-     v2.4 — typography utilities matching the SOP PDF
+     Typography utilities (v2.4 SOP-PDF compatible)
      ---------------------------------------------------------------*/
 
-  /* Small-caps eyebrow text — "STANDARD OPERATING PROCEDURE" */
   .gtn-eyebrow {
     font-size: 10px;
     line-height: 1.2;
@@ -129,11 +206,8 @@
     font-weight: 600;
     color: var(--gtn-eyebrow);
   }
-  .gtn-eyebrow--dark {
-    color: var(--gtn-grey-2);
-  }
+  .gtn-eyebrow--dark { color: var(--gtn-grey-2); }
 
-  /* Display heading — the giant "SECURITY AGENT DEPLOYMENT" on covers */
   .gtn-display {
     font-size: clamp(1.875rem, 4vw + 1rem, 3.25rem);
     line-height: 1.05;
@@ -141,11 +215,8 @@
     font-weight: 800;
     color: var(--gtn-navy);
   }
-  .gtn-display--onDark {
-    color: white;
-  }
+  .gtn-display--onDark { color: white; }
 
-  /* Section label — medium small-caps used for section headers in body */
   .gtn-section-label {
     font-size: 12px;
     line-height: 1.2;
@@ -156,10 +227,9 @@
   }
 
   /* ---------------------------------------------------------------
-     v2.4 — Brand component primitives (used by src/components/brand)
+     Brand primitives (used by src/components/brand)
      ---------------------------------------------------------------*/
 
-  /* Callout: TIP / IMPORTANT / NOTE / WARNING — left-bordered lavender card */
   .gtn-callout-v2 {
     display: grid;
     grid-template-columns: minmax(70px, 100px) 1fr;
@@ -188,7 +258,6 @@
     color: var(--gtn-navy);
   }
 
-  /* Numbered step badge — large circle, used at section openers */
   .gtn-step-badge {
     display: inline-flex;
     align-items: center;
@@ -208,7 +277,6 @@
     font-size: 12px;
   }
 
-  /* Lettered substep badge — smaller circle inside a step */
   .gtn-letter-badge {
     display: inline-flex;
     align-items: center;
@@ -223,7 +291,6 @@
     flex-shrink: 0;
   }
 
-  /* Icon tile — dark purple square with a white outline icon, like the SOP cover */
   .gtn-icon-tile {
     display: inline-flex;
     align-items: center;
@@ -233,11 +300,8 @@
     border-radius: 8px;
     padding: 12px;
   }
-  .gtn-icon-tile--lg {
-    padding: 18px;
-  }
+  .gtn-icon-tile--lg { padding: 18px; }
 
-  /* Branded pill with optional leading dot — bottom-of-cover meta badges */
   .gtn-pill {
     display: inline-flex;
     align-items: center;
@@ -266,7 +330,7 @@
   .gtn-pill--red    { background-color: var(--gtn-red); color: white; }
   .gtn-pill--red .gtn-pill__dot { background-color: #F5C2BD; }
 
-  /* Header band — interior page chrome with logo left + section title right */
+  /* Header / footer / hero bands — kept for print routes */
   .gtn-header-band {
     display: flex;
     align-items: stretch;
@@ -294,7 +358,6 @@
     font-weight: 600;
   }
 
-  /* Footer band — V1.0 — 2026 left | center | doc title right */
   .gtn-footer-band {
     display: grid;
     grid-template-columns: 1fr auto 1fr;
@@ -311,7 +374,6 @@
   .gtn-footer-band__center { text-align: center; }
   .gtn-footer-band__right  { text-align: right; }
 
-  /* Metadata block — labeled bordered block (DEPARTMENT / Technical) */
   .gtn-meta-block {
     border-left: 3px solid var(--gtn-purple);
     padding-left: 0.75rem;
@@ -331,7 +393,6 @@
     line-height: 1.3;
   }
 
-  /* Hero band — dark purple landing surface with geometric shape decorations */
   .gtn-hero-band {
     position: relative;
     overflow: hidden;
@@ -341,7 +402,6 @@
     padding: clamp(2rem, 4vw, 3rem);
   }
   .gtn-hero-band::before {
-    /* big top-right circle */
     content: "";
     position: absolute;
     top: -180px;
@@ -354,7 +414,6 @@
     pointer-events: none;
   }
   .gtn-hero-band::after {
-    /* bottom-right rotated diamond cluster — single rotated square */
     content: "";
     position: absolute;
     bottom: -60px;
@@ -369,5 +428,139 @@
   .gtn-hero-band > * {
     position: relative;
     z-index: 1;
+  }
+
+  /* ---------------------------------------------------------------
+     v3.0 — refined-SaaS utility primitives
+     ---------------------------------------------------------------*/
+
+  /* App surface — light page background with subtle texture */
+  .ui-app-bg {
+    background-color: var(--surface-2);
+    background-image:
+      radial-gradient(circle at 1px 1px, rgba(91, 79, 207, 0.04) 1px, transparent 0);
+    background-size: 28px 28px;
+  }
+
+  /* Surface card — the new default working-page card */
+  .ui-surface {
+    background-color: var(--surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: 12px;
+  }
+  .ui-surface-flat {
+    background-color: var(--surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: 10px;
+  }
+  .ui-surface-elevated {
+    background-color: var(--surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: 12px;
+    box-shadow:
+      0 1px 0 rgba(15, 14, 46, 0.02),
+      0 4px 14px rgba(15, 14, 46, 0.06);
+  }
+
+  /* Quiet section label — used inside cards and sidebar groups */
+  .ui-label {
+    font-size: 11px;
+    line-height: 1.2;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 600;
+    color: var(--text-muted);
+  }
+
+  /* Display number — for StatCard */
+  .ui-stat {
+    font-feature-settings: "tnum", "ss01";
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+    color: var(--text-strong);
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  /* Sidebar nav item */
+  .ui-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 10px;
+    border-radius: 8px;
+    font-size: 13.5px;
+    font-weight: 500;
+    color: var(--text);
+    transition: background-color 120ms cubic-bezier(.2,.8,.2,1),
+                color 120ms cubic-bezier(.2,.8,.2,1);
+    position: relative;
+  }
+  .ui-nav-item:hover {
+    background-color: var(--surface-3);
+    color: var(--text-strong);
+  }
+  .ui-nav-item[data-active="true"] {
+    background-color: var(--brand-accent-soft);
+    color: var(--gtn-navy);
+    font-weight: 600;
+  }
+  .ui-nav-item[data-active="true"]::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3px;
+    height: 18px;
+    background-color: var(--brand-accent);
+    border-radius: 0 3px 3px 0;
+  }
+  .ui-nav-item svg {
+    color: var(--text-muted);
+    transition: color 120ms;
+  }
+  .ui-nav-item:hover svg { color: var(--text); }
+  .ui-nav-item[data-active="true"] svg { color: var(--brand-accent); }
+
+  /* Topbar — slim chrome with breadcrumb + search */
+  .ui-topbar {
+    display: flex;
+    align-items: center;
+    height: 52px;
+    padding: 0 20px;
+    background-color: var(--surface);
+    border-bottom: 1px solid var(--border-subtle);
+    gap: 16px;
+  }
+
+  /* Search/command trigger — pill button in topbar */
+  .ui-cmdk-trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 32px;
+    padding: 0 10px 0 12px;
+    background-color: var(--surface-2);
+    border: 1px solid var(--border-subtle);
+    border-radius: 999px;
+    font-size: 13px;
+    color: var(--text-muted);
+    transition: background-color 120ms, border-color 120ms;
+    min-width: 220px;
+  }
+  .ui-cmdk-trigger:hover {
+    background-color: var(--surface-3);
+    border-color: var(--border);
+  }
+  .ui-cmdk-kbd {
+    margin-left: auto;
+    font-family: var(--font-jetbrains), ui-monospace, monospace;
+    font-size: 11px;
+    color: var(--text-faint);
+    background-color: var(--surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: 4px;
+    padding: 1px 6px;
   }
 }

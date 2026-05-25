@@ -3,6 +3,8 @@ import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { can } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
+import { Badge } from "@/components/ui/Badge";
+import { DetailPage } from "@/components/templates";
 import { TerritoryEditor } from "./TerritoryEditor";
 
 export default async function TerritoryDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -20,20 +22,32 @@ export default async function TerritoryDetailPage({ params }: { params: Promise<
   ]);
   if (!territory) notFound();
 
-  // Coerce JSON values for the client
   const cities = Array.isArray(territory.cities) ? (territory.cities as Array<{ city: string; state: string }>) : [];
   const polygon = territory.polygon as { type: "Polygon"; coordinates: number[][][] } | null;
 
   return (
-    <div className="space-y-4">
-      <div>
-        <Link href="/sales/territories" className="text-xs text-gtn-purple hover:underline">← Territories</Link>
-        <h1 className="text-2xl font-bold text-gtn-navy mt-1">{territory.name}</h1>
-        <p className="text-sm text-gtn-grey-2 mt-1">
-          Team: <Link href={`/sales/teams/${territory.teamId}`} className="text-gtn-purple hover:underline">{territory.team.name}</Link>
-        </p>
-      </div>
-
+    <DetailPage
+      crumbs={[
+        { href: "/sales", label: "Sales hub" },
+        { href: "/sales/territories", label: "Territories" },
+        { label: territory.name },
+      ]}
+      eyebrow="Territory"
+      title={territory.name}
+      subtitle={
+        <>
+          Team:{" "}
+          <Link href={`/sales/teams/${territory.teamId}`} className="text-gtn-purple hover:underline font-medium">
+            {territory.team.name}
+          </Link>
+        </>
+      }
+      badges={
+        <Badge tone={territory.active ? "success" : "neutral"} shape="pill" size="sm" dot>
+          {territory.active ? "active" : "inactive"}
+        </Badge>
+      }
+    >
       <TerritoryEditor
         territory={{
           id: territory.id,
@@ -47,6 +61,6 @@ export default async function TerritoryDetailPage({ params }: { params: Promise<
         }}
         teams={teams}
       />
-    </div>
+    </DetailPage>
   );
 }

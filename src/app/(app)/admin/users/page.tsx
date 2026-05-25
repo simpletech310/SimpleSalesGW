@@ -3,7 +3,7 @@ import { format } from "date-fns";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { can } from "@/lib/rbac";
-import { Card } from "@/components/ui/Card";
+import { ListPage } from "@/components/templates";
 import { UserManager } from "./UserManager";
 
 export default async function UsersAdminPage() {
@@ -17,16 +17,18 @@ export default async function UsersAdminPage() {
   });
 
   return (
-    <div className="space-y-6 max-w-4xl">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gtn-navy">Users</h1>
-      </div>
-
-      <UserManager initialUsers={users.map((u) => ({
-        ...u,
-        lastLoginAt: u.lastLoginAt ? format(new Date(u.lastLoginAt), "PPp") : null,
-        createdAt: format(new Date(u.createdAt), "PPp"),
-      }))} />
-    </div>
+    <ListPage
+      title="Users"
+      subtitle="Create, edit, and deactivate accounts."
+      crumbs={[{ href: "/admin", label: "Admin" }, { label: "Users" }]}
+    >
+      <UserManager
+        initialUsers={users.map((u) => ({
+          ...u,
+          lastLoginAt: u.lastLoginAt ? format(new Date(u.lastLoginAt), "PPp") : null,
+          createdAt: format(new Date(u.createdAt), "PPp"),
+        }))}
+      />
+    </ListPage>
   );
 }

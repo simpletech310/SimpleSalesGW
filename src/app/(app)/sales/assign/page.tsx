@@ -4,6 +4,7 @@ import { Role } from "@prisma/client";
 import { auth } from "@/auth";
 import { can } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
+import { ListPage } from "@/components/templates";
 import { AssignWorkbench } from "./AssignWorkbench";
 
 export default async function AssignLeadsPage({
@@ -46,20 +47,23 @@ export default async function AssignLeadsPage({
   ]);
 
   return (
-    <div className="space-y-4">
-      <div>
-        <Link href="/sales" className="text-xs text-gtn-purple hover:underline">← Sales</Link>
-        <h1 className="text-2xl font-bold text-gtn-navy mt-1">Assign leads</h1>
-        <p className="text-sm text-gtn-grey-2 mt-1">
+    <ListPage
+      title="Assign leads"
+      subtitle={
+        <>
           {showAll
             ? "All leads — assign or reassign to teams or specific reps."
             : `${leads.length} unassigned lead${leads.length === 1 ? "" : "s"}.`}{" "}
-          <Link href={showAll ? "/sales/assign" : "/sales/assign?all=1"} className="text-gtn-purple underline">
+          <Link
+            href={showAll ? "/sales/assign" : "/sales/assign?all=1"}
+            className="text-gtn-purple hover:underline font-medium"
+          >
             {showAll ? "show only unassigned" : "show all"}
           </Link>
-        </p>
-      </div>
-
+        </>
+      }
+      crumbs={[{ href: "/sales", label: "Sales hub" }, { label: "Assign" }]}
+    >
       <AssignWorkbench
         initialLeads={leads.map((l) => ({
           id: l.id,
@@ -77,6 +81,6 @@ export default async function AssignLeadsPage({
         teams={teams}
         reps={reps}
       />
-    </div>
+    </ListPage>
   );
 }

@@ -2,16 +2,14 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { format } from "date-fns";
 import { auth } from "@/auth";
-import { Card } from "@/components/ui/Card";
 import { loadNotifications } from "@/lib/notifications";
+import { ListPage } from "@/components/templates";
+import { DashboardSection } from "@/components/templates/DashboardPage";
 import { HandoffRows, PricingApprovalRows } from "./NotificationsClient";
+import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
-// v2.14 — server-side filter so URLs are bookmarkable and deep-linkable
-// (e.g. /notifications?filter=handoffs). Keeps the page a pure SSR
-// component without forcing a client-state rewrite.
-// v2.17 — added "presale" filter chip for pre-sale scoping requests.
 type FilterKey = "all" | "actions" | "assessments" | "approvals" | "handoffs" | "onboarding" | "qbrs" | "discovery" | "presale";
 const VALID_FILTERS: FilterKey[] = ["all", "actions", "assessments", "approvals", "handoffs", "onboarding", "qbrs", "discovery", "presale"];
 
@@ -42,174 +40,156 @@ export default async function NotificationsPage({
   ];
 
   return (
-    <div className="space-y-4 max-w-4xl">
-      <div>
-        <h1 className="text-2xl font-bold text-gtn-navy">Notifications</h1>
-        <p className="text-sm text-gtn-grey-2">{data.total} item{data.total === 1 ? "" : "s"} waiting on you.</p>
-      </div>
+    <ListPage
+      title="Notifications"
+      subtitle={`${data.total} item${data.total === 1 ? "" : "s"} waiting on you.`}
+      toolbar={
+        data.total > 0 ? (
+          <div className="flex flex-wrap gap-1.5">
+            {filterChips
+              .filter((c) => c.key === "all" || c.count > 0)
+              .map((c) => {
+                const active = c.key === filter;
+                return (
+                  <Link
+                    key={c.key}
+                    href={c.key === "all" ? "/notifications" : `/notifications?filter=${c.key}`}
+                    data-tap-target
+                    className={cn(
+                      "inline-flex items-center h-8 px-3 rounded-full text-xs font-medium transition-colors",
+                      active
+                        ? "bg-gtn-navy text-white"
+                        : "bg-surface text-ink border border-line hover:bg-surface-3 hover:text-ink-strong",
+                    )}
+                  >
+                    {c.label}
+                    <span className={cn("ml-1 tabular font-semibold", active ? "text-white/85" : "text-ink-muted")}>{c.count}</span>
+                  </Link>
+                );
+              })}
+          </div>
+        ) : null
+      }
+      body={
+        <div className="space-y-4 max-w-4xl">
+          {show("actions") && (
+            <Section title="Next actions due (next 7 days)" empty="Inbox zero — nothing scheduled.">
+              {data.openActions.map((a) => (
+                <Row key={a.activityId} href={`/leads/${a.leadId}`}>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-ink-strong">{a.nextAction}</p>
+                    <p className="text-xs text-ink-muted">
+                      {a.leadName}
+                      {a.actorName && <span className="text-ink-faint"> · {a.actorName}</span>}
+                    </p>
+                  </div>
+                  <span className="text-xs text-ink-faint whitespace-nowrap tabular">{format(new Date(a.dueAt), "PPp")}</span>
+                </Row>
+              ))}
+            </Section>
+          )}
 
-      {/* v2.14 — filter chips. Clicking a chip narrows the page to one
-          section so a busy COO can hyperfocus on handoffs or approvals
-          without scrolling past the rest. */}
-      {data.total > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {filterChips
-            .filter((c) => c.key === "all" || c.count > 0)
-            .map((c) => {
-              const active = c.key === filter;
-              return (
-                <Link
-                  key={c.key}
-                  href={c.key === "all" ? "/notifications" : `/notifications?filter=${c.key}`}
-                  className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold transition ${
-                    active
-                      ? "bg-gtn-navy text-white"
-                      : "bg-gtn-lavender text-gtn-navy hover:bg-gtn-lavender-2"
-                  }`}
-                >
-                  {c.label}
-                  <span className={`font-mono ${active ? "text-white/90" : "text-gtn-purple"}`}>{c.count}</span>
-                </Link>
-              );
-            })}
+          {show("assessments") && (
+            <Section title="Assessments awaiting completion" empty="No outstanding assessment links.">
+              {data.assessmentsAwaiting.map((a) => (
+                <Row key={a.id} href={`/leads/${a.leadId}`}>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-ink-strong">{a.leadName}</p>
+                    <p className="text-xs text-ink-muted">{a.respondentEmail ?? "(no email captured)"}</p>
+                  </div>
+                  <span className="text-xs text-ink-faint whitespace-nowrap tabular">sent {format(new Date(a.sentAt), "PPp")}</span>
+                </Row>
+              ))}
+            </Section>
+          )}
+
+          {show("approvals") && (
+            <Section title="Pricing approvals waiting on you" empty="No pricing approvals waiting.">
+              <PricingApprovalRows rows={data.pricingApprovalsPending} role={session.user.role} />
+            </Section>
+          )}
+
+          {show("handoffs") && (
+            <Section title="Handoffs to accept" empty="No handoffs waiting.">
+              <HandoffRows rows={data.handoffsAwaiting} role={session.user.role} />
+            </Section>
+          )}
+
+          {show("onboarding") && (
+            <Section title="Overdue onboarding tasks" empty="No overdue onboarding tasks.">
+              {data.overdueOnboarding.map((t) => (
+                <Row key={t.taskId} href={`/accounts/${t.customerId}`}>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-ink-strong">{t.title}</p>
+                    <p className="text-xs text-ink-muted">{t.customerName} · {t.phase.replace(/_/g, " ")}</p>
+                  </div>
+                  <span className="text-xs text-danger whitespace-nowrap font-semibold">due {format(new Date(t.dueAt), "PP")}</span>
+                </Row>
+              ))}
+            </Section>
+          )}
+
+          {show("qbrs") && (
+            <Section title="Upcoming QBRs (next 30 days)" empty="No QBRs scheduled in the next 30 days.">
+              {data.upcomingQbrs.map((q) => (
+                <Row key={q.id} href={`/accounts/${q.customerId}/qbrs/${q.id}`}>
+                  <p className="text-sm font-medium text-ink-strong">{q.customerName}</p>
+                  <span className="text-xs text-ink-faint whitespace-nowrap tabular">{format(new Date(q.scheduledAt), "PPp")}</span>
+                </Row>
+              ))}
+            </Section>
+          )}
+
+          {show("discovery") && (
+            <Section title="Discovery assessments in progress" empty="No active discovery assessments.">
+              {data.inProgressDiscovery.map((d) => (
+                <Row key={d.id} href={`/accounts/${d.customerId}/discovery/${d.id}`}>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-ink-strong">{d.customerName}</p>
+                    <p className="text-xs text-ink-muted">{d.kind.replace(/_/g, " ")}</p>
+                  </div>
+                  <span className="text-xs text-ink-faint whitespace-nowrap tabular">started {format(new Date(d.startedAt), "PP")}</span>
+                </Row>
+              ))}
+            </Section>
+          )}
+
+          {show("presale") && (
+            <Section title="Pre-sale scoping requests" empty="No pre-sale scoping requests waiting.">
+              {data.preSaleAssessments.map((p) => (
+                <Row key={p.id} href={`/leads/${p.leadId}/discovery/${p.id}`}>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-ink-strong">{p.leadName}</p>
+                    <p className="text-xs text-ink-muted">
+                      {p.kind.replace(/_/g, " ")} · requested by {p.requestedByName}
+                    </p>
+                  </div>
+                  <span className="text-xs text-ink-faint whitespace-nowrap tabular">
+                    {p.status === "NOT_STARTED" ? "awaiting start" : "in progress"} · {format(new Date(p.requestedAt), "PP")}
+                  </span>
+                </Row>
+              ))}
+            </Section>
+          )}
         </div>
-      )}
-
-      {show("actions") && (
-      <Section title="Next actions due (next 7 days)" empty="Inbox zero — nothing scheduled.">
-        {data.openActions.map((a) => (
-          <Link key={a.activityId} href={`/leads/${a.leadId}`} className="block px-4 py-3 hover:bg-gtn-lavender/40 border-t border-gtn-lavender-2 first:border-0">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-medium text-gtn-navy">{a.nextAction}</p>
-                <p className="text-xs text-gtn-grey-2">
-                  {a.leadName}
-                  {a.actorName && <span className="text-gtn-grey-3"> · {a.actorName}</span>}
-                </p>
-              </div>
-              <span className="text-xs text-gtn-grey-3 whitespace-nowrap">{format(new Date(a.dueAt), "PPp")}</span>
-            </div>
-          </Link>
-        ))}
-      </Section>
-      )}
-
-      {show("assessments") && (
-      <Section title="Assessments awaiting completion" empty="No outstanding assessment links.">
-        {data.assessmentsAwaiting.map((a) => (
-          <Link key={a.id} href={`/leads/${a.leadId}`} className="block px-4 py-3 hover:bg-gtn-lavender/40 border-t border-gtn-lavender-2 first:border-0">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-medium text-gtn-navy">{a.leadName}</p>
-                <p className="text-xs text-gtn-grey-2">{a.respondentEmail ?? "(no email captured)"}</p>
-              </div>
-              <span className="text-xs text-gtn-grey-3 whitespace-nowrap">sent {format(new Date(a.sentAt), "PPp")}</span>
-            </div>
-          </Link>
-        ))}
-      </Section>
-      )}
-
-      {/* v2.6 — inline approve/reject; approval buttons gated by role */}
-      {show("approvals") && (
-      <Card className="p-0 overflow-hidden">
-        <div className="px-4 py-3 bg-gtn-lavender text-xs uppercase tracking-wide font-semibold text-gtn-navy">
-          Pricing approvals waiting on you
-        </div>
-        <PricingApprovalRows rows={data.pricingApprovalsPending} role={session.user.role} />
-      </Card>
-      )}
-
-      {/* v2.6 — inline accept/reject for handoffs */}
-      {show("handoffs") && (
-      <Card className="p-0 overflow-hidden">
-        <div className="px-4 py-3 bg-gtn-lavender text-xs uppercase tracking-wide font-semibold text-gtn-navy">
-          Handoffs to accept
-        </div>
-        <HandoffRows rows={data.handoffsAwaiting} role={session.user.role} />
-      </Card>
-      )}
-
-      {show("onboarding") && (
-      <Section title="Overdue onboarding tasks" empty="No overdue onboarding tasks.">
-        {data.overdueOnboarding.map((t) => (
-          <Link key={t.taskId} href={`/accounts/${t.customerId}`} className="block px-4 py-3 hover:bg-gtn-lavender/40 border-t border-gtn-lavender-2 first:border-0">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-medium text-gtn-navy">{t.title}</p>
-                <p className="text-xs text-gtn-grey-2">{t.customerName} · {t.phase.replace(/_/g, " ")}</p>
-              </div>
-              <span className="text-xs text-gtn-red whitespace-nowrap">due {format(new Date(t.dueAt), "PP")}</span>
-            </div>
-          </Link>
-        ))}
-      </Section>
-      )}
-
-      {show("qbrs") && (
-      <Section title="Upcoming QBRs (next 30 days)" empty="No QBRs scheduled in the next 30 days.">
-        {data.upcomingQbrs.map((q) => (
-          <Link key={q.id} href={`/accounts/${q.customerId}/qbrs/${q.id}`} className="block px-4 py-3 hover:bg-gtn-lavender/40 border-t border-gtn-lavender-2 first:border-0">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-sm font-medium text-gtn-navy">{q.customerName}</p>
-              <span className="text-xs text-gtn-grey-3 whitespace-nowrap">{format(new Date(q.scheduledAt), "PPp")}</span>
-            </div>
-          </Link>
-        ))}
-      </Section>
-      )}
-
-      {show("discovery") && (
-      <Section title="Discovery assessments in progress" empty="No active discovery assessments.">
-        {data.inProgressDiscovery.map((d) => (
-          <Link key={d.id} href={`/accounts/${d.customerId}/discovery/${d.id}`} className="block px-4 py-3 hover:bg-gtn-lavender/40 border-t border-gtn-lavender-2 first:border-0">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-medium text-gtn-navy">{d.customerName}</p>
-                <p className="text-xs text-gtn-grey-2">{d.kind.replace(/_/g, " ")}</p>
-              </div>
-              <span className="text-xs text-gtn-grey-3 whitespace-nowrap">started {format(new Date(d.startedAt), "PP")}</span>
-            </div>
-          </Link>
-        ))}
-      </Section>
-      )}
-
-      {/* v2.17 — Pre-sale scoping queue: vCIO gets pulled in by sales to
-          size deals before they close. Lives on the Lead. */}
-      {show("presale") && (
-      <Section title="Pre-sale scoping requests" empty="No pre-sale scoping requests waiting.">
-        {data.preSaleAssessments.map((p) => (
-          <Link
-            key={p.id}
-            href={`/leads/${p.leadId}/discovery/${p.id}`}
-            className="block px-4 py-3 hover:bg-gtn-lavender/40 border-t border-gtn-lavender-2 first:border-0"
-          >
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-medium text-gtn-navy">{p.leadName}</p>
-                <p className="text-xs text-gtn-grey-2">
-                  {p.kind.replace(/_/g, " ")} · requested by {p.requestedByName}
-                </p>
-              </div>
-              <span className="text-xs text-gtn-grey-3 whitespace-nowrap">
-                {p.status === "NOT_STARTED" ? "awaiting start" : "in progress"} · {format(new Date(p.requestedAt), "PP")}
-              </span>
-            </div>
-          </Link>
-        ))}
-      </Section>
-      )}
-    </div>
+      }
+    />
   );
 }
 
 function Section({ title, empty, children }: { title: string; empty: string; children: React.ReactNode }) {
   const hasChildren = Array.isArray(children) ? children.length > 0 : Boolean(children);
   return (
-    <Card className="p-0 overflow-hidden">
-      <div className="px-4 py-3 bg-gtn-lavender text-xs uppercase tracking-wide font-semibold text-gtn-navy">{title}</div>
-      {hasChildren ? <div>{children}</div> : <p className="px-4 py-6 text-sm text-gtn-grey-2 text-center">{empty}</p>}
-    </Card>
+    <DashboardSection title={title} flush>
+      {hasChildren ? <div className="divide-y divide-line-subtle">{children}</div> : <p className="px-4 md:px-5 py-6 text-sm text-ink-muted text-center">{empty}</p>}
+    </DashboardSection>
+  );
+}
+
+function Row({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <Link href={href} className="flex items-center justify-between gap-3 px-4 md:px-5 py-3 hover:bg-surface-3/60 transition-colors">
+      {children}
+    </Link>
   );
 }

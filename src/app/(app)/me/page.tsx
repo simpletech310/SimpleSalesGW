@@ -1,7 +1,9 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { Card } from "@/components/ui/Card";
+import { DashboardPage, DashboardSection } from "@/components/templates";
+import { Badge } from "@/components/ui/Badge";
 
 export default async function MePage() {
   const session = await auth();
@@ -21,28 +23,33 @@ export default async function MePage() {
   });
 
   return (
-    <div className="max-w-2xl space-y-4">
-      <Card>
-        <h1 className="text-xl font-bold text-gtn-navy">{user.name}</h1>
-        <p className="text-sm text-gtn-grey-2">{user.email}</p>
-        <p className="text-xs uppercase tracking-wide text-gtn-purple mt-2">{user.role.replace("_", " ")}</p>
-      </Card>
-      <Card>
-        <h2 className="text-sm font-semibold mb-3">Open next-actions</h2>
+    <DashboardPage
+      eyebrow="Your profile"
+      title={user.name ?? "Me"}
+      subtitle={user.email}
+      meta={<Badge tone="brand" shape="pill" size="sm" dot>{user.role.replace("_", " ").toLowerCase()}</Badge>}
+    >
+      <DashboardSection title="Open next-actions" subtitle="Activities you've scheduled across your leads.">
         {myOpenActions.length === 0 ? (
-          <p className="text-sm text-gtn-grey-2">Nothing due. Inbox zero.</p>
+          <p className="text-sm text-ink-muted">Nothing due. Inbox zero.</p>
         ) : (
-          <ul className="space-y-2 text-sm">
+          <ul className="divide-y divide-line-subtle -my-2">
             {myOpenActions.map((a) => (
-              <li key={a.id}>
-                <a className="text-gtn-purple underline" href={`/leads/${a.lead.id}`}>{a.lead.businessName}</a>
-                <span className="text-gtn-grey-2"> — {a.nextAction}</span>
-                <span className="block text-xs text-gtn-grey-3">{a.nextActionDueAt?.toString().slice(0,16).replace("T", " ")}</span>
+              <li key={a.id} className="flex items-start justify-between gap-3 py-2.5">
+                <div className="min-w-0">
+                  <Link href={`/leads/${a.lead.id}`} className="text-ink-strong font-medium hover:text-gtn-purple">
+                    {a.lead.businessName}
+                  </Link>
+                  <p className="text-sm text-ink-muted truncate">{a.nextAction}</p>
+                </div>
+                <span className="text-xs text-ink-faint flex-shrink-0 tabular whitespace-nowrap">
+                  {a.nextActionDueAt?.toString().slice(0, 16).replace("T", " ")}
+                </span>
               </li>
             ))}
           </ul>
         )}
-      </Card>
-    </div>
+      </DashboardSection>
+    </DashboardPage>
   );
 }
