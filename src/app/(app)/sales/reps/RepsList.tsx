@@ -21,7 +21,7 @@ type RepRow = {
   lastLoginAt: string | null;
   leadCount: number;
   teamCount: number;
-  teamNames: Array<{ name: string; isPrimary: boolean }>;
+  teamNames: Array<{ id: string; name: string; isPrimary: boolean }>;
 };
 
 /**
@@ -192,14 +192,16 @@ export function RepsList({ initialReps }: { initialReps: RepRow[] }) {
                       <Badge tone="warn" shape="pill" size="xs">No team</Badge>
                     ) : (
                       <div className="flex flex-wrap gap-1">
-                        {r.teamNames.slice(0, 3).map((t, i) => (
-                          <span
-                            key={i}
-                            className="text-[10px] inline-flex items-center gap-0.5 bg-brand-soft text-gtn-navy rounded px-1.5 py-0.5"
+                        {r.teamNames.slice(0, 3).map((t) => (
+                          <Link
+                            key={t.id}
+                            href={`/sales/teams/${t.id}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-[10px] inline-flex items-center gap-0.5 bg-brand-soft text-gtn-navy rounded px-1.5 py-0.5 hover:bg-gtn-purple hover:text-white transition-colors"
                           >
                             {t.isPrimary && <Star className="h-2.5 w-2.5 text-gtn-amber" aria-label="Primary" />}
                             {t.name}
-                          </span>
+                          </Link>
                         ))}
                         {r.teamNames.length > 3 && (
                           <span className="text-[10px] text-ink-faint">+{r.teamNames.length - 3}</span>

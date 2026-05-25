@@ -57,7 +57,7 @@ export default async function SalesHomePage() {
       orderBy: { createdAt: "desc" },
       include: {
         lead: { select: { id: true, businessName: true } },
-        actor: { select: { name: true } },
+        actor: { select: { id: true, name: true, role: true } },
       },
       take: 6,
     }),
@@ -230,7 +230,21 @@ export default async function SalesHomePage() {
                           </p>
                           <p className="text-xs text-ink-muted mt-0.5">
                             {a.type.replace(/_/g, " ").toLowerCase()}
-                            {a.actor?.name && <> · {a.actor.name}</>}
+                            {a.actor && (
+                              <>
+                                {" · "}
+                                {a.actor.role === Role.SALESPERSON ? (
+                                  <Link
+                                    href={`/sales/reps/${a.actor.id}`}
+                                    className="hover:text-gtn-purple font-medium"
+                                  >
+                                    {a.actor.name}
+                                  </Link>
+                                ) : (
+                                  <span>{a.actor.name}</span>
+                                )}
+                              </>
+                            )}
                             <span className="text-ink-faint"> · {formatDistanceToNow(new Date(a.createdAt), { addSuffix: true })}</span>
                           </p>
                         </div>
@@ -259,24 +273,32 @@ export default async function SalesHomePage() {
             {repsRanked.length === 0 ? (
               <p className="text-sm text-ink-muted">No active reps yet.</p>
             ) : (
-              <ul className="space-y-2.5">
+              <ul className="space-y-1">
                 {repsRanked.map((r, i) => (
-                  <li key={r.id} className="flex items-center gap-2.5">
-                    <span
-                      aria-hidden
-                      className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-bold flex-shrink-0 ${
-                        i === 0 ? "bg-brand text-white" : "bg-surface-3 text-ink-muted"
-                      }`}
+                  <li key={r.id}>
+                    <Link
+                      href={`/sales/reps/${r.id}`}
+                      className="flex items-center gap-2.5 -mx-2 px-2 py-1.5 rounded-md hover:bg-surface-3/50 transition-colors group"
                     >
-                      {i + 1}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-ink-strong truncate">{r.name}</p>
-                      <p className="text-[11px] text-ink-muted tabular">
-                        {r.activeCount} active
-                        {r.closedWon > 0 && <span className="text-gtn-green font-semibold"> · {r.closedWon} won</span>}
-                      </p>
-                    </div>
+                      <span
+                        aria-hidden
+                        className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-bold flex-shrink-0 ${
+                          i === 0 ? "bg-brand text-white" : "bg-surface-3 text-ink-muted"
+                        }`}
+                      >
+                        {i + 1}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-ink-strong group-hover:text-gtn-purple transition-colors truncate">
+                          {r.name}
+                        </p>
+                        <p className="text-[11px] text-ink-muted tabular">
+                          {r.activeCount} active
+                          {r.closedWon > 0 && <span className="text-gtn-green font-semibold"> · {r.closedWon} won</span>}
+                        </p>
+                      </div>
+                      <ChevronRight className="h-3.5 w-3.5 text-ink-faint group-hover:text-gtn-purple transition-colors flex-shrink-0" />
+                    </Link>
                   </li>
                 ))}
               </ul>

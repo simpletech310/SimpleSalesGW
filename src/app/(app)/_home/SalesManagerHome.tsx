@@ -9,6 +9,9 @@ import {
   Activity as ActivityIcon,
   AlertTriangle,
   TrendingUp,
+  Settings,
+  MapPin,
+  UserPlus,
 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { Button } from "@/components/ui/Button";
@@ -89,7 +92,7 @@ export async function SalesManagerHome({
       orderBy: { createdAt: "desc" },
       include: {
         lead: { select: { id: true, businessName: true } },
-        actor: { select: { name: true } },
+        actor: { select: { id: true, name: true, role: true } },
       },
       take: 6,
     }),
@@ -268,7 +271,21 @@ export async function SalesManagerHome({
                           </p>
                           <p className="text-xs text-ink-muted mt-0.5">
                             {a.type.replace(/_/g, " ").toLowerCase()}
-                            {a.actor?.name && <> · {a.actor.name}</>}
+                            {a.actor && (
+                              <>
+                                {" · "}
+                                {a.actor.role === Role.SALESPERSON ? (
+                                  <Link
+                                    href={`/sales/reps/${a.actor.id}`}
+                                    className="hover:text-gtn-purple font-medium"
+                                  >
+                                    {a.actor.name}
+                                  </Link>
+                                ) : (
+                                  <span>{a.actor.name}</span>
+                                )}
+                              </>
+                            )}
                             <span className="text-ink-faint"> · {formatDistanceToNow(new Date(a.createdAt), { addSuffix: true })}</span>
                           </p>
                         </div>
@@ -287,30 +304,85 @@ export async function SalesManagerHome({
               {repsRanked.length === 0 ? (
                 <p className="text-sm text-ink-muted">No active reps yet.</p>
               ) : (
-                <ul className="space-y-2.5">
+                <ul className="space-y-1">
                   {repsRanked.map((r, i) => (
-                    <li key={r.id} className="flex items-center gap-2.5">
-                      <span
-                        aria-hidden
-                        className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-bold flex-shrink-0 ${
-                          i === 0
-                            ? "bg-brand text-white"
-                            : "bg-surface-3 text-ink-muted"
-                        }`}
+                    <li key={r.id}>
+                      <Link
+                        href={`/sales/reps/${r.id}`}
+                        className="flex items-center gap-2.5 -mx-2 px-2 py-1.5 rounded-md hover:bg-surface-3/50 transition-colors group"
                       >
-                        {i + 1}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium text-ink-strong truncate">{r.name}</p>
-                        <p className="text-[11px] text-ink-muted tabular">
-                          {r.activeCount} active
-                          {r.closedWon > 0 && <span className="text-gtn-green font-semibold"> · {r.closedWon} won</span>}
-                        </p>
-                      </div>
+                        <span
+                          aria-hidden
+                          className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-bold flex-shrink-0 ${
+                            i === 0
+                              ? "bg-brand text-white"
+                              : "bg-surface-3 text-ink-muted"
+                          }`}
+                        >
+                          {i + 1}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-ink-strong group-hover:text-gtn-purple transition-colors truncate">
+                            {r.name}
+                          </p>
+                          <p className="text-[11px] text-ink-muted tabular">
+                            {r.activeCount} active
+                            {r.closedWon > 0 && <span className="text-gtn-green font-semibold"> · {r.closedWon} won</span>}
+                          </p>
+                        </div>
+                      </Link>
                     </li>
                   ))}
                 </ul>
               )}
+            </RailCard>
+
+            {/* Manage your org — quick links into the management surfaces */}
+            <RailCard icon={Settings} title="Manage your org" subtitle="Reps, teams, and territories.">
+              <ul className="space-y-1 -mx-1">
+                <li>
+                  <Link
+                    href="/sales/reps"
+                    className="flex items-center gap-2.5 px-2 py-1.5 rounded-md hover:bg-surface-3/50 transition-colors group"
+                  >
+                    <span aria-hidden className="inline-flex items-center justify-center w-7 h-7 rounded-md bg-brand-soft text-gtn-purple flex-shrink-0">
+                      <UserPlus className="h-3.5 w-3.5" />
+                    </span>
+                    <span className="text-sm font-medium text-ink-strong group-hover:text-gtn-purple transition-colors flex-1">
+                      Sales reps
+                    </span>
+                    <ChevronRight className="h-3.5 w-3.5 text-ink-faint group-hover:text-gtn-purple transition-colors" />
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/sales/teams"
+                    className="flex items-center gap-2.5 px-2 py-1.5 rounded-md hover:bg-surface-3/50 transition-colors group"
+                  >
+                    <span aria-hidden className="inline-flex items-center justify-center w-7 h-7 rounded-md bg-brand-soft text-gtn-purple flex-shrink-0">
+                      <Users className="h-3.5 w-3.5" />
+                    </span>
+                    <span className="text-sm font-medium text-ink-strong group-hover:text-gtn-purple transition-colors flex-1">
+                      Sales teams
+                    </span>
+                    <ChevronRight className="h-3.5 w-3.5 text-ink-faint group-hover:text-gtn-purple transition-colors" />
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/sales/territories"
+                    className="flex items-center gap-2.5 px-2 py-1.5 rounded-md hover:bg-surface-3/50 transition-colors group"
+                  >
+                    <span aria-hidden className="inline-flex items-center justify-center w-7 h-7 rounded-md bg-brand-soft text-gtn-purple flex-shrink-0">
+                      <MapPin className="h-3.5 w-3.5" />
+                    </span>
+                    <span className="text-sm font-medium text-ink-strong group-hover:text-gtn-purple transition-colors flex-1">
+                      Territories
+                    </span>
+                    <ChevronRight className="h-3.5 w-3.5 text-ink-faint group-hover:text-gtn-purple transition-colors" />
+                  </Link>
+                </li>
+              </ul>
             </RailCard>
 
             {/* Unassigned cue */}

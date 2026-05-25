@@ -21,7 +21,7 @@ export default async function SalesRepsPage() {
       lastLoginAt: true,
       _count: { select: { ownedLeads: true, teamMemberships: true } },
       teamMemberships: {
-        select: { isPrimary: true, team: { select: { name: true, active: true } } },
+        select: { isPrimary: true, team: { select: { id: true, name: true, active: true } } },
         orderBy: { isPrimary: "desc" },
       },
     },
@@ -43,7 +43,9 @@ export default async function SalesRepsPage() {
           lastLoginAt: r.lastLoginAt ? r.lastLoginAt.toISOString() : null,
           leadCount: r._count.ownedLeads,
           teamCount: r._count.teamMemberships,
-          teamNames: r.teamMemberships.filter((m) => m.team.active).map((m) => ({ name: m.team.name, isPrimary: m.isPrimary })),
+          teamNames: r.teamMemberships
+            .filter((m) => m.team.active)
+            .map((m) => ({ id: m.team.id, name: m.team.name, isPrimary: m.isPrimary })),
         }))}
       />
     </ListPage>
