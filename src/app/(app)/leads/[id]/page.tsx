@@ -221,6 +221,11 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
               <Link href={`/leads/${lead.id}/discovery-call`}>Discovery call</Link>
             </Button>
           )}
+          {(lead.ownerUserId === session.user.id || can(session.user.role, "lead:edit:any")) && (
+            <Button asChild variant="secondary">
+              <Link href={`/leads/${lead.id}/edit`}>Edit lead</Link>
+            </Button>
+          )}
           {can(session.user.role, "handoff:initiate") && (
             <Button asChild>
               <Link href={`/leads/${lead.id}/handoff`}>Handoff to Ops</Link>

@@ -156,6 +156,18 @@ export default async function LeadsPage() {
             <GeocodeAllButton pendingCount={pendingGeocodeCount} />
           </div>
         </Card>
+      ) : leads.length > 0 ? (
+        // v2.23.3 — leads exist but none have an address on file. The
+        // create form doesn't require address, so this is the common
+        // "imported a list of business names" state. Point at Edit so
+        // the rep can add city/state/zip and pop them on the map.
+        <Card>
+          <h2 className="text-sm font-semibold text-gtn-navy">No leads on the map yet</h2>
+          <p className="text-xs text-gtn-grey-2 mt-0.5">
+            None of your leads have an address on file yet. Click <strong>Edit</strong> on any lead
+            below to add a city + state (or a zip code) — the lead will land on the map automatically.
+          </p>
+        </Card>
       ) : null}
 
       {/* v2.14 — Team scorecard band for managers + above */}
@@ -197,35 +209,52 @@ export default async function LeadsPage() {
               <th className="px-4 py-3 hidden md:table-cell">Stage</th>
               <th className="px-4 py-3 text-right">DQ</th>
               <th className="px-4 py-3 hidden lg:table-cell">Owner</th>
+              <th className="px-4 py-3 text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
-            {leads.map((l) => (
-              <tr key={l.id} className="border-t border-gtn-lavender-2 hover:bg-gtn-lavender/40">
-                <td className="px-4 py-3">
-                  <Link href={`/leads/${l.id}`} className="text-gtn-navy font-medium hover:underline">
-                    {l.businessName}
-                  </Link>
-                  {l.nonStrategicFlag && (
-                    <span className="ml-2 text-[10px] uppercase font-semibold text-gtn-red">Non-strategic</span>
-                  )}
-                </td>
-                <td className="px-4 py-3 hidden md:table-cell text-gtn-grey-2">
-                  {l.industry.replace(/_/g, " ")}
-                </td>
-                <td className="px-4 py-3 hidden md:table-cell">
-                  <span className="gtn-stage-chip">{STRINGS.pipeline.stages[l.pipelineStage]}</span>
-                </td>
-                <td className="px-4 py-3 text-right">
-                  <span className={scoreBadgeClass(l.dealQualityScore)}>
-                    {formatScore(l.dealQualityScore)}
-                  </span>
-                </td>
-                <td className="px-4 py-3 hidden lg:table-cell text-gtn-grey-2">{l.owner.name}</td>
-              </tr>
-            ))}
+            {leads.map((l) => {
+              const canEditRow =
+                l.ownerUserId === session.user.id || can(session.user.role, "lead:edit:any");
+              return (
+                <tr key={l.id} className="border-t border-gtn-lavender-2 hover:bg-gtn-lavender/40">
+                  <td className="px-4 py-3">
+                    <Link href={`/leads/${l.id}`} className="text-gtn-navy font-medium hover:underline">
+                      {l.businessName}
+                    </Link>
+                    {l.nonStrategicFlag && (
+                      <span className="ml-2 text-[10px] uppercase font-semibold text-gtn-red">Non-strategic</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 hidden md:table-cell text-gtn-grey-2">
+                    {l.industry.replace(/_/g, " ")}
+                  </td>
+                  <td className="px-4 py-3 hidden md:table-cell">
+                    <span className="gtn-stage-chip">{STRINGS.pipeline.stages[l.pipelineStage]}</span>
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <span className={scoreBadgeClass(l.dealQualityScore)}>
+                      {formatScore(l.dealQualityScore)}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 hidden lg:table-cell text-gtn-grey-2">{l.owner.name}</td>
+                  <td className="px-4 py-3 text-right">
+                    {canEditRow ? (
+                      <Link
+                        href={`/leads/${l.id}/edit`}
+                        className="text-xs text-gtn-purple hover:underline"
+                      >
+                        Edit
+                      </Link>
+                    ) : (
+                      <span className="text-xs text-gtn-grey-3">—</span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
             {leads.length === 0 && (
-              <tr><td colSpan={5} className="px-4 py-10 text-center text-gtn-grey-2">No leads yet.</td></tr>
+              <tr><td colSpan={6} className="px-4 py-10 text-center text-gtn-grey-2">No leads yet.</td></tr>
             )}
           </tbody>
         </table>

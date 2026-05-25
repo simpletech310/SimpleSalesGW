@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { DealKind, Industry, LeadSource, PipelineStage } from "@prisma/client";
+import { DealKind, Industry, LeadSource, MspSatisfaction, PipelineStage } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ApiError, getAuditContext, jsonError, requireSessionUser } from "@/lib/api";
 import { can, leadIsVisible } from "@/lib/rbac";
@@ -39,6 +39,9 @@ const updateSchema = z.object({
   addressZip: z.string().max(20).nullable().optional(),
   websiteUrl: z.string().url().nullable().optional().or(z.literal("")),
   linkedinCompanyUrl: z.string().url().nullable().optional().or(z.literal("")),
+  googleBusinessUrl: z.string().url().nullable().optional().or(z.literal("")),
+  currentMspName: z.string().max(200).nullable().optional(),
+  currentMspSatisfaction: z.nativeEnum(MspSatisfaction).optional(),
   primaryContactName: z.string().max(200).nullable().optional(),
   primaryContactTitle: z.string().max(200).nullable().optional(),
   primaryContactEmail: z.string().email().nullable().optional().or(z.literal("")),
@@ -100,10 +103,27 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const cleaned: Record<string, unknown> = { ...data };
     if (cleaned.websiteUrl === "") cleaned.websiteUrl = null;
     if (cleaned.linkedinCompanyUrl === "") cleaned.linkedinCompanyUrl = null;
+    if (cleaned.googleBusinessUrl === "") cleaned.googleBusinessUrl = null;
     if (cleaned.primaryContactEmail === "") cleaned.primaryContactEmail = null;
     if (typeof cleaned.expectedCloseDate === "string") {
       cleaned.expectedCloseDate = new Date(cleaned.expectedCloseDate);
     }
+
+    // v2.23.3 — detect address changes so we can re-geocode after the
+    // update. Compare against the `before` snapshot so we don't fire on
+    // a no-op save.
+    const ADDRESS_FIELDS = [
+      "addressStreet",
+      "addressCity",
+      "addressState",
+      "addressZip",
+    ] as const;
+    const addressChanged = ADDRESS_FIELDS.some((k) => {
+      if (!(k in cleaned)) return false;
+      const next = cleaned[k];
+      const prev = (before as unknown as Record<string, unknown>)[k];
+      return (next ?? null) !== (prev ?? null);
+    });
 
     const after = await prisma.lead.update({ where: { id }, data: cleaned });
     const diff = diffForAudit(before as unknown as Record<string, unknown>, cleaned);
@@ -178,6 +198,41 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         // eslint-disable-next-line no-console
         console.warn("[lead/PATCH] auto-score failed (lead save still applied):", scoreErr);
       }
+    }
+
+    // v2.23.3 — if any address field changed, re-geocode + re-match
+    // territory in the background. Mirrors the POST /api/leads pattern.
+    if (addressChanged) {
+      void (async () => {
+        try {
+          const { geocodeAddress } = await import("@/lib/geo/mapbox");
+          const { matchTerritoryForLead } = await import("@/lib/sales/territories");
+          const latLng = await geocodeAddress({
+            street: after.addressStreet ?? undefined,
+            city: after.addressCity ?? undefined,
+            state: after.addressState ?? undefined,
+            zip: after.addressZip ?? undefined,
+          });
+          const match = await matchTerritoryForLead({
+            city: after.addressCity ?? undefined,
+            state: after.addressState ?? undefined,
+            zip: after.addressZip ?? undefined,
+            latLng,
+          });
+          await prisma.lead.update({
+            where: { id },
+            data: {
+              addressLat: latLng ? latLng.lat : null,
+              addressLng: latLng ? latLng.lng : null,
+              geocodedAt: latLng ? new Date() : null,
+              ...(match ? { teamId: match.teamId, territoryId: match.id } : {}),
+            },
+          });
+        } catch (geoErr) {
+          // eslint-disable-next-line no-console
+          console.warn("[lead/PATCH] geocode/territory re-match failed:", geoErr);
+        }
+      })();
     }
 
     return NextResponse.json({ lead: after });
