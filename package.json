@@ -1,6 +1,6 @@
 {
   "name": "gateway-sales-portal",
-  "version": "3.0.0",
+  "version": "3.0.3",
   "private": true,
   "engines": {
     "node": ">=20.0.0 <21.0.0"

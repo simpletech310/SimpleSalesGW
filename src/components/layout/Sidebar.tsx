@@ -6,12 +6,12 @@ import { usePathname } from "next/navigation";
 import { GatewayLogo } from "@/components/brand/GatewayLogo";
 import { SignOutButton } from "./SignOutButton";
 import { OfflineQueueBanner } from "./OfflineQueueBanner";
-import { roleDisplay, type RoleNav } from "@/lib/nav/role-nav";
+import { navForRole, roleDisplay } from "@/lib/nav/role-nav";
 import type { Role } from "@prisma/client";
 import { cn } from "@/lib/utils";
 
 /**
- * v3.0 — refined-SaaS sidebar.
+ * v3.0.3 — refined-SaaS sidebar.
  *
  * White surface, grouped nav, lavender active fill with a 3px brand-purple
  * left bar. Replaces the v2.18 navy column. 240px wide, fixed on desktop
@@ -19,15 +19,22 @@ import { cn } from "@/lib/utils";
  *
  * Active-state logic: client component (usePathname), exact match for "/"
  * and startsWith for everything else.
+ *
+ * v3.0.3 — Sidebar now takes `user` only and computes its own nav from
+ * `user.role`. Previously AppShell (server) called navForRole() and
+ * passed the NavItem[] across to this client component, but each item
+ * carries an `icon: LucideIcon` (a React component function) and
+ * Next.js 15 rejects function props across the server → client
+ * boundary at render time. Doing the lookup inside this client module
+ * keeps the icon references local — they never cross a boundary.
  */
 export function Sidebar({
   user,
-  nav,
 }: {
   user: { name: string; email: string; role: Role };
-  nav: RoleNav;
 }) {
   const pathname = usePathname() ?? "/";
+  const nav = navForRole(user.role);
   const roleMeta = roleDisplay(user.role);
 
   return (
@@ -114,9 +121,13 @@ function initials(name: string): string {
  * Mobile bottom-bar — kept as the v2.13 5-item Apple-friendly pattern but
  * restyled to the v3.0 token system. The "primary" slot is now a filled
  * pill (rather than the floating circle) for calmer, easier-to-tap UX.
+ *
+ * v3.0.3 — same fix as Sidebar: takes `role` and builds its own nav so
+ * the icon function references never cross the server → client boundary.
  */
-export function MobileNav({ nav }: { nav: RoleNav }) {
+export function MobileNav({ role }: { role: Role }) {
   const pathname = usePathname() ?? "/";
+  const nav = navForRole(role);
   return (
     <nav
       className="md:hidden fixed bottom-0 inset-x-0 bg-surface border-t border-line-subtle z-40 flex justify-around items-stretch pb-[env(safe-area-inset-bottom)]"

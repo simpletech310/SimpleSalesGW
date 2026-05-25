@@ -3,7 +3,6 @@ import { Sidebar, MobileNav } from "./Sidebar";
 import { Topbar, MobileHeader } from "./Topbar";
 import { OnboardingTrigger } from "@/components/onboarding/OnboardingTrigger";
 import { HelpButton } from "@/components/help/HelpButton";
-import { navForRole } from "@/lib/nav/role-nav";
 
 type Props = {
   user: { name: string; email: string; role: Role };
@@ -11,7 +10,7 @@ type Props = {
 };
 
 /**
- * v3.0 — unified app shell.
+ * v3.0.3 — unified app shell.
  *
  * Desktop (md+):
  *   - Fixed white left Sidebar (240px) with grouped nav.
@@ -25,13 +24,18 @@ type Props = {
  * The shell intentionally provides only the chrome. Per-page templates
  * (DashboardPage / ListPage / DetailPage / FormPage) handle page-level
  * structure inside `children`.
+ *
+ * v3.0.3 — Sidebar/MobileNav now build their own nav from `role` inside
+ * the client. Previously this component called navForRole() and passed
+ * the NavItem[] (icon: LucideIcon, a function) down to the client
+ * components — Next.js 15 rejects that at runtime because functions
+ * cannot cross the server → client boundary as props. That was the
+ * blocker behind the production 500 on every authenticated request.
  */
 export function AppShell({ user, children }: Props) {
-  const nav = navForRole(user.role);
-
   return (
     <div className="min-h-dvh ui-app-bg">
-      <Sidebar user={user} nav={nav} />
+      <Sidebar user={user} />
       <MobileHeader user={user} />
 
       <div className="md:pl-60 flex flex-col min-h-dvh">
@@ -50,7 +54,7 @@ export function AppShell({ user, children }: Props) {
         <HelpButton />
       </div>
 
-      <MobileNav nav={nav} />
+      <MobileNav role={user.role} />
     </div>
   );
 }
