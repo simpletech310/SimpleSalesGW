@@ -18,6 +18,7 @@ import { CloseDealButtons } from "./CloseDealButtons";
 import { HandoffCard } from "./HandoffCard";
 import { ScoreOverrideButton } from "./ScoreOverrideButton";
 import { DeleteLeadButton } from "./DeleteLeadButton";
+import { AssignToMeButton } from "./AssignToMeButton";
 import { DealKindPicker } from "./DealKindPicker";
 import { ServiceQuoteCard } from "./ServiceQuoteCard";
 import { PreSaleAssessmentPanel } from "./PreSaleAssessmentPanel";
@@ -231,6 +232,13 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
             <Button asChild variant="secondary">
               <Link href={`/leads/${lead.id}/edit`}>Edit lead</Link>
             </Button>
+          )}
+          {/* v2.23.3 — managers + superadmins can self-assign any lead */}
+          {can(session.user.role, "lead:assign") && lead.ownerUserId !== session.user.id && (
+            <AssignToMeButton
+              leadId={lead.id}
+              currentOwnerName={lead.owner.name}
+            />
           )}
           {can(session.user.role, "handoff:initiate") && (
             <Button asChild>
