@@ -10,7 +10,6 @@ import {
   HelpCircle,
   DollarSign,
   Shield,
-  Map as MapIcon,
   UsersRound,
   type LucideIcon,
 } from "lucide-react";
@@ -53,9 +52,9 @@ const NAV = {
   me: { href: "/me", label: STRINGS.nav.me, icon: User },
   help: { href: "/help", label: STRINGS.nav.help, icon: HelpCircle },
   admin: { href: "/admin", label: STRINGS.nav.admin, icon: Shield },
-  // v2.22 — Sales-management hub for managers + lead map view for reps.
+  // v2.22 — Sales-management hub for managers.
+  // v2.23.1 — leadsMap removed; the map now lives at the top of /leads.
   sales: { href: "/sales", label: "Sales", icon: UsersRound },
-  leadsMap: { href: "/leads/map", label: "Map", icon: MapIcon },
 } as const satisfies Record<string, NavItem>;
 
 /** "Primary" alternates that replace +New for roles that don't create leads. */
@@ -87,9 +86,11 @@ export function navForRole(role: Role): RoleNav {
 
   switch (role) {
     case Role.SALESPERSON: {
+      // v2.23.1 — Map merged into /leads (top section). NAV.leadsMap
+      // removed from desktop; /leads/map redirects to /leads.
       return {
         desktop: [
-          NAV.home, NAV.leads, NAV.leadsMap, NAV.newLead, NAV.pipeline,
+          NAV.home, NAV.leads, NAV.newLead, NAV.pipeline,
           NAV.notifications, NAV.myTasks, NAV.pricing, NAV.me, NAV.help,
         ],
         // Bottom nav: Home · Leads · +New (primary) · Notifications · Me
@@ -100,7 +101,7 @@ export function navForRole(role: Role): RoleNav {
     case Role.SALES_MANAGER: {
       return {
         desktop: [
-          NAV.home, NAV.leads, NAV.leadsMap, NAV.newLead, NAV.pipeline,
+          NAV.home, NAV.leads, NAV.newLead, NAV.pipeline,
           NAV.sales, NAV.notifications, NAV.myTasks, NAV.accounts,
           NAV.pricing, NAV.me, NAV.help,
           ...adminTail,
@@ -141,7 +142,7 @@ export function navForRole(role: Role): RoleNav {
       // operator" mode; admin lives at the end of desktop nav.
       return {
         desktop: [
-          NAV.home, NAV.leads, NAV.leadsMap, NAV.newLead, NAV.pipeline,
+          NAV.home, NAV.leads, NAV.newLead, NAV.pipeline,
           NAV.sales, NAV.accounts, NAV.notifications, NAV.myTasks,
           NAV.pricing, NAV.me, NAV.help,
           ...adminTail,

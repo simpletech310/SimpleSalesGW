@@ -4,10 +4,15 @@ import { PipelineStage } from "@prisma/client";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { can, leadVisibilityFilter } from "@/lib/rbac";
+import { userTeamIds } from "@/lib/sales/teams";
 import { STRINGS } from "@/lib/strings";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { scoreBadgeClass, formatScore } from "@/lib/utils";
+// v2.23.1 — Map merged onto the leads page (top section). Standalone
+// /leads/map now redirects here. Loaded as a client component (uses
+// Mapbox GL JS) and only renders when the user has geocoded leads.
+import { LeadsMap } from "./map/LeadsMap";
 
 export const dynamic = "force-dynamic";
 
@@ -26,11 +31,35 @@ export default async function LeadsPage() {
   const exportAllowed = can(session.user.role, "data:export");
   const seesAllLeads = can(session.user.role, "lead:view:all");
 
+  // v2.23.1 — feed team memberships into the filter so SALESPERSONs
+  // also see leads on teams they're a member of (was a v2.22 oversight
+  // here; pre-existing leadVisibilityFilter call took role+userId only).
+  const teamIds = await userTeamIds(session.user.id);
   const leads = await prisma.lead.findMany({
-    where: leadVisibilityFilter(session.user.role, session.user.id),
+    where: leadVisibilityFilter(session.user.role, session.user.id, teamIds),
     orderBy: { updatedAt: "desc" },
-    include: { owner: { select: { id: true, name: true } } },
+    include: {
+      owner: { select: { id: true, name: true } },
+      team: { select: { name: true } },
+    },
   });
+
+  // v2.23.1 — leads with geocoded coordinates feed the map on top.
+  // Same visibility filter, but we drop ungeocoded rows to avoid 0,0
+  // markers in the Gulf of Guinea.
+  const mapLeads = leads
+    .filter((l) => l.addressLat != null && l.addressLng != null)
+    .map((l) => ({
+      id: l.id,
+      name: l.businessName,
+      stage: l.pipelineStage,
+      dq: l.dealQualityScore,
+      city: l.addressCity,
+      state: l.addressState,
+      teamName: l.team?.name ?? null,
+      lat: Number(l.addressLat),
+      lng: Number(l.addressLng),
+    }));
 
   // v2.14 — team scorecard band for users with team-wide visibility
   // (Sales Manager, COO, Superadmin). Counts per owner across the same
@@ -72,7 +101,12 @@ export default async function LeadsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gtn-navy">Leads</h1>
-          <p className="text-sm text-gtn-grey-2">{leads.length} total</p>
+          <p className="text-sm text-gtn-grey-2">
+            {leads.length} total
+            {mapLeads.length > 0 && mapLeads.length < leads.length && (
+              <span className="text-gtn-grey-3"> · {mapLeads.length} pinned on map</span>
+            )}
+          </p>
         </div>
         <div className="flex gap-2">
           {exportAllowed && (
@@ -87,6 +121,15 @@ export default async function LeadsPage() {
           )}
         </div>
       </div>
+
+      {/* v2.23.1 — Map of geocoded leads, top of page. Only renders
+          when at least one lead has been geocoded; rest stay in the
+          list below. */}
+      {mapLeads.length > 0 && (
+        <Card className="p-0 overflow-hidden">
+          <LeadsMap leads={mapLeads} />
+        </Card>
+      )}
 
       {/* v2.14 — Team scorecard band for managers + above */}
       {teamRows.length > 0 && (
