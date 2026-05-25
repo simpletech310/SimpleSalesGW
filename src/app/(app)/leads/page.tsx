@@ -214,8 +214,11 @@ export default async function LeadsPage() {
           </thead>
           <tbody>
             {leads.map((l) => {
+              const onTeamForRow = l.teamId ? teamIds.includes(l.teamId) : false;
               const canEditRow =
-                l.ownerUserId === session.user.id || can(session.user.role, "lead:edit:any");
+                l.ownerUserId === session.user.id ||
+                can(session.user.role, "lead:edit:any") ||
+                onTeamForRow;
               return (
                 <tr key={l.id} className="border-t border-gtn-lavender-2 hover:bg-gtn-lavender/40">
                   <td className="px-4 py-3">

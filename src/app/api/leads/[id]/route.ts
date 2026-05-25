@@ -61,10 +61,15 @@ const updateSchema = z.object({
 async function ensureCanEdit(leadId: string, user: { id: string; role: import("@prisma/client").Role }) {
   const lead = await prisma.lead.findUnique({ where: { id: leadId } });
   if (!lead) throw new ApiError(404, "Lead not found");
-  if (lead.ownerUserId !== user.id && !can(user.role, "lead:edit:any")) {
-    throw new ApiError(403, "Forbidden");
+  if (lead.ownerUserId === user.id) return lead;
+  if (can(user.role, "lead:edit:any")) return lead;
+  // v2.23.3 — teammates on the lead's sales team can edit it too.
+  if (lead.teamId) {
+    const { userTeamIds } = await import("@/lib/sales/teams");
+    const teams = await userTeamIds(user.id);
+    if (teams.includes(lead.teamId)) return lead;
   }
-  return lead;
+  throw new ApiError(403, "Forbidden");
 }
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {

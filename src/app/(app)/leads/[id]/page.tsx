@@ -4,6 +4,7 @@ import { ArrowRight } from "lucide-react";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { can, leadIsVisible } from "@/lib/rbac";
+import { userTeamIds } from "@/lib/sales/teams";
 import { STRINGS } from "@/lib/strings";
 import { scoreBadgeClass, formatScore } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
@@ -55,12 +56,17 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
     },
   });
   if (!lead) notFound();
+  // v2.23.3 — team membership feeds both the visibility check and the
+  // edit-button gating below, so SALESPERSONs on the lead's team can
+  // both open + edit it even if they aren't the personal owner.
+  const teamIds = await userTeamIds(session.user.id);
+  const onTeam = lead.teamId ? teamIds.includes(lead.teamId) : false;
   // v2.17.1 — VCIO's `leadIsVisible` short-circuits to PRE_SALES+, which
   // would block them from opening an early-stage lead they were explicitly
   // asked to scope. If a pre-sale DiscoveryAssessment exists on this lead
   // and the viewer can edit discoveries, grant access — they have a
   // legitimate scoping reason to see the lead context.
-  let leadVisible = leadIsVisible(session.user.role, session.user.id, lead.ownerUserId, lead.pipelineStage);
+  let leadVisible = leadIsVisible(session.user.role, session.user.id, lead.ownerUserId, lead.pipelineStage, lead.teamId, teamIds);
   if (!leadVisible && can(session.user.role, "discovery:edit")) {
     const hasPreSale = await prisma.discoveryAssessment.count({
       where: { leadId: id },
@@ -221,7 +227,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
               <Link href={`/leads/${lead.id}/discovery-call`}>Discovery call</Link>
             </Button>
           )}
-          {(lead.ownerUserId === session.user.id || can(session.user.role, "lead:edit:any")) && (
+          {(lead.ownerUserId === session.user.id || can(session.user.role, "lead:edit:any") || onTeam) && (
             <Button asChild variant="secondary">
               <Link href={`/leads/${lead.id}/edit`}>Edit lead</Link>
             </Button>
