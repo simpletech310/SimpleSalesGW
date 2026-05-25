@@ -13,6 +13,8 @@ import { scoreBadgeClass, formatScore } from "@/lib/utils";
 // /leads/map now redirects here. Loaded as a client component (uses
 // Mapbox GL JS) and only renders when the user has geocoded leads.
 import { LeadsMap } from "./map/LeadsMap";
+// v2.23.2 — One-click bulk-geocode for leads that don't have lat/lng yet
+import { GeocodeAllButton } from "./GeocodeAllButton";
 
 export const dynamic = "force-dynamic";
 
@@ -60,6 +62,16 @@ export default async function LeadsPage() {
       lat: Number(l.addressLat),
       lng: Number(l.addressLng),
     }));
+
+  // v2.23.2 — leads that have any address but no lat/lng — these are
+  // the candidates for the bulk-geocode button (typically: leads
+  // created before MAPBOX_SECRET_TOKEN was set in Vercel env, or
+  // where the fire-and-forget geocode on create silently failed).
+  const pendingGeocodeCount = leads.filter(
+    (l) =>
+      l.addressLat == null &&
+      ((l.addressCity && l.addressState) || l.addressZip),
+  ).length;
 
   // v2.14 — team scorecard band for users with team-wide visibility
   // (Sales Manager, COO, Superadmin). Counts per owner across the same
@@ -122,14 +134,29 @@ export default async function LeadsPage() {
         </div>
       </div>
 
-      {/* v2.23.1 — Map of geocoded leads, top of page. Only renders
-          when at least one lead has been geocoded; rest stay in the
-          list below. */}
-      {mapLeads.length > 0 && (
+      {/* v2.23.1 — Map of geocoded leads, top of page.
+          v2.23.2 — When no leads are geocoded yet but some have an
+          address on file, surface a self-healing "Geocode all" button
+          so the user can populate the map in one click. */}
+      {mapLeads.length > 0 ? (
         <Card className="p-0 overflow-hidden">
           <LeadsMap leads={mapLeads} />
         </Card>
-      )}
+      ) : pendingGeocodeCount > 0 ? (
+        <Card>
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <h2 className="text-sm font-semibold text-gtn-navy">No leads on the map yet</h2>
+              <p className="text-xs text-gtn-grey-2 mt-0.5">
+                {pendingGeocodeCount} lead{pendingGeocodeCount === 1 ? " has" : "s have"} an address on file but
+                no coordinates. Click below to geocode {pendingGeocodeCount === 1 ? "it" : "them all"} now —
+                new leads geocode automatically going forward.
+              </p>
+            </div>
+            <GeocodeAllButton pendingCount={pendingGeocodeCount} />
+          </div>
+        </Card>
+      ) : null}
 
       {/* v2.14 — Team scorecard band for managers + above */}
       {teamRows.length > 0 && (
