@@ -1,6 +1,15 @@
 import Link from "next/link";
 import { format, formatDistanceToNow } from "date-fns";
-import { ArrowRightLeft, Briefcase, DollarSign, AlertTriangle, TrendingUp } from "lucide-react";
+import {
+  ArrowRightLeft,
+  Briefcase,
+  DollarSign,
+  AlertTriangle,
+  TrendingUp,
+  CheckCircle2,
+  XCircle,
+  Timer,
+} from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { Button } from "@/components/ui/Button";
 import { StatCard } from "@/components/ui/StatCard";
@@ -10,7 +19,7 @@ import { EmptyState } from "@/components/help/EmptyState";
 import { DashboardPage, DashboardSection } from "@/components/templates";
 import { DetailSplit } from "@/components/templates/DetailPage";
 import { loadNotifications } from "@/lib/notifications";
-import { CustomerStatus, PipelineStage, type Role } from "@prisma/client";
+import { CustomerStatus, HandoffStatus, PipelineStage, type Role } from "@prisma/client";
 
 /**
  * v3.0 — CooHome on the unified DashboardPage template.
@@ -27,8 +36,17 @@ export async function CooHome({
   user: { id: string; name: string | null; role: Role };
 }) {
   const firstName = user.name?.split(" ")[0] ?? "there";
+  const now = Date.now();
+  const sevenDaysAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
 
-  const [notifications, customerCount, lateStageLeads, recentCustomers] = await Promise.all([
+  const [
+    notifications,
+    customerCount,
+    lateStageLeads,
+    recentCustomers,
+    recentDecidedHandoffs,
+    thisWeekHandoffActivity,
+  ] = await Promise.all([
     loadNotifications({ id: user.id, role: user.role }),
     prisma.customer.count({
       where: { status: { in: [CustomerStatus.ONBOARDING, CustomerStatus.ACTIVE] } },
@@ -54,10 +72,45 @@ export async function CooHome({
       take: 5,
       include: { lead: { select: { businessName: true } } },
     }),
+    // Recent accepted/rejected handoffs for the activity feed.
+    prisma.handoff.findMany({
+      where: {
+        status: { in: [HandoffStatus.ACCEPTED, HandoffStatus.REJECTED] },
+        updatedAt: { gte: sevenDaysAgo },
+      },
+      orderBy: { updatedAt: "desc" },
+      take: 6,
+      include: {
+        lead: { select: { id: true, businessName: true } },
+        acceptor: { select: { name: true } },
+        initiator: { select: { name: true } },
+      },
+    }),
+    // For the weekly throughput stat — count + avg turnaround.
+    prisma.handoff.findMany({
+      where: {
+        status: { in: [HandoffStatus.ACCEPTED, HandoffStatus.REJECTED] },
+        updatedAt: { gte: sevenDaysAgo },
+      },
+      select: { createdAt: true, updatedAt: true },
+    }),
   ]);
 
   const handoffs = notifications.handoffsAwaiting;
   const cooApprovals = notifications.pricingApprovalsPending.filter((p) => p.tier === "COO");
+
+  // Weekly throughput: decided count + median turnaround (in hours).
+  const turnaroundsMs = thisWeekHandoffActivity.map(
+    (h) => h.updatedAt.getTime() - h.createdAt.getTime(),
+  );
+  turnaroundsMs.sort((a, b) => a - b);
+  const medianTurnaroundMs =
+    turnaroundsMs.length === 0
+      ? 0
+      : turnaroundsMs.length % 2 === 1
+      ? turnaroundsMs[(turnaroundsMs.length - 1) / 2]!
+      : ((turnaroundsMs[turnaroundsMs.length / 2 - 1]! + turnaroundsMs[turnaroundsMs.length / 2]!) / 2);
+  const medianHours = Math.round(medianTurnaroundMs / (60 * 60 * 1000));
 
   type HandoffRow = (typeof handoffs)[number];
   const handoffColumns: Column<HandoffRow>[] = [
@@ -120,6 +173,7 @@ export async function CooHome({
             icon={ArrowRightLeft}
             tone={handoffs.length > 0 ? "warn" : "neutral"}
             href="/notifications"
+            sub={handoffs.length > 0 ? "Review + accept to spawn accounts" : "Inbox zero on handoffs"}
           />
           <StatCard
             label="20%+ approvals"
@@ -127,6 +181,7 @@ export async function CooHome({
             icon={DollarSign}
             tone={cooApprovals.length > 0 ? "warn" : "neutral"}
             href="/notifications"
+            sub={cooApprovals.length > 0 ? "Deep-discount queue" : "Nothing in your tier"}
           />
           <StatCard
             label="Active customers"
@@ -134,6 +189,7 @@ export async function CooHome({
             icon={Briefcase}
             tone="brand"
             href="/accounts"
+            sub={customerCount > 0 ? "Onboarding + steady" : "—"}
           />
           <StatCard
             label="Late-stage leads"
@@ -141,6 +197,7 @@ export async function CooHome({
             icon={TrendingUp}
             tone="neutral"
             href="/pipeline"
+            sub={lateStageLeads.length > 0 ? "Proposal + Negotiation" : "—"}
           />
         </>
       }
@@ -256,6 +313,90 @@ export async function CooHome({
         }
       />
 
+      {/* Second-row split: recent decisions feed + weekly throughput stat */}
+      <DetailSplit
+        asideWidth="340px"
+        main={
+          <DashboardSection
+            title="Recent handoff decisions"
+            subtitle="Accepted or rejected in the last 7 days."
+            flush
+          >
+            {recentDecidedHandoffs.length === 0 ? (
+              <p className="px-5 py-6 text-sm text-ink-muted text-center">
+                No handoff decisions yet this week. They land here once you accept or reject one.
+              </p>
+            ) : (
+              <ul className="divide-y divide-line-subtle">
+                {recentDecidedHandoffs.map((h) => {
+                  const accepted = h.status === HandoffStatus.ACCEPTED;
+                  return (
+                    <li key={h.id} className="px-5 py-3">
+                      <div className="flex items-start gap-3">
+                        <span
+                          aria-hidden
+                          className={`inline-flex items-center justify-center w-7 h-7 rounded-md flex-shrink-0 mt-0.5 ${
+                            accepted
+                              ? "bg-success-soft text-gtn-green"
+                              : "bg-danger-soft text-gtn-red"
+                          }`}
+                        >
+                          {accepted ? <CheckCircle2 className="h-3.5 w-3.5" /> : <XCircle className="h-3.5 w-3.5" />}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm text-ink-strong">
+                            <Link
+                              href={`/leads/${h.lead.id}`}
+                              className="font-semibold hover:text-gtn-purple transition-colors"
+                            >
+                              {h.lead.businessName}
+                            </Link>
+                            <span className="text-ink-muted font-normal ml-1.5">
+                              · {accepted ? "accepted" : "rejected"}
+                              {h.acceptor?.name && <> by {h.acceptor.name}</>}
+                            </span>
+                          </p>
+                          <p className="text-xs text-ink-muted mt-0.5">
+                            initiated by {h.initiator?.name ?? "—"}
+                            <span className="text-ink-faint"> · {formatDistanceToNow(new Date(h.updatedAt), { addSuffix: true })}</span>
+                          </p>
+                        </div>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </DashboardSection>
+        }
+        aside={
+          <RailCard icon={Timer} title="This week" subtitle="Handoff throughput, last 7 days.">
+            <dl className="grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <dt className="ui-label">Decided</dt>
+                <dd className="ui-stat text-2xl mt-1 tabular text-ink-strong">
+                  {recentDecidedHandoffs.length}
+                </dd>
+                <p className="text-[11px] text-ink-muted mt-0.5">accepted + rejected</p>
+              </div>
+              <div>
+                <dt className="ui-label">Median turnaround</dt>
+                <dd className="ui-stat text-2xl mt-1 tabular text-ink-strong">
+                  {medianHours > 0 ? `${medianHours}h` : "—"}
+                </dd>
+                <p className="text-[11px] text-ink-muted mt-0.5">initiate → decide</p>
+              </div>
+            </dl>
+            {handoffs.length > 0 && (
+              <p className="text-xs text-warn font-semibold mt-3 pt-3 border-t border-line-subtle">
+                ⚠ {handoffs.length} handoff{handoffs.length === 1 ? "" : "s"} still waiting.{" "}
+                <Link href="/notifications" className="underline">Review →</Link>
+              </p>
+            )}
+          </RailCard>
+        }
+      />
+
       {handoffs.length === 0 && cooApprovals.length === 0 && customerCount === 0 && (
         <DashboardSection>
           <EmptyState
@@ -274,18 +415,28 @@ export async function CooHome({
 function RailCard({
   icon: Icon,
   title,
+  subtitle,
   children,
 }: {
   icon: typeof Briefcase;
   title: string;
+  subtitle?: string;
   children: React.ReactNode;
 }) {
   return (
     <section className="rounded-xl bg-surface border border-line-subtle p-4">
-      <h3 className="text-sm font-semibold text-ink-strong flex items-center gap-2 mb-3">
-        <Icon className="h-4 w-4 text-gtn-purple" aria-hidden />
-        {title}
-      </h3>
+      <header className="flex items-center gap-2.5 mb-3">
+        <span
+          aria-hidden
+          className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-brand-soft text-gtn-purple"
+        >
+          <Icon className="h-4 w-4" />
+        </span>
+        <div className="min-w-0">
+          <h3 className="text-sm font-semibold text-ink-strong leading-tight">{title}</h3>
+          {subtitle && <p className="text-[11px] text-ink-muted mt-0.5">{subtitle}</p>}
+        </div>
+      </header>
       {children}
     </section>
   );
