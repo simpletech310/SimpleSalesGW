@@ -79,6 +79,16 @@ if (process.env.DATABASE_URL) {
       log("DIRECT_URL not set + couldn't derive one — using DATABASE_URL for migrations (may fail on Neon pooler with P1002).");
     }
   }
+  // v3.3.20 — Even on the direct URL, Prisma's advisory-lock
+  // acquire times out when a stale session from a prior failed
+  // deploy never released it (Neon's autosuspend can leave zombie
+  // session-scoped locks). Per Prisma docs (pris.ly/d/migrate-
+  // advisory-locking), the right move in CI/CD where the
+  // orchestrator already serializes deploys is to skip the
+  // advisory lock entirely. Migrations still run inside a
+  // transaction so safety per-migration is preserved.
+  process.env.PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK = "1";
+  log("PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK=1 — Vercel serializes deploys, lock not needed.");
   log("DATABASE_URL present — running migrations and seed.");
   run("npx", ["prisma", "migrate", "deploy"]);
   // Seeding is idempotent (upserts) — safe to run on every deploy.
