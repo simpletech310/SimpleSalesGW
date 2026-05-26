@@ -42,6 +42,7 @@ export function DiscoveryRunner({
   const router = useRouter();
   const [answers, setAnswers] = useState<Record<string, unknown>>(initialAnswers);
   const [submitting, setSubmitting] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   const sections = useMemo(() => {
@@ -88,6 +89,24 @@ export function DiscoveryRunner({
         return false;
       })
       .map((q) => q.id);
+  }
+
+  async function cancelAssessment() {
+    if (!confirm(`Cancel "${title}"? This deletes the assessment and any answers entered so far.`)) return;
+    setCancelling(true);
+    try {
+      const res = await fetch(baseUrl, { method: "DELETE" });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        toast.error(data?.error ?? "Cancel failed");
+        return;
+      }
+      toast.success("Assessment cancelled");
+      router.push(backUrl);
+      router.refresh();
+    } finally {
+      setCancelling(false);
+    }
   }
 
   async function complete() {
@@ -138,8 +157,17 @@ export function DiscoveryRunner({
         </Card>
       ))}
 
-      <div className="flex justify-end gap-2 sticky bottom-4">
-        <Button size="lg" disabled={submitting} onClick={complete}>
+      <div className="flex justify-between gap-2 sticky bottom-4 flex-wrap">
+        <Button
+          size="lg"
+          variant="ghost"
+          disabled={cancelling || submitting}
+          onClick={cancelAssessment}
+          className="text-gtn-red hover:bg-gtn-red/10"
+        >
+          {cancelling ? "Cancelling…" : "Cancel assessment"}
+        </Button>
+        <Button size="lg" disabled={submitting || cancelling} onClick={complete}>
           {submitting ? "Scoring…" : "Complete + score"}
         </Button>
       </div>

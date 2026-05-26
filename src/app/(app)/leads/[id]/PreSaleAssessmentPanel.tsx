@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { ClipboardCheck, Loader2, Plus, Sparkles, Copy } from "lucide-react";
+import { ClipboardCheck, Loader2, Plus, Sparkles, Copy, X } from "lucide-react";
 import { DealKind, DiscoveryKind, DiscoveryStatus, Role } from "@prisma/client";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -62,6 +62,7 @@ export function PreSaleAssessmentPanel({
   const [picking, setPicking] = useState(false);
   const [creating, setCreating] = useState<DiscoveryKind | null>(null);
   const [adopting, setAdopting] = useState<string | null>(null);
+  const [cancelling, setCancelling] = useState<string | null>(null);
   // v2.20 — Pre-sale narrative state
   const [narratingId, setNarratingId] = useState<string | null>(null);
   const [narratives, setNarratives] = useState<Record<string, {
@@ -177,6 +178,26 @@ export function PreSaleAssessmentPanel({
       toast.error("Narrative generation failed");
     } finally {
       setNarratingId(null);
+    }
+  }
+
+  async function cancelAssessment(assessmentId: string, label: string) {
+    if (!confirm(`Cancel ${label}? This removes the request entirely.`)) return;
+    setCancelling(assessmentId);
+    try {
+      const res = await fetch(`/api/leads/${leadId}/discovery/${assessmentId}`, {
+        method: "DELETE",
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        toast.error(data?.error ?? "Cancel failed");
+        return;
+      }
+      toast.success("Assessment cancelled");
+      await refresh();
+      router.refresh();
+    } finally {
+      setCancelling(null);
     }
   }
 
@@ -320,6 +341,22 @@ export function PreSaleAssessmentPanel({
                         {isCompleted ? "View result" : canRunDiscovery ? "Continue" : "Open"}
                       </Link>
                     </Button>
+                    {!isCompleted && canEdit && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => cancelAssessment(a.id, discoveryTitle(a.kind))}
+                        disabled={cancelling === a.id}
+                        className="text-gtn-red hover:bg-gtn-red/10"
+                      >
+                        {cancelling === a.id ? (
+                          <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                        ) : (
+                          <X className="h-3.5 w-3.5 mr-1" />
+                        )}
+                        Cancel
+                      </Button>
+                    )}
                   </div>
                 </div>
 
