@@ -302,7 +302,30 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
         </Callout>
       )}
 
-      <QualificationCard leadId={lead.id} canEdit={canEditLead} />
+      <QualificationCard
+        leadId={lead.id}
+        canEdit={canEditLead}
+        // v3.3.18 — pass intake fields so the scorecard can render the
+        // derived per-service fit row alongside the manual dimensions.
+        fitContext={{
+          industry: lead.industry,
+          seatCount: lead.seatCount,
+          siteCount: lead.siteCount,
+          complianceDrivers: lead.complianceDrivers,
+          currentMspName: lead.currentMspName,
+          currentMspSatisfaction: lead.currentMspSatisfaction,
+          interestedServices: lead.interestedServices ?? [],
+          currentPhoneSystem: lead.currentPhoneSystem,
+          currentPhonePainPoint: lead.currentPhonePainPoint,
+          currentAccessControl: lead.currentAccessControl,
+          currentAccessDoorCount: lead.currentAccessDoorCount,
+          currentVideoSurveillance: lead.currentVideoSurveillance,
+          currentVideoCameraCount: lead.currentVideoCameraCount,
+          cablingStatus: lead.cablingStatus,
+          expansionPlans: lead.expansionPlans,
+          aiAdvisoryInterest: lead.aiAdvisoryInterest,
+        }}
+      />
 
       <PreSaleAssessmentPanel
         leadId={lead.id}

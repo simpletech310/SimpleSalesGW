@@ -11,6 +11,7 @@ import { FieldHelp } from "@/components/help/FieldHelp";
 import { NextStepHint } from "@/components/help/NextStepHint";
 import { HELP } from "@/lib/help-copy";
 import type { QualificationVerdict } from "@prisma/client";
+import { computeAllServiceFits, type ServiceFit, type FitInput } from "@/lib/scoring/service-fit";
 import {
   MAX_TOTAL,
   QUALIFICATION_DIMENSIONS,
@@ -61,12 +62,38 @@ const REASON_CODE_PRESETS = [
   "Incumbent locked in",
 ];
 
+/**
+ * v3.3.18 — Slim FitContext mirrors the FitInput shape but only the
+ * fields the page already has loaded. Manual qualification dims are
+ * blended in once they're scored.
+ */
+type FitContext = {
+  industry: string;
+  seatCount: number | null;
+  siteCount: number;
+  complianceDrivers: string[];
+  currentMspName: string | null;
+  currentMspSatisfaction: string;
+  interestedServices: string[];
+  currentPhoneSystem: string | null;
+  currentPhonePainPoint: string | null;
+  currentAccessControl: string | null;
+  currentAccessDoorCount: number | null;
+  currentVideoSurveillance: string | null;
+  currentVideoCameraCount: number | null;
+  cablingStatus: string | null;
+  expansionPlans: string | null;
+  aiAdvisoryInterest: string | null;
+};
+
 export function QualificationCard({
   leadId,
   canEdit,
+  fitContext,
 }: {
   leadId: string;
   canEdit: boolean;
+  fitContext?: FitContext;
 }) {
   const router = useRouter();
   const [card, setCard] = useState<ScorecardRow | null>(null);
@@ -235,6 +262,18 @@ export function QualificationCard({
             ))}
           </div>
 
+          {/* v3.3.18 — Per-service fit. Shows reps which service lines to
+              lead with given the current qualification + intake signals.
+              A lead can score 78 total but only 28 for VoIP if there's no
+              phone signal — surface that here so they don't waste an
+              opening pitch on the wrong line. */}
+          {fitContext && (
+            <ServiceFitRow
+              card={card}
+              fitContext={fitContext}
+            />
+          )}
+
           {card.reasonCodes.length > 0 && (
             <div className="mt-3 flex flex-wrap gap-1.5">
               {card.reasonCodes.map((r) => (
@@ -384,5 +423,105 @@ export function QualificationCard({
         </div>
       )}
     </Card>
+  );
+}
+
+/**
+ * v3.3.18 — Service-fit row inside the QualificationCard. Blends the
+ * just-saved scorecard dimensions with the page's intake context and
+ * shows which service lines this lead scores best for. The row sits
+ * directly under the total/100 + verdict so reps can immediately see
+ * "we're a Strong Fit overall but VoIP is weak — don't lead with phones."
+ */
+function ServiceFitRow({ card, fitContext }: { card: ScorecardRow; fitContext: FitContext }) {
+  const fitInput: FitInput = {
+    industryFit: card.industryFit,
+    sizeFit: card.sizeFit,
+    geography: card.geography,
+    growthPosture: card.growthPosture,
+    authority: card.authority,
+    budget: card.budget,
+    timeline: card.timeline,
+    complianceDriver: card.complianceDriver,
+    industry: fitContext.industry,
+    seatCount: fitContext.seatCount,
+    siteCount: fitContext.siteCount,
+    complianceDrivers: fitContext.complianceDrivers,
+    currentMspName: fitContext.currentMspName,
+    currentMspSatisfaction: fitContext.currentMspSatisfaction,
+    interestedServices: fitContext.interestedServices,
+    currentPhoneSystem: fitContext.currentPhoneSystem,
+    currentPhonePainPoint: fitContext.currentPhonePainPoint,
+    currentAccessControl: fitContext.currentAccessControl,
+    currentAccessDoorCount: fitContext.currentAccessDoorCount,
+    currentVideoSurveillance: fitContext.currentVideoSurveillance,
+    currentVideoCameraCount: fitContext.currentVideoCameraCount,
+    cablingStatus: fitContext.cablingStatus,
+    expansionPlans: fitContext.expansionPlans,
+    aiAdvisoryInterest: fitContext.aiAdvisoryInterest,
+  };
+  const fits = computeAllServiceFits(fitInput);
+  const top = fits.slice(0, 4);
+  const weakest = fits.slice().reverse().filter((f) => f.band === "weak").slice(0, 3);
+
+  return (
+    <div className="mt-5 pt-4 border-t border-gtn-lavender-2">
+      <div className="flex items-baseline justify-between gap-2 mb-2 flex-wrap">
+        <p className="text-xs font-semibold text-gtn-navy">Per-service fit (derived)</p>
+        <p className="text-[10px] text-gtn-grey-2">
+          Quality scorecard + industry + intake signals → which services to lead with.
+        </p>
+      </div>
+      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-2">
+        {top.map((f) => <ServiceFitChip key={f.serviceLine} fit={f} />)}
+      </div>
+      {weakest.length > 0 && (
+        <div className="mt-2 flex items-baseline gap-2 flex-wrap">
+          <p className="text-[10px] uppercase tracking-wide font-semibold text-gtn-grey-2">
+            Skip / de-emphasize:
+          </p>
+          {weakest.map((f) => (
+            <span key={f.serviceLine} className="inline-flex items-center gap-1 rounded-full bg-gtn-lavender text-gtn-grey-2 px-2 py-0.5 text-[10px] font-semibold">
+              {f.label} <span className="tabular text-gtn-grey-3">{f.score}</span>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ServiceFitChip({ fit }: { fit: ServiceFit }) {
+  const barClass =
+    fit.band === "strong" ? "bg-gtn-green"
+    : fit.band === "good" ? "bg-gtn-purple"
+    : fit.band === "marginal" ? "bg-gtn-amber"
+    : "bg-gtn-grey-3";
+  const pillClass =
+    fit.band === "strong" ? "bg-gtn-green-bg text-gtn-green"
+    : fit.band === "good" ? "bg-brand-soft text-gtn-purple"
+    : fit.band === "marginal" ? "bg-amber-100 text-amber-800"
+    : "bg-gtn-lavender text-gtn-grey-2";
+  return (
+    <div className="rounded border border-gtn-lavender-2 p-2 bg-white">
+      <div className="flex items-baseline justify-between gap-1.5">
+        <p className="text-xs font-semibold text-gtn-navy truncate">{fit.label}</p>
+        <span className={`text-[9px] font-bold uppercase tracking-wide rounded-full px-1.5 py-0.5 ${pillClass}`}>
+          {fit.band}
+        </span>
+      </div>
+      <div className="mt-1 flex items-baseline gap-1.5">
+        <p className="text-base font-mono font-bold text-gtn-navy tabular">{fit.score}</p>
+        <p className="text-[9px] text-gtn-grey-2">/100</p>
+      </div>
+      <div className="mt-1 h-1 rounded-full bg-gtn-lavender overflow-hidden">
+        <div className={`h-full ${barClass}`} style={{ width: `${fit.score}%` }} />
+      </div>
+      {fit.reasons[0] && (
+        <p className="mt-1 text-[10px] text-gtn-grey-2 leading-snug line-clamp-2">
+          {fit.reasons[0]}
+        </p>
+      )}
+    </div>
   );
 }
