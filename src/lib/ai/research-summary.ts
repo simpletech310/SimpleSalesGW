@@ -65,6 +65,18 @@ export type ResearchSummaryInput = {
     currentMspSatisfaction: string;
     complianceDrivers: string[];
     researchSummary: string | null;
+    // v3.3.11 — multi-service intake. AI uses these to anchor recs
+    // beyond IT/cyber when the rep already captured signals.
+    interestedServices?: string[];
+    currentPhoneSystem?: string | null;
+    currentPhonePainPoint?: string | null;
+    currentAccessControl?: string | null;
+    currentAccessDoorCount?: number | null;
+    currentVideoSurveillance?: string | null;
+    currentVideoCameraCount?: number | null;
+    cablingStatus?: string | null;
+    expansionPlans?: string | null;
+    aiAdvisoryInterest?: string | null;
   };
   artifacts: Array<{
     type: string;
@@ -113,6 +125,26 @@ export async function summarizeResearch(
     lead.currentMspName ? `Current MSP: ${lead.currentMspName} (${lead.currentMspSatisfaction})` : null,
     lead.complianceDrivers.length > 0 ? `Compliance drivers: ${lead.complianceDrivers.join(", ")}` : null,
     lead.researchSummary ? `Existing notes: ${lead.researchSummary}` : null,
+    // v3.3.11 — multi-service intake: feed any signals the rep captured
+    // so AI can incorporate them into the summary + questions + risks.
+    lead.interestedServices && lead.interestedServices.length > 0
+      ? `Services they showed interest in (rep-captured): ${lead.interestedServices.join(", ")}`
+      : null,
+    lead.currentPhoneSystem ? `Current phone system: ${lead.currentPhoneSystem}` : null,
+    lead.currentPhonePainPoint ? `Phone pain point: ${lead.currentPhonePainPoint}` : null,
+    lead.currentAccessControl
+      ? `Access control today: ${lead.currentAccessControl}${
+          lead.currentAccessDoorCount ? ` (${lead.currentAccessDoorCount} doors)` : ""
+        }`
+      : null,
+    lead.currentVideoSurveillance
+      ? `Video surveillance today: ${lead.currentVideoSurveillance}${
+          lead.currentVideoCameraCount ? ` (${lead.currentVideoCameraCount} cameras)` : ""
+        }`
+      : null,
+    lead.cablingStatus ? `Cabling status: ${lead.cablingStatus}` : null,
+    lead.expansionPlans ? `Expansion plans: ${lead.expansionPlans}` : null,
+    lead.aiAdvisoryInterest ? `AI advisory interest: ${lead.aiAdvisoryInterest}` : null,
   ].filter(Boolean).join("\n");
 
   const artifactBlock = input.artifacts.length === 0

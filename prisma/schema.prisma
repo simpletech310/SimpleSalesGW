@@ -466,6 +466,20 @@ model Lead {
   regulatedDataTypes         RegulatedDataType[] @map("regulated_data_types")
   currentMspName             String?             @map("current_msp_name")
   currentMspSatisfaction     MspSatisfaction     @default(NONE) @map("current_msp_satisfaction")
+  // v3.3.11 — multi-service intake. Reps capture not just IT but voice
+  // (VoIP), physical security (access control + video), cabling, and AI
+  // advisory signals on first touch so cross-sells aren't an afterthought.
+  // interestedServices is the rep's checkbox of "they mentioned this".
+  interestedServices         ServiceLine[]       @default([]) @map("interested_services")
+  currentPhoneSystem         String?             @map("current_phone_system")
+  currentPhonePainPoint      String?             @map("current_phone_pain_point") @db.Text
+  currentAccessControl       String?             @map("current_access_control")
+  currentAccessDoorCount     Int?                @map("current_access_door_count")
+  currentVideoSurveillance   String?             @map("current_video_surveillance")
+  currentVideoCameraCount    Int?                @map("current_video_camera_count")
+  cablingStatus              String?             @map("cabling_status")
+  expansionPlans             String?             @map("expansion_plans") @db.Text
+  aiAdvisoryInterest         String?             @map("ai_advisory_interest") @db.Text
   researchSummary            String?             @map("research_summary") @db.Text
   researchCompletedAt        DateTime?           @map("research_completed_at")
   // v3.3.10 — persist the three cards Claude returns on Gather/Summarize so

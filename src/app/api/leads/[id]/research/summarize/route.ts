@@ -43,6 +43,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         currentMspSatisfaction: lead.currentMspSatisfaction,
         complianceDrivers: lead.complianceDrivers,
         researchSummary: lead.researchSummary,
+        // v3.3.11 — multi-service intake passes through
+        interestedServices: lead.interestedServices,
+        currentPhoneSystem: lead.currentPhoneSystem,
+        currentPhonePainPoint: lead.currentPhonePainPoint,
+        currentAccessControl: lead.currentAccessControl,
+        currentAccessDoorCount: lead.currentAccessDoorCount,
+        currentVideoSurveillance: lead.currentVideoSurveillance,
+        currentVideoCameraCount: lead.currentVideoCameraCount,
+        cablingStatus: lead.cablingStatus,
+        expansionPlans: lead.expansionPlans,
+        aiAdvisoryInterest: lead.aiAdvisoryInterest,
       },
       artifacts: lead.researchArtifacts.map((a) => ({
         type: a.type,

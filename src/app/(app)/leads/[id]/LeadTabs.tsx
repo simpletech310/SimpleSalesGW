@@ -31,6 +31,17 @@ type Lead = {
   currentMspName: string | null;
   currentMspSatisfaction: string;
   cyberInsuranceRenewalDate: Date | null;
+  // v3.3.11 — multi-service intake
+  interestedServices: string[];
+  currentPhoneSystem: string | null;
+  currentPhonePainPoint: string | null;
+  currentAccessControl: string | null;
+  currentAccessDoorCount: number | null;
+  currentVideoSurveillance: string | null;
+  currentVideoCameraCount: number | null;
+  cablingStatus: string | null;
+  expansionPlans: string | null;
+  aiAdvisoryInterest: string | null;
   activities: Array<{ id: string; type: ActivityType; subject: string; body: string | null; createdAt: Date; outcome: ActivityOutcome | null; nextAction: string | null; nextActionDueAt: Date | null; actor: { name: string } }>;
   notes: Array<{ id: string; body: string; pinned: boolean; createdAt: Date; actor: { name: string } }>;
   // v3.3.10 — research-tab cards persisted on the lead
@@ -111,6 +122,16 @@ export function LeadTabs({
 }
 
 function OverviewTab({ lead }: { lead: Lead }) {
+  const hasMultiServiceSignal =
+    (lead.interestedServices?.length ?? 0) > 0 ||
+    lead.currentPhoneSystem ||
+    lead.currentPhonePainPoint ||
+    lead.currentAccessControl ||
+    lead.currentVideoSurveillance ||
+    lead.cablingStatus ||
+    lead.expansionPlans ||
+    lead.aiAdvisoryInterest;
+
   return (
     <div className="grid md:grid-cols-2 gap-4">
       <Card>
@@ -142,6 +163,50 @@ function OverviewTab({ lead }: { lead: Lead }) {
           <Row k="Cyber insurance" v={lead.cyberInsuranceRenewalDate ? format(new Date(lead.cyberInsuranceRenewalDate), "PPP") : null} />
         </dl>
       </Card>
+      {hasMultiServiceSignal && (
+        <Card>
+          <h3 className="text-sm font-semibold text-gtn-navy mb-3">Service interests + current stack</h3>
+          <dl className="text-sm space-y-2">
+            {lead.interestedServices && lead.interestedServices.length > 0 && (
+              <Row
+                k="Interested in"
+                v={
+                  <div className="flex flex-wrap gap-1">
+                    {lead.interestedServices.map((s) => (
+                      <span key={s} className="inline-block rounded-full bg-brand-soft text-gtn-purple px-2 py-0.5 text-[11px] font-semibold capitalize">
+                        {s.replace(/_/g, " ").toLowerCase()}
+                      </span>
+                    ))}
+                  </div>
+                }
+              />
+            )}
+            <Row k="Phone system" v={lead.currentPhoneSystem} />
+            <Row k="Phone pain" v={lead.currentPhonePainPoint} />
+            <Row
+              k="Access control"
+              v={[
+                lead.currentAccessControl,
+                lead.currentAccessDoorCount != null && lead.currentAccessDoorCount > 0
+                  ? `${lead.currentAccessDoorCount} door${lead.currentAccessDoorCount === 1 ? "" : "s"}`
+                  : null,
+              ].filter(Boolean).join(" · ") || null}
+            />
+            <Row
+              k="Video"
+              v={[
+                lead.currentVideoSurveillance,
+                lead.currentVideoCameraCount != null && lead.currentVideoCameraCount > 0
+                  ? `${lead.currentVideoCameraCount} camera${lead.currentVideoCameraCount === 1 ? "" : "s"}`
+                  : null,
+              ].filter(Boolean).join(" · ") || null}
+            />
+            <Row k="Cabling" v={lead.cablingStatus} />
+            <Row k="Expansion" v={lead.expansionPlans} />
+            <Row k="AI advisory" v={lead.aiAdvisoryInterest} />
+          </dl>
+        </Card>
+      )}
       <Card>
         <h3 className="text-sm font-semibold text-gtn-navy mb-3">Notes</h3>
         <QuickNoteComposer leadId={lead.id} />
@@ -233,10 +298,14 @@ function QuickNoteComposer({ leadId }: { leadId: string }) {
 
 function Row({ k, v }: { k: string; v: unknown }) {
   if (v === null || v === undefined || v === "") return null;
+  // v3.3.11 — accept React nodes too (e.g. a chip row for interestedServices).
+  const isReactNode = typeof v === "object" && v !== null && "$$typeof" in (v as Record<string, unknown>);
   return (
     <div className="flex justify-between gap-4">
-      <dt className="text-gtn-grey-2">{k}</dt>
-      <dd className="text-gtn-navy text-right">{String(v)}</dd>
+      <dt className="text-gtn-grey-2 flex-shrink-0">{k}</dt>
+      <dd className="text-gtn-navy text-right min-w-0 flex-1">
+        {isReactNode ? (v as React.ReactNode) : <span className="whitespace-pre-wrap">{String(v)}</span>}
+      </dd>
     </div>
   );
 }

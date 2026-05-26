@@ -117,6 +117,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
             currentMspSatisfaction: fresh.currentMspSatisfaction,
             complianceDrivers: fresh.complianceDrivers,
             researchSummary: fresh.researchSummary,
+            // v3.3.11 — multi-service intake passes through to AI context
+            interestedServices: fresh.interestedServices,
+            currentPhoneSystem: fresh.currentPhoneSystem,
+            currentPhonePainPoint: fresh.currentPhonePainPoint,
+            currentAccessControl: fresh.currentAccessControl,
+            currentAccessDoorCount: fresh.currentAccessDoorCount,
+            currentVideoSurveillance: fresh.currentVideoSurveillance,
+            currentVideoCameraCount: fresh.currentVideoCameraCount,
+            cablingStatus: fresh.cablingStatus,
+            expansionPlans: fresh.expansionPlans,
+            aiAdvisoryInterest: fresh.aiAdvisoryInterest,
           },
           artifacts: fresh.researchArtifacts.map((a) => ({
             type: a.type,

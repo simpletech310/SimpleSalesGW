@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { DealKind, Industry, LeadSource, MspSatisfaction } from "@prisma/client";
+import { DealKind, Industry, LeadSource, MspSatisfaction, ServiceLine } from "@prisma/client";
 import { DEAL_KIND_META, listDealKinds } from "@/lib/pricing/deal-kinds";
 import {
   Server,
@@ -113,6 +113,18 @@ export function NewLeadForm() {
       // Current IT environment
       currentMspName: nullableStr(fd.get("currentMspName")),
       currentMspSatisfaction: fd.get("currentMspSatisfaction") || MspSatisfaction.NONE,
+
+      // v3.3.11 — multi-service intake (voice, access, video, cabling, AI)
+      interestedServices: fd.getAll("interestedServices").map((v) => String(v)).filter((v) => v),
+      currentPhoneSystem: nullableStr(fd.get("currentPhoneSystem")),
+      currentPhonePainPoint: nullableStr(fd.get("currentPhonePainPoint")),
+      currentAccessControl: nullableStr(fd.get("currentAccessControl")),
+      currentAccessDoorCount: fd.get("currentAccessDoorCount") ? Number(fd.get("currentAccessDoorCount")) : undefined,
+      currentVideoSurveillance: nullableStr(fd.get("currentVideoSurveillance")),
+      currentVideoCameraCount: fd.get("currentVideoCameraCount") ? Number(fd.get("currentVideoCameraCount")) : undefined,
+      cablingStatus: nullableStr(fd.get("cablingStatus")),
+      expansionPlans: nullableStr(fd.get("expansionPlans")),
+      aiAdvisoryInterest: nullableStr(fd.get("aiAdvisoryInterest")),
 
       // Notes
       notes: nullableStr(fd.get("notes")),
@@ -353,6 +365,68 @@ export function NewLeadForm() {
           </FormField>
         </FormSection>
 
+        {/* v3.3.11 — Multi-service intake. Captures voice / access / video
+            / cabling / AI signals up-front so cross-sells aren't lost. */}
+        <FormSection
+          title="Services they showed interest in"
+          subtitle="Check anything the prospect mentioned — even casually. Drives discovery-call angles and the suggested bundle later. Skip what didn't come up."
+        >
+          <div className="md:col-span-2">
+            <ServiceInterestPicker />
+          </div>
+        </FormSection>
+
+        {/* Current phone system */}
+        <FormSection
+          title="Phone system today (VoIP / PBX)"
+          subtitle="Even a one-liner helps — Gateway VoIP is a fast cross-sell when the current system is on its last legs."
+          cols={2}
+        >
+          <FormField label="Current phone vendor / system" htmlFor="currentPhoneSystem" hint="Leave blank if they didn't mention it">
+            <Input id="currentPhoneSystem" name="currentPhoneSystem" maxLength={200} placeholder="RingCentral / 8x8 / Old on-prem PBX / Cell phones only" />
+          </FormField>
+          <FormField label="Phone pain points" htmlFor="currentPhonePainPoint" full>
+            <Textarea id="currentPhonePainPoint" name="currentPhonePainPoint" rows={2} placeholder="Drops calls during peak hours · contract up next quarter · no mobile app · staff doesn't take work calls after hours…" />
+          </FormField>
+        </FormSection>
+
+        {/* Physical security: access control + video surveillance */}
+        <FormSection
+          title="Physical security today"
+          subtitle="Multi-location, recent move, or insurance pressure usually wedges these in. Big revenue lines on their own."
+          cols={2}
+        >
+          <FormField label="Access control" htmlFor="currentAccessControl" hint="Cards / fobs / mobile / mechanical keys / none">
+            <Input id="currentAccessControl" name="currentAccessControl" maxLength={200} placeholder="Mechanical keys only / outdated proximity cards / mobile credentials / none" />
+          </FormField>
+          <FormField label="Door count" htmlFor="currentAccessDoorCount" hint="Doors that need controlled access">
+            <Input id="currentAccessDoorCount" name="currentAccessDoorCount" type="number" min={0} placeholder="e.g. 6" />
+          </FormField>
+          <FormField label="Video surveillance" htmlFor="currentVideoSurveillance" hint="DVR / IP / NVR cloud / none">
+            <Input id="currentVideoSurveillance" name="currentVideoSurveillance" maxLength={200} placeholder="None / old analog DVR / cloud-based IP cameras" />
+          </FormField>
+          <FormField label="Camera count" htmlFor="currentVideoCameraCount">
+            <Input id="currentVideoCameraCount" name="currentVideoCameraCount" type="number" min={0} placeholder="e.g. 12" />
+          </FormField>
+        </FormSection>
+
+        {/* Cabling / facilities + AI advisory */}
+        <FormSection
+          title="Facilities + AI advisory"
+          subtitle="New offices and AI questions are two of the loudest cross-sell signals — capture even a hint."
+          cols={2}
+        >
+          <FormField label="Cabling status" htmlFor="cablingStatus" hint="New build / expansion / existing OK / unsure">
+            <Input id="cablingStatus" name="cablingStatus" maxLength={200} placeholder="New build · expansion to suite 200 · existing OK · unsure" />
+          </FormField>
+          <FormField label="Expansion plans" htmlFor="expansionPlans" full>
+            <Textarea id="expansionPlans" name="expansionPlans" rows={2} placeholder="New office opening Q3 · adding 20 staff in 6 months · acquired competitor with 2 sites…" />
+          </FormField>
+          <FormField label="AI advisory interest" htmlFor="aiAdvisoryInterest" full>
+            <Textarea id="aiAdvisoryInterest" name="aiAdvisoryInterest" rows={2} placeholder="They asked about Copilot / automating intake / data-privacy concerns about ChatGPT / wants ROI on AI pilots…" />
+          </FormField>
+        </FormSection>
+
         {/* Notes */}
         <FormSection
           title="First-impression note"
@@ -378,4 +452,54 @@ function nullableStr(v: FormDataEntryValue | null): string | undefined {
   if (v == null) return undefined;
   const s = String(v).trim();
   return s.length === 0 ? undefined : s;
+}
+
+/**
+ * v3.3.11 — Multi-select checkbox grid for ServiceLines the prospect
+ * expressed interest in. Uses native form submission so onSubmit's
+ * FormData.getAll("interestedServices") picks them up.
+ */
+const SERVICE_INTEREST_OPTIONS: ReadonlyArray<{ value: ServiceLine; label: string; tagline: string }> = [
+  { value: ServiceLine.MANAGED_IT,      label: "Managed IT",        tagline: "Endpoint mgmt, helpdesk, patching, monitoring" },
+  { value: ServiceLine.CYBERSECURITY,   label: "Cybersecurity",     tagline: "MFA, EDR, DNS filter, awareness training" },
+  { value: ServiceLine.VOIP,            label: "VoIP / Phones",     tagline: "Hosted PBX, extensions, mobile twinning" },
+  { value: ServiceLine.ACCESS_CONTROL,  label: "Access control",    tagline: "Doors, badges, mobile credentials" },
+  { value: ServiceLine.VIDEO,           label: "Video surveillance",tagline: "IP cameras, NVR, remote viewing" },
+  { value: ServiceLine.CABLING,         label: "Structured cabling",tagline: "Cat6/6a, certified drops, build-outs" },
+  { value: ServiceLine.AI_ADVISORY,     label: "AI advisory",       tagline: "Workshops, pilots, governance" },
+  { value: ServiceLine.NIST_ASSESSMENT, label: "NIST / compliance", tagline: "HIPAA, PCI, CMMC, audit prep" },
+  { value: ServiceLine.VCIO_RETAINER,   label: "vCIO retainer",     tagline: "Strategic technology advisor on retainer" },
+];
+
+function ServiceInterestPicker() {
+  return (
+    <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+      {SERVICE_INTEREST_OPTIONS.map((opt) => (
+        <label
+          key={opt.value}
+          className={cn(
+            "group relative cursor-pointer rounded-lg border border-line-subtle bg-surface p-3 block",
+            "transition-all duration-120 ease-smooth",
+            "hover:border-line-strong hover:shadow-card",
+            "has-[:checked]:border-brand has-[:checked]:bg-brand-soft/30",
+          )}
+        >
+          <input
+            type="checkbox"
+            name="interestedServices"
+            value={opt.value}
+            className="sr-only peer"
+          />
+          <span
+            aria-hidden
+            className="absolute top-2 right-2 inline-flex items-center justify-center w-4 h-4 rounded border border-line bg-surface peer-checked:border-brand peer-checked:bg-brand transition-colors"
+          >
+            <Check className="h-2.5 w-2.5 text-white opacity-0 peer-checked:opacity-100" strokeWidth={3} />
+          </span>
+          <p className="text-sm font-semibold text-ink-strong">{opt.label}</p>
+          <p className="text-xs text-ink-muted mt-0.5 leading-snug">{opt.tagline}</p>
+        </label>
+      ))}
+    </div>
+  );
 }

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { DealKind, Industry, LeadSource, MspSatisfaction, type Prisma, type PipelineStage } from "@prisma/client";
+import { DealKind, Industry, LeadSource, MspSatisfaction, ServiceLine, type Prisma, type PipelineStage } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { writeAudit } from "@/lib/audit";
 import { can, leadVisibilityFilter } from "@/lib/rbac";
@@ -33,6 +33,18 @@ const createSchema = z.object({
   source: z.nativeEnum(LeadSource).default(LeadSource.INBOUND),
   // v2.15 — what kind of deal is this. Drives PricingCard form + onboarding template.
   dealKind: z.nativeEnum(DealKind).default(DealKind.MANAGED_IT_BUNDLE),
+  // v3.3.11 — multi-service intake. Optional on create; rep can fill in
+  // during discovery and PATCH later.
+  interestedServices: z.array(z.nativeEnum(ServiceLine)).optional(),
+  currentPhoneSystem: z.string().max(200).optional(),
+  currentPhonePainPoint: z.string().max(2000).optional(),
+  currentAccessControl: z.string().max(200).optional(),
+  currentAccessDoorCount: z.coerce.number().int().nonnegative().optional(),
+  currentVideoSurveillance: z.string().max(200).optional(),
+  currentVideoCameraCount: z.coerce.number().int().nonnegative().optional(),
+  cablingStatus: z.string().max(200).optional(),
+  expansionPlans: z.string().max(2000).optional(),
+  aiAdvisoryInterest: z.string().max(2000).optional(),
   notes: z.string().max(5000).optional(),
 });
 

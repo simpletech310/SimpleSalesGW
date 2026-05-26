@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { DealKind, Industry, LeadSource, MspSatisfaction, PipelineStage } from "@prisma/client";
+import { DealKind, Industry, LeadSource, MspSatisfaction, PipelineStage, ServiceLine } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ApiError, getAuditContext, jsonError, requireSessionUser } from "@/lib/api";
 import { can, leadIsVisible } from "@/lib/rbac";
@@ -59,6 +59,17 @@ const updateSchema = z.object({
   researchFitSignals: z.array(z.string().max(500)).max(20).optional(),
   researchSuggestedQuestions: z.array(z.string().max(500)).max(20).optional(),
   researchRisks: z.array(z.string().max(500)).max(20).optional(),
+  // v3.3.11 — multi-service intake mirrors POST /api/leads schema
+  interestedServices: z.array(z.nativeEnum(ServiceLine)).max(15).optional(),
+  currentPhoneSystem: z.string().max(200).nullable().optional(),
+  currentPhonePainPoint: z.string().max(2000).nullable().optional(),
+  currentAccessControl: z.string().max(200).nullable().optional(),
+  currentAccessDoorCount: z.coerce.number().int().nonnegative().nullable().optional(),
+  currentVideoSurveillance: z.string().max(200).nullable().optional(),
+  currentVideoCameraCount: z.coerce.number().int().nonnegative().nullable().optional(),
+  cablingStatus: z.string().max(200).nullable().optional(),
+  expansionPlans: z.string().max(2000).nullable().optional(),
+  aiAdvisoryInterest: z.string().max(2000).nullable().optional(),
   expectedCloseDate: z.string().datetime().nullable().optional(),
   closedLostReason: z.string().max(2_000).nullable().optional(),
 });
