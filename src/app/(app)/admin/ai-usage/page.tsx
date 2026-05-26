@@ -12,14 +12,23 @@ import { DashboardPage, DashboardSection } from "@/components/templates";
 import { loadBudget, spendForOrg } from "@/lib/ai/budget";
 
 const FEATURE_LABEL: Record<AiFeatureKind, string> = {
-  RESEARCH_SUMMARY:    "Research summary",
-  OBJECTION_REBUTTAL:  "Objection coach",
-  DISCOVERY_PREP:      "Discovery prep",
-  OUTREACH_PERSONALIZE:"Outreach personalize",
-  PRESALE_NARRATIVE:   "Pre-sale narrative",
-  HANDOFF_QC:          "Handoff QC",
-  SALES_COACH:         "Sales coach",
-  VCIO_RECOMMENDATION: "vCIO recommendations",
+  RESEARCH_SUMMARY:           "Research summary",
+  OBJECTION_REBUTTAL:         "Objection coach",
+  DISCOVERY_PREP:             "Discovery prep",
+  OUTREACH_PERSONALIZE:       "Outreach personalize",
+  PRESALE_NARRATIVE:          "Pre-sale narrative",
+  HANDOFF_QC:                 "Handoff QC",
+  SALES_COACH:                "Sales coach",
+  VCIO_RECOMMENDATION:        "vCIO recommendations",
+  // v3.3 — SOP-alignment AI assistants
+  SOW_DRAFT:                  "SOW draft",
+  SOW_SCOPE_QC:               "SOW scope QC",
+  ASSESSMENT_VERDICT_SUGGEST: "Assessment go/no-go suggest",
+  HANDOFF_QUICK_WIN:          "Handoff Day-30 win",
+  HANDOFF_PAIN_RECAP:         "Handoff pain recap",
+  TRIGGER_EVENT_DETECT:       "Trigger event detect",
+  KICKOFF_NARRATIVE:          "Kickoff narrative",
+  DEBRIEF_DRAFT:              "Deal debrief draft",
 };
 
 export default async function AiUsagePage({

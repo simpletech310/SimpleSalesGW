@@ -197,6 +197,15 @@ enum AiFeatureKind {
   SALES_COACH
   // v2.23 — vCIO post-assessment recommendations (structured task plan)
   VCIO_RECOMMENDATION
+  // v3.3 — SOP-alignment sweep: 8 new assistants
+  SOW_DRAFT
+  SOW_SCOPE_QC
+  ASSESSMENT_VERDICT_SUGGEST
+  HANDOFF_QUICK_WIN
+  HANDOFF_PAIN_RECAP
+  TRIGGER_EVENT_DETECT
+  KICKOFF_NARRATIVE
+  DEBRIEF_DRAFT
 }
 
 enum AuditAction {
@@ -330,34 +339,41 @@ model User {
   updatedAt     DateTime  @updatedAt @map("updated_at")
   lastLoginAt   DateTime? @map("last_login_at")
 
-  ownedLeads        Lead[]            @relation("LeadOwner")
-  activities        Activity[]
-  notes             Note[]
-  assessments       Assessment[]
-  auditLogs         AuditLog[]
-  accounts          Account[]
-  sessions          Session[]
-  nonStrategicApprovals Lead[]        @relation("NonStrategicApprover")
-  handoffsInitiated Handoff[]         @relation("HandoffInitiator")
-  handoffsAccepted  Handoff[]         @relation("HandoffAcceptor")
-  attachments       Attachment[]
-  pricingRequests   PricingApproval[] @relation("PricingRequester")
-  pricingApprovals  PricingApproval[] @relation("PricingApprover")
-  managedCustomers  Customer[]            @relation("CustomerManager")
-  discoveryCreated  DiscoveryAssessment[] @relation("DiscoveryCreator")
+  ownedLeads               Lead[]                   @relation("LeadOwner")
+  activities               Activity[]
+  notes                    Note[]
+  assessments              Assessment[]
+  auditLogs                AuditLog[]
+  accounts                 Account[]
+  sessions                 Session[]
+  nonStrategicApprovals    Lead[]                   @relation("NonStrategicApprover")
+  handoffsInitiated        Handoff[]                @relation("HandoffInitiator")
+  handoffsAccepted         Handoff[]                @relation("HandoffAcceptor")
+  attachments              Attachment[]
+  pricingRequests          PricingApproval[]        @relation("PricingRequester")
+  pricingApprovals         PricingApproval[]        @relation("PricingApprover")
+  managedCustomers         Customer[]               @relation("CustomerManager")
+  discoveryCreated         DiscoveryAssessment[]    @relation("DiscoveryCreator")
   // v2.23 — vCIO plans this user accepted (materialized into OnboardingTask rows)
-  plansAccepted     DiscoveryAssessment[] @relation("PlanAccepter")
+  plansAccepted            DiscoveryAssessment[]    @relation("PlanAccepter")
   // v2.20 — Claude calls this user triggered
-  aiUsageEvents     AiUsageLog[]          @relation("AiUsageActor")
-  onboardingTasks   OnboardingTask[]      @relation("OnboardingTaskOwner")
-  signedDocsUploaded SignedDocument[]     @relation("SignedDocUploader")
-  qualificationScores QualificationScorecard[] @relation("QualificationScorer")
-  discoveryCallsConducted DiscoveryCallNote[]  @relation("DiscoveryCallConductor")
+  aiUsageEvents            AiUsageLog[]             @relation("AiUsageActor")
+  onboardingTasks          OnboardingTask[]         @relation("OnboardingTaskOwner")
+  signedDocsUploaded       SignedDocument[]         @relation("SignedDocUploader")
+  qualificationScores      QualificationScorecard[] @relation("QualificationScorer")
+  discoveryCallsConducted  DiscoveryCallNote[]      @relation("DiscoveryCallConductor")
+  // v3.3 — SOP-alignment reviewer + creator relations
+  sowTemplatesCreated      SowTemplate[]            @relation("SowTemplateCreator")
+  proposalsVcioReviewed    Proposal[]               @relation("ProposalVcioReviewer")
+  proposalsManagerReviewed Proposal[]               @relation("ProposalManagerReviewer")
+  proposalsSent            Proposal[]               @relation("ProposalSender")
+  assessmentVcioVerdicts   DiscoveryAssessment[]    @relation("AssessmentVcioVerdict")
+  debriefsSubmitted        DealDebrief[]            @relation("DebriefSubmitter")
   // v2.22 — sales team memberships + Daily.co calls initiated
-  teamMemberships   SalesTeamMember[]
-  callsInitiated    SalesCallSession[]    @relation("CallInitiator")
-  objectionsRaised  ObjectionLog[]        @relation("ObjectionRaiser")
-  preferences       UserPreference?
+  teamMemberships          SalesTeamMember[]
+  callsInitiated           SalesCallSession[]       @relation("CallInitiator")
+  objectionsRaised         ObjectionLog[]           @relation("ObjectionRaiser")
+  preferences              UserPreference?
 
   @@map("users")
 }
@@ -407,88 +423,96 @@ model VerificationToken {
 // ============================================================================
 
 model Lead {
-  id                          String              @id @default(uuid()) @db.Uuid
-  ownerUserId                 String              @map("owner_user_id") @db.Uuid
-  businessName                String              @map("business_name")
-  dbaName                     String?             @map("dba_name")
-  industry                    Industry
-  subindustry                 String?
-  seatCount                   Int?                @map("seat_count")
-  siteCount                   Int                 @default(1) @map("site_count")
-  addressStreet               String?             @map("address_street")
-  addressCity                 String?             @map("address_city")
-  addressState                String?             @map("address_state")
-  addressZip                  String?             @map("address_zip")
+  id                         String              @id @default(uuid()) @db.Uuid
+  ownerUserId                String              @map("owner_user_id") @db.Uuid
+  businessName               String              @map("business_name")
+  dbaName                    String?             @map("dba_name")
+  industry                   Industry
+  subindustry                String?
+  seatCount                  Int?                @map("seat_count")
+  siteCount                  Int                 @default(1) @map("site_count")
+  addressStreet              String?             @map("address_street")
+  addressCity                String?             @map("address_city")
+  addressState               String?             @map("address_state")
+  addressZip                 String?             @map("address_zip")
   // v2.22 — server-side Mapbox geocode result; powers /leads/map markers
   // and polygon-territory matching. Refreshed when address fields change.
-  addressLat                  Decimal?            @map("address_lat") @db.Decimal(10, 7)
-  addressLng                  Decimal?            @map("address_lng") @db.Decimal(10, 7)
-  geocodedAt                  DateTime?           @map("geocoded_at")
+  addressLat                 Decimal?            @map("address_lat") @db.Decimal(10, 7)
+  addressLng                 Decimal?            @map("address_lng") @db.Decimal(10, 7)
+  geocodedAt                 DateTime?           @map("geocoded_at")
   // v2.22 — sales team + territory ownership (nullable = unassigned).
   // Auto-matched from territories on lead create + address patch; sales
   // manager can override via /sales/assign workbench.
-  teamId                      String?             @map("team_id") @db.Uuid
-  territoryId                 String?             @map("territory_id") @db.Uuid
-  websiteUrl                  String?             @map("website_url")
-  linkedinCompanyUrl          String?             @map("linkedin_company_url")
-  googleBusinessUrl           String?             @map("google_business_url")
-  primaryContactName          String?             @map("primary_contact_name")
-  primaryContactTitle         String?             @map("primary_contact_title")
-  primaryContactEmail         String?             @map("primary_contact_email")
-  primaryContactPhone         String?             @map("primary_contact_phone")
-  executiveSponsorName        String?             @map("executive_sponsor_name")
-  executiveSponsorTitle       String?             @map("executive_sponsor_title")
-  pipelineStage               PipelineStage       @default(LEAD) @map("pipeline_stage")
-  source                      LeadSource          @default(INBOUND)
+  teamId                     String?             @map("team_id") @db.Uuid
+  territoryId                String?             @map("territory_id") @db.Uuid
+  websiteUrl                 String?             @map("website_url")
+  linkedinCompanyUrl         String?             @map("linkedin_company_url")
+  googleBusinessUrl          String?             @map("google_business_url")
+  primaryContactName         String?             @map("primary_contact_name")
+  primaryContactTitle        String?             @map("primary_contact_title")
+  primaryContactEmail        String?             @map("primary_contact_email")
+  primaryContactPhone        String?             @map("primary_contact_phone")
+  executiveSponsorName       String?             @map("executive_sponsor_name")
+  executiveSponsorTitle      String?             @map("executive_sponsor_title")
+  pipelineStage              PipelineStage       @default(LEAD) @map("pipeline_stage")
+  source                     LeadSource          @default(INBOUND)
   // v2.15 — what's being sold. Drives PricingCard form + onboarding template subset.
-  dealKind                    DealKind            @default(MANAGED_IT_BUNDLE) @map("deal_kind")
+  dealKind                   DealKind            @default(MANAGED_IT_BUNDLE) @map("deal_kind")
   // v2.15 — line-item quote for non-bundle deals (extensions / drops / doors / cameras).
   // Shape: { lines: [{ kind, label, qty, perUnitMrr, perUnitOneTime, notes? }] }
-  dealLineItems               Json?               @map("deal_line_items")
-  cyberInsuranceRenewalDate   DateTime?           @map("cyber_insurance_renewal_date")
-  complianceDrivers           ComplianceDriver[]  @map("compliance_drivers")
-  regulatedDataTypes          RegulatedDataType[] @map("regulated_data_types")
-  currentMspName              String?             @map("current_msp_name")
-  currentMspSatisfaction      MspSatisfaction     @default(NONE) @map("current_msp_satisfaction")
-  researchSummary             String?             @map("research_summary") @db.Text
-  researchCompletedAt         DateTime?           @map("research_completed_at")
-  suggestedBundle             ServiceBundle?      @map("suggested_bundle")
-  servicesScore               Int                 @default(0) @map("services_score")
-  customerScore               Int                 @default(0) @map("customer_score")
-  dealQualityScore            Int                 @default(0) @map("deal_quality_score")
-  nonStrategicFlag            Boolean             @default(false) @map("non_strategic_flag")
-  nonStrategicApprovalUserId  String?             @map("non_strategic_approval_user_id") @db.Uuid
-  nonStrategicApprovalReason  String?             @map("non_strategic_approval_reason") @db.Text
-  expectedCloseDate           DateTime?           @map("expected_close_date")
-  actualCloseDate             DateTime?           @map("actual_close_date")
-  closedLostReason            String?             @map("closed_lost_reason") @db.Text
-  connectwiseOpportunityId    String?             @map("connectwise_opportunity_id")
-  createdAt                   DateTime            @default(now()) @map("created_at")
-  updatedAt                   DateTime            @updatedAt @map("updated_at")
+  dealLineItems              Json?               @map("deal_line_items")
+  cyberInsuranceRenewalDate  DateTime?           @map("cyber_insurance_renewal_date")
+  complianceDrivers          ComplianceDriver[]  @map("compliance_drivers")
+  regulatedDataTypes         RegulatedDataType[] @map("regulated_data_types")
+  currentMspName             String?             @map("current_msp_name")
+  currentMspSatisfaction     MspSatisfaction     @default(NONE) @map("current_msp_satisfaction")
+  researchSummary            String?             @map("research_summary") @db.Text
+  researchCompletedAt        DateTime?           @map("research_completed_at")
+  suggestedBundle            ServiceBundle?      @map("suggested_bundle")
+  servicesScore              Int                 @default(0) @map("services_score")
+  customerScore              Int                 @default(0) @map("customer_score")
+  dealQualityScore           Int                 @default(0) @map("deal_quality_score")
+  nonStrategicFlag           Boolean             @default(false) @map("non_strategic_flag")
+  nonStrategicApprovalUserId String?             @map("non_strategic_approval_user_id") @db.Uuid
+  nonStrategicApprovalReason String?             @map("non_strategic_approval_reason") @db.Text
+  expectedCloseDate          DateTime?           @map("expected_close_date")
+  actualCloseDate            DateTime?           @map("actual_close_date")
+  closedLostReason           String?             @map("closed_lost_reason") @db.Text
+  connectwiseOpportunityId   String?             @map("connectwise_opportunity_id")
+  // v3.3 — SOP Step 1: structured trigger event capture
+  triggerEvent               TriggerEvent?       @default(NONE) @map("trigger_event")
+  triggerEventNote           String?             @map("trigger_event_note") @db.Text
+  // v3.3 — SOP Step 7c: paperwork checklist gate before CLOSED_WON
+  paymentMethodOnFile        Boolean             @default(false) @map("payment_method_on_file")
+  createdAt                  DateTime            @default(now()) @map("created_at")
+  updatedAt                  DateTime            @updatedAt @map("updated_at")
 
-  owner               User                @relation("LeadOwner", fields: [ownerUserId], references: [id])
-  nonStrategicApprover User?              @relation("NonStrategicApprover", fields: [nonStrategicApprovalUserId], references: [id])
-  activities          Activity[]
-  notes               Note[]
-  assessments         Assessment[]
-  serviceMatches      ServiceMatch[]
-  researchArtifacts   ResearchArtifact[]
-  handoffs            Handoff[]
-  attachments         Attachment[]
-  pricingApprovals    PricingApproval[]
-  customer            Customer?
-  signedDocuments     SignedDocument[]
-  qualification       QualificationScorecard?
-  discoveryCallNotes  DiscoveryCallNote[]
-  objectionLogs       ObjectionLog[]
+  owner                User                    @relation("LeadOwner", fields: [ownerUserId], references: [id])
+  nonStrategicApprover User?                   @relation("NonStrategicApprover", fields: [nonStrategicApprovalUserId], references: [id])
+  activities           Activity[]
+  notes                Note[]
+  assessments          Assessment[]
+  serviceMatches       ServiceMatch[]
+  researchArtifacts    ResearchArtifact[]
+  handoffs             Handoff[]
+  attachments          Attachment[]
+  pricingApprovals     PricingApproval[]
+  customer             Customer?
+  signedDocuments      SignedDocument[]
+  qualification        QualificationScorecard?
+  // v3.3 — SOP Step 6 + Step 10
+  proposals            Proposal[]
+  debrief              DealDebrief?
+  discoveryCallNotes   DiscoveryCallNote[]
+  objectionLogs        ObjectionLog[]
   // v2.17 — pre-sale technical scoping (voice / CCTV / access / IT)
-  preSaleAssessments  DiscoveryAssessment[]
+  preSaleAssessments   DiscoveryAssessment[]
   // v2.20 — AI usage rows scoped to this lead (for per-lead budget cap)
-  aiUsageLogs         AiUsageLog[]
+  aiUsageLogs          AiUsageLog[]
   // v2.22 — sales team + territory + Daily.co call sessions
-  team                SalesTeam?         @relation(fields: [teamId], references: [id], onDelete: SetNull)
-  territory           SalesTerritory?    @relation(fields: [territoryId], references: [id], onDelete: SetNull)
-  callSessions        SalesCallSession[]
+  team                 SalesTeam?              @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  territory            SalesTerritory?         @relation(fields: [territoryId], references: [id], onDelete: SetNull)
+  callSessions         SalesCallSession[]
 
   @@index([ownerUserId])
   @@index([pipelineStage])
@@ -498,21 +522,22 @@ model Lead {
   @@index([expectedCloseDate])
   @@index([teamId])
   @@index([territoryId])
+  @@index([triggerEvent])
   @@map("leads")
 }
 
 model Activity {
-  id                    String           @id @default(uuid()) @db.Uuid
-  leadId                String           @map("lead_id") @db.Uuid
-  actorUserId           String           @map("actor_user_id") @db.Uuid
-  type                  ActivityType
-  subject               String
-  body                  String?          @db.Text
-  outcome               ActivityOutcome?
-  nextAction            String?          @map("next_action")
-  nextActionDueAt       DateTime?        @map("next_action_due_at")
-  nextActionCompleted   Boolean          @default(false) @map("next_action_completed")
-  createdAt             DateTime         @default(now()) @map("created_at")
+  id                  String           @id @default(uuid()) @db.Uuid
+  leadId              String           @map("lead_id") @db.Uuid
+  actorUserId         String           @map("actor_user_id") @db.Uuid
+  type                ActivityType
+  subject             String
+  body                String?          @db.Text
+  outcome             ActivityOutcome?
+  nextAction          String?          @map("next_action")
+  nextActionDueAt     DateTime?        @map("next_action_due_at")
+  nextActionCompleted Boolean          @default(false) @map("next_action_completed")
+  createdAt           DateTime         @default(now()) @map("created_at")
 
   lead  Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
   actor User @relation(fields: [actorUserId], references: [id])
@@ -541,21 +566,21 @@ model Note {
 }
 
 model Assessment {
-  id                  String           @id @default(uuid()) @db.Uuid
-  leadId              String           @map("lead_id") @db.Uuid
-  createdByUserId     String           @map("created_by_user_id") @db.Uuid
-  mode                AssessmentMode   @default(IN_PERSON)
-  magicLinkToken      String?          @unique @map("magic_link_token")
-  magicLinkExpiresAt  DateTime?        @map("magic_link_expires_at")
-  status              AssessmentStatus @default(NOT_STARTED)
-  startedAt           DateTime?        @map("started_at")
-  completedAt         DateTime?        @map("completed_at")
-  respondentName      String?          @map("respondent_name")
-  respondentEmail     String?          @map("respondent_email")
-  createdAt           DateTime         @default(now()) @map("created_at")
+  id                 String           @id @default(uuid()) @db.Uuid
+  leadId             String           @map("lead_id") @db.Uuid
+  createdByUserId    String           @map("created_by_user_id") @db.Uuid
+  mode               AssessmentMode   @default(IN_PERSON)
+  magicLinkToken     String?          @unique @map("magic_link_token")
+  magicLinkExpiresAt DateTime?        @map("magic_link_expires_at")
+  status             AssessmentStatus @default(NOT_STARTED)
+  startedAt          DateTime?        @map("started_at")
+  completedAt        DateTime?        @map("completed_at")
+  respondentName     String?          @map("respondent_name")
+  respondentEmail    String?          @map("respondent_email")
+  createdAt          DateTime         @default(now()) @map("created_at")
 
-  lead      Lead                 @relation(fields: [leadId], references: [id], onDelete: Cascade)
-  createdBy User                 @relation(fields: [createdByUserId], references: [id])
+  lead      Lead               @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  createdBy User               @relation(fields: [createdByUserId], references: [id])
   answers   AssessmentAnswer[]
 
   @@index([leadId])
@@ -610,27 +635,27 @@ model Handoff {
   status          HandoffStatus @default(DRAFT)
 
   // v2.3 — structured 60-field handoff checklist (replaces freeform `payload`)
-  dealValue            Decimal?      @map("deal_value") @db.Decimal(12, 2)
-  bundleId             ServiceBundle? @map("bundle_id")
-  complianceOverlay    String[]      @default([]) @map("compliance_overlay")
-  contractsSigned      String[]      @default([]) @map("contracts_signed")
-  decisionMakers       Json          @default("[]") @map("decision_makers")        // up to 5 [{ name, role, authority, temperature, comms }]
-  hardCommitments      Json          @default("[]") @map("hard_commitments")        // [{ text, sowRef, deadline }]
-  softCommitments      Json          @default("[]") @map("soft_commitments")
-  objectionsAndSkeptics Json         @default("[]") @map("objections_and_skeptics") // [{ name, concern, status }]
-  stakeholderContext   String?       @map("stakeholder_context") @db.Text
-  budgetSnapshot       Json?         @map("budget_snapshot")                        // { status, range, notes }
-  successCriteria      Json          @default("[]") @map("success_criteria")        // [{ metric, target, owner }]
+  dealValue             Decimal?       @map("deal_value") @db.Decimal(12, 2)
+  bundleId              ServiceBundle? @map("bundle_id")
+  complianceOverlay     String[]       @default([]) @map("compliance_overlay")
+  contractsSigned       String[]       @default([]) @map("contracts_signed")
+  decisionMakers        Json           @default("[]") @map("decision_makers") // up to 5 [{ name, role, authority, temperature, comms }]
+  hardCommitments       Json           @default("[]") @map("hard_commitments") // [{ text, sowRef, deadline }]
+  softCommitments       Json           @default("[]") @map("soft_commitments")
+  objectionsAndSkeptics Json           @default("[]") @map("objections_and_skeptics") // [{ name, concern, status }]
+  stakeholderContext    String?        @map("stakeholder_context") @db.Text
+  budgetSnapshot        Json?          @map("budget_snapshot") // { status, range, notes }
+  successCriteria       Json           @default("[]") @map("success_criteria") // [{ metric, target, owner }]
 
-  notes           String?       @db.Text
-  initiatedAt     DateTime?     @map("initiated_at")
-  acceptedAt      DateTime?     @map("accepted_at")
-  rejectedAt      DateTime?     @map("rejected_at")
-  rejectedReason  String?       @map("rejected_reason") @db.Text
+  notes          String?   @db.Text
+  initiatedAt    DateTime? @map("initiated_at")
+  acceptedAt     DateTime? @map("accepted_at")
+  rejectedAt     DateTime? @map("rejected_at")
+  rejectedReason String?   @map("rejected_reason") @db.Text
   // v2.20 — cached AI quality-check output: { severity, issues[], suggestions[], generatedAt }
-  qcResult        Json?         @map("qc_result")
-  createdAt       DateTime      @default(now()) @map("created_at")
-  updatedAt       DateTime      @updatedAt @map("updated_at")
+  qcResult       Json?     @map("qc_result")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
 
   lead      Lead  @relation(fields: [leadId], references: [id], onDelete: Cascade)
   initiator User  @relation("HandoffInitiator", fields: [initiatorUserId], references: [id])
@@ -714,7 +739,7 @@ model Attachment {
   createdAt        DateTime @default(now()) @map("created_at")
 
   lead       Lead? @relation(fields: [leadId], references: [id], onDelete: Cascade)
-  uploadedBy User @relation(fields: [uploadedByUserId], references: [id])
+  uploadedBy User  @relation(fields: [uploadedByUserId], references: [id])
 
   @@index([leadId])
   @@index([entityType, entityId])
@@ -791,6 +816,8 @@ model Customer {
   licenses             LicenseEntry[]
   vendors              VendorContract[]
   signedDocuments      SignedDocument[]
+  // v3.3 — SOP Step 9: kickoff record (one per customer, auto-created on handoff accept)
+  kickoff              Kickoff?
 
   @@index([status])
   @@index([accountManagerId])
@@ -798,40 +825,47 @@ model Customer {
 }
 
 model DiscoveryAssessment {
-  id              String          @id @default(uuid()) @db.Uuid
+  id                   String          @id @default(uuid()) @db.Uuid
   // v2.17 — customerId nullable so the same model handles pre-sale
   // (on Lead) and post-sale (on Customer). Auto-migrates from
   // lead-only → both-set when the handoff is accepted; leadId stays
   // for traceability. App-level invariant: at least one must be set.
-  customerId      String?         @map("customer_id") @db.Uuid
-  leadId          String?         @map("lead_id") @db.Uuid
-  kind            DiscoveryKind
-  status          DiscoveryStatus @default(NOT_STARTED)
-  startedAt       DateTime?       @map("started_at")
-  completedAt     DateTime?       @map("completed_at")
-  createdByUserId String          @map("created_by_user_id") @db.Uuid
-  answers         Json            @default("{}")
-  scorecard       Json?
+  customerId           String?         @map("customer_id") @db.Uuid
+  leadId               String?         @map("lead_id") @db.Uuid
+  kind                 DiscoveryKind
+  status               DiscoveryStatus @default(NOT_STARTED)
+  startedAt            DateTime?       @map("started_at")
+  completedAt          DateTime?       @map("completed_at")
+  createdByUserId      String          @map("created_by_user_id") @db.Uuid
+  answers              Json            @default("{}")
+  scorecard            Json?
   // v2.23 — vCIO elevation: cached AI plan snapshot + acceptance audit.
   // aiPlanSnapshot is the most-recent AI output (regenerate-safe).
   // planAcceptedSnapshot is the frozen copy of what was actually accepted
   // — preserved even if the vCIO regenerates the plan later, so the
   // materialized OnboardingTasks always have a traceable source.
-  aiPlanSnapshot         Json?     @map("ai_plan_snapshot")
-  aiPlanGeneratedAt      DateTime? @map("ai_plan_generated_at")
-  planAcceptedAt         DateTime? @map("plan_accepted_at")
-  planAcceptedByUserId   String?   @map("plan_accepted_by_user_id") @db.Uuid
-  planAcceptedSnapshot   Json?     @map("plan_accepted_snapshot")
-  createdAt       DateTime        @default(now()) @map("created_at")
-  updatedAt       DateTime        @updatedAt @map("updated_at")
+  aiPlanSnapshot       Json?           @map("ai_plan_snapshot")
+  aiPlanGeneratedAt    DateTime?       @map("ai_plan_generated_at")
+  planAcceptedAt       DateTime?       @map("plan_accepted_at")
+  planAcceptedByUserId String?         @map("plan_accepted_by_user_id") @db.Uuid
+  planAcceptedSnapshot Json?           @map("plan_accepted_snapshot")
+  // v3.3 — SOP Step 5: vCIO go/no-go gate
+  vcioVerdict          ReviewVerdict?  @map("vcio_verdict")
+  vcioVerdictAt        DateTime?       @map("vcio_verdict_at")
+  vcioVerdictById      String?         @map("vcio_verdict_by_id") @db.Uuid
+  vcioVerdictNotes     String?         @map("vcio_verdict_notes") @db.Text
+  createdAt            DateTime        @default(now()) @map("created_at")
+  updatedAt            DateTime        @updatedAt @map("updated_at")
 
-  customer  Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  lead      Lead?     @relation(fields: [leadId], references: [id], onDelete: Cascade)
-  createdBy User      @relation("DiscoveryCreator", fields: [createdByUserId], references: [id])
-  planAcceptedBy User? @relation("PlanAccepter", fields: [planAcceptedByUserId], references: [id])
+  customer       Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  lead           Lead?     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  createdBy      User      @relation("DiscoveryCreator", fields: [createdByUserId], references: [id])
+  planAcceptedBy User?     @relation("PlanAccepter", fields: [planAcceptedByUserId], references: [id])
+  vcioVerdictBy  User?     @relation("AssessmentVcioVerdict", fields: [vcioVerdictById], references: [id])
 
   @@index([customerId, kind])
   @@index([leadId, kind])
+  @@index([vcioVerdict])
   @@map("discovery_assessments")
 }
 
@@ -842,7 +876,7 @@ model OnboardingTask {
   title       String
   description String?              @db.Text
   ownerUserId String?              @map("owner_user_id") @db.Uuid
-  ownerRole   Role?                @map("owner_role")   // v2.3 — default role for unassigned tasks
+  ownerRole   Role?                @map("owner_role") // v2.3 — default role for unassigned tasks
   status      OnboardingTaskStatus @default(PENDING)
   dueAt       DateTime?            @map("due_at")
   completedAt DateTime?            @map("completed_at")
@@ -896,7 +930,7 @@ model Site {
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
 
-  customer     Customer         @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customer     Customer          @relation(fields: [customerId], references: [id], onDelete: Cascade)
   circuits     NetworkCircuit[]
   firewalls    FirewallAsset[]
   switches     SwitchAsset[]
@@ -910,19 +944,19 @@ model Site {
 }
 
 model NetworkCircuit {
-  id            String       @id @default(uuid()) @db.Uuid
-  customerId    String       @map("customer_id") @db.Uuid
-  siteId        String?      @map("site_id") @db.Uuid
+  id            String      @id @default(uuid()) @db.Uuid
+  customerId    String      @map("customer_id") @db.Uuid
+  siteId        String?     @map("site_id") @db.Uuid
   provider      String
-  type          CircuitType  @default(OTHER)
-  bandwidthDown Int?         @map("bandwidth_down") // Mbps
-  bandwidthUp   Int?         @map("bandwidth_up")   // Mbps
-  monthlyCost   Decimal?     @map("monthly_cost") @db.Decimal(10, 2)
-  contractEnd   DateTime?    @map("contract_end")
-  isFailover    Boolean      @default(false) @map("is_failover")
-  notes         String?      @db.Text
-  createdAt     DateTime     @default(now()) @map("created_at")
-  updatedAt     DateTime     @updatedAt @map("updated_at")
+  type          CircuitType @default(OTHER)
+  bandwidthDown Int?        @map("bandwidth_down") // Mbps
+  bandwidthUp   Int?        @map("bandwidth_up") // Mbps
+  monthlyCost   Decimal?    @map("monthly_cost") @db.Decimal(10, 2)
+  contractEnd   DateTime?   @map("contract_end")
+  isFailover    Boolean     @default(false) @map("is_failover")
+  notes         String?     @db.Text
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
 
   customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
   site     Site?    @relation(fields: [siteId], references: [id], onDelete: SetNull)
@@ -933,18 +967,18 @@ model NetworkCircuit {
 }
 
 model FirewallAsset {
-  id              String   @id @default(uuid()) @db.Uuid
-  customerId      String   @map("customer_id") @db.Uuid
-  siteId          String?  @map("site_id") @db.Uuid
+  id              String    @id @default(uuid()) @db.Uuid
+  customerId      String    @map("customer_id") @db.Uuid
+  siteId          String?   @map("site_id") @db.Uuid
   vendor          String
   model           String?
-  serialNumber    String?  @map("serial_number")
-  firmwareVersion String?  @map("firmware_version")
+  serialNumber    String?   @map("serial_number")
+  firmwareVersion String?   @map("firmware_version")
   eolDate         DateTime? @map("eol_date")
-  supportContract String?  @map("support_contract")
-  notes           String?  @db.Text
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
+  supportContract String?   @map("support_contract")
+  notes           String?   @db.Text
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
 
   customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
   site     Site?    @relation(fields: [siteId], references: [id], onDelete: SetNull)
@@ -1035,16 +1069,16 @@ model StorageAsset {
 }
 
 model EndpointSummary {
-  id                 String    @id @default(uuid()) @db.Uuid
-  customerId         String    @map("customer_id") @db.Uuid
-  siteId             String?   @map("site_id") @db.Uuid
-  count              Int       @default(0)
-  osMix              Json      @default("{}") @map("os_mix")
-  avgAgeMonths       Int?      @map("avg_age_months")
-  lastInventoriedAt  DateTime? @map("last_inventoried_at")
-  notes              String?   @db.Text
-  createdAt          DateTime  @default(now()) @map("created_at")
-  updatedAt          DateTime  @updatedAt @map("updated_at")
+  id                String    @id @default(uuid()) @db.Uuid
+  customerId        String    @map("customer_id") @db.Uuid
+  siteId            String?   @map("site_id") @db.Uuid
+  count             Int       @default(0)
+  osMix             Json      @default("{}") @map("os_mix")
+  avgAgeMonths      Int?      @map("avg_age_months")
+  lastInventoriedAt DateTime? @map("last_inventoried_at")
+  notes             String?   @db.Text
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
 
   customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
   site     Site?    @relation(fields: [siteId], references: [id], onDelete: SetNull)
@@ -1054,17 +1088,17 @@ model EndpointSummary {
 }
 
 model LicenseEntry {
-  id           String      @id @default(uuid()) @db.Uuid
-  customerId   String      @map("customer_id") @db.Uuid
-  vendor       String
-  product      String
-  seats        Int?
-  costPerSeat  Decimal?    @map("cost_per_seat") @db.Decimal(10, 2)
-  renewalDate  DateTime?   @map("renewal_date")
-  type         LicenseType @default(OTHER)
-  notes        String?     @db.Text
-  createdAt    DateTime    @default(now()) @map("created_at")
-  updatedAt    DateTime    @updatedAt @map("updated_at")
+  id          String      @id @default(uuid()) @db.Uuid
+  customerId  String      @map("customer_id") @db.Uuid
+  vendor      String
+  product     String
+  seats       Int?
+  costPerSeat Decimal?    @map("cost_per_seat") @db.Decimal(10, 2)
+  renewalDate DateTime?   @map("renewal_date")
+  type        LicenseType @default(OTHER)
+  notes       String?     @db.Text
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
 
   customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
@@ -1118,9 +1152,9 @@ model SignedDocument {
   createdAt        DateTime        @default(now()) @map("created_at")
   updatedAt        DateTime        @updatedAt @map("updated_at")
 
-  lead       Lead?           @relation(fields: [leadId], references: [id], onDelete: Cascade)
-  customer   Customer?       @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  uploadedBy User            @relation("SignedDocUploader", fields: [uploadedByUserId], references: [id])
+  lead         Lead?           @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  customer     Customer?       @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  uploadedBy   User            @relation("SignedDocUploader", fields: [uploadedByUserId], references: [id])
   supersededBy SignedDocument? @relation("SignedDocChain", fields: [supersededById], references: [id], onDelete: SetNull)
   supersedes   SignedDocument? @relation("SignedDocChain")
 
@@ -1135,32 +1169,32 @@ model SignedDocument {
 // ============================================================================
 
 enum QualificationVerdict {
-  LIGHTHOUSE       // 80+ — strategic fit, fast-track
-  STRONG_FIT       // 60-79 — pursue
-  MARGINAL         // 40-59 — pursue with caution
-  REFER            // 20-39 — refer to partner / referral network
-  DECLINE          // <20 — politely decline
+  LIGHTHOUSE // 80+ — strategic fit, fast-track
+  STRONG_FIT // 60-79 — pursue
+  MARGINAL // 40-59 — pursue with caution
+  REFER // 20-39 — refer to partner / referral network
+  DECLINE // <20 — politely decline
 }
 
 model QualificationScorecard {
-  id               String               @id @default(uuid()) @db.Uuid
-  leadId           String               @unique @map("lead_id") @db.Uuid
-  industryFit      Int                  @default(0) @map("industry_fit")        // 0-15
-  sizeFit          Int                  @default(0) @map("size_fit")            // 0-15
-  geography        Int                  @default(0)                              // 0-10
-  growthPosture    Int                  @default(0) @map("growth_posture")     // 0-10
-  authority        Int                  @default(0)                              // 0-15
-  budget           Int                  @default(0)                              // 0-15
-  timeline         Int                  @default(0)                              // 0-10
-  complianceDriver Int                  @default(0) @map("compliance_driver")  // 0-10
-  total            Int                  @default(0)
+  id               String                @id @default(uuid()) @db.Uuid
+  leadId           String                @unique @map("lead_id") @db.Uuid
+  industryFit      Int                   @default(0) @map("industry_fit") // 0-15
+  sizeFit          Int                   @default(0) @map("size_fit") // 0-15
+  geography        Int                   @default(0) // 0-10
+  growthPosture    Int                   @default(0) @map("growth_posture") // 0-10
+  authority        Int                   @default(0) // 0-15
+  budget           Int                   @default(0) // 0-15
+  timeline         Int                   @default(0) // 0-10
+  complianceDriver Int                   @default(0) @map("compliance_driver") // 0-10
+  total            Int                   @default(0)
   verdict          QualificationVerdict?
-  reasonCodes      String[]             @default([]) @map("reason_codes")
-  notes            String?              @db.Text
-  scoredByUserId   String?              @map("scored_by_user_id") @db.Uuid
-  scoredAt         DateTime?            @map("scored_at")
-  createdAt        DateTime             @default(now()) @map("created_at")
-  updatedAt        DateTime             @updatedAt @map("updated_at")
+  reasonCodes      String[]              @default([]) @map("reason_codes")
+  notes            String?               @db.Text
+  scoredByUserId   String?               @map("scored_by_user_id") @db.Uuid
+  scoredAt         DateTime?             @map("scored_at")
+  createdAt        DateTime              @default(now()) @map("created_at")
+  updatedAt        DateTime              @updatedAt @map("updated_at")
 
   lead     Lead  @relation(fields: [leadId], references: [id], onDelete: Cascade)
   scoredBy User? @relation("QualificationScorer", fields: [scoredByUserId], references: [id])
@@ -1170,44 +1204,44 @@ model QualificationScorecard {
 }
 
 model DiscoveryCallNote {
-  id                 String    @id @default(uuid()) @db.Uuid
-  leadId             String    @map("lead_id") @db.Uuid
-  conductedAt        DateTime  @map("conducted_at")
-  conductedByUserId  String    @map("conducted_by_user_id") @db.Uuid
-  durationMinutes    Int?      @map("duration_minutes")
+  id                String    @id @default(uuid()) @db.Uuid
+  leadId            String    @map("lead_id") @db.Uuid
+  conductedAt       DateTime  @map("conducted_at")
+  conductedByUserId String    @map("conducted_by_user_id") @db.Uuid
+  durationMinutes   Int?      @map("duration_minutes")
   // 6-section structured notes per 02_Discovery_Call_Script
-  openingNotes       String?   @map("opening_notes") @db.Text
-  businessNotes      String?   @map("business_notes") @db.Text
-  techNotes          String?   @map("tech_notes") @db.Text
-  decisionNotes      String?   @map("decision_notes") @db.Text
-  miniPitchNotes     String?   @map("mini_pitch_notes") @db.Text
-  closeNotes         String?   @map("close_notes") @db.Text
+  openingNotes      String?   @map("opening_notes") @db.Text
+  businessNotes     String?   @map("business_notes") @db.Text
+  techNotes         String?   @map("tech_notes") @db.Text
+  decisionNotes     String?   @map("decision_notes") @db.Text
+  miniPitchNotes    String?   @map("mini_pitch_notes") @db.Text
+  closeNotes        String?   @map("close_notes") @db.Text
   // Outputs
-  nextStep           String?   @map("next_step")
-  nextStepDueAt      DateTime? @map("next_step_due_at")
-  commitments        Json      @default("[]")   // [{ text, ownerName, dueAt? }]
-  redFlags           Json      @default("[]") @map("red_flags") // [{ text, severity }]
-  preCallChecklist   Json      @default("{}") @map("pre_call_checklist") // { researchDone, decisionMakerConfirmed, agendaSent, ... }
-  createdAt          DateTime  @default(now()) @map("created_at")
-  updatedAt          DateTime  @updatedAt @map("updated_at")
+  nextStep          String?   @map("next_step")
+  nextStepDueAt     DateTime? @map("next_step_due_at")
+  commitments       Json      @default("[]") // [{ text, ownerName, dueAt? }]
+  redFlags          Json      @default("[]") @map("red_flags") // [{ text, severity }]
+  preCallChecklist  Json      @default("{}") @map("pre_call_checklist") // { researchDone, decisionMakerConfirmed, agendaSent, ... }
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
 
-  lead         Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
-  conductedBy  User @relation("DiscoveryCallConductor", fields: [conductedByUserId], references: [id])
+  lead        Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  conductedBy User @relation("DiscoveryCallConductor", fields: [conductedByUserId], references: [id])
 
   @@index([leadId, conductedAt])
   @@map("discovery_call_notes")
 }
 
 model ObjectionTemplate {
-  id        String   @id @default(uuid()) @db.Uuid
-  category  String                                   // e.g. PRICE / TIMING / AUTHORITY / INCUMBENT / TRUST
-  industry  Industry?                                // null = applies to all
-  trigger   String                                   // short label / "when you hear…"
-  rebuttal  String   @db.Text
-  source    String?                                  // citation for sourcing back to playbook
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id        String    @id @default(uuid()) @db.Uuid
+  category  String // e.g. PRICE / TIMING / AUTHORITY / INCUMBENT / TRUST
+  industry  Industry? // null = applies to all
+  trigger   String // short label / "when you hear…"
+  rebuttal  String    @db.Text
+  source    String? // citation for sourcing back to playbook
+  active    Boolean   @default(true)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
 
   logs ObjectionLog[]
 
@@ -1217,19 +1251,19 @@ model ObjectionTemplate {
 }
 
 model ObjectionLog {
-  id              String    @id @default(uuid()) @db.Uuid
-  leadId          String    @map("lead_id") @db.Uuid
-  templateId      String?   @map("template_id") @db.Uuid
-  category        String
-  text            String    @db.Text                  // the actual objection raised
-  rebuttalUsed    String?   @map("rebuttal_used") @db.Text
-  outcome         String?                              // e.g. RESOLVED / ESCALATED / OPEN
-  raisedByUserId  String    @map("raised_by_user_id") @db.Uuid
-  raisedAt        DateTime  @default(now()) @map("raised_at")
+  id             String   @id @default(uuid()) @db.Uuid
+  leadId         String   @map("lead_id") @db.Uuid
+  templateId     String?  @map("template_id") @db.Uuid
+  category       String
+  text           String   @db.Text // the actual objection raised
+  rebuttalUsed   String?  @map("rebuttal_used") @db.Text
+  outcome        String? // e.g. RESOLVED / ESCALATED / OPEN
+  raisedByUserId String   @map("raised_by_user_id") @db.Uuid
+  raisedAt       DateTime @default(now()) @map("raised_at")
 
-  lead     Lead              @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  lead     Lead               @relation(fields: [leadId], references: [id], onDelete: Cascade)
   template ObjectionTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
-  raisedBy User              @relation("ObjectionRaiser", fields: [raisedByUserId], references: [id])
+  raisedBy User               @relation("ObjectionRaiser", fields: [raisedByUserId], references: [id])
 
   @@index([leadId, raisedAt])
   @@map("objection_logs")
@@ -1247,11 +1281,11 @@ model OutreachTemplate {
   id           String           @id @default(uuid()) @db.Uuid
   name         String           @unique
   category     OutreachCategory
-  industry     Industry?                              // optional vertical filter
-  trigger      String?                                // optional trigger event filter
+  industry     Industry? // optional vertical filter
+  trigger      String? // optional trigger event filter
   subject      String
   body         String           @db.Text
-  placeholders String[]         @default([])          // auto-detected {{var}} list
+  placeholders String[]         @default([]) // auto-detected {{var}} list
   active       Boolean          @default(true)
   createdAt    DateTime         @default(now()) @map("created_at")
   updatedAt    DateTime         @updatedAt @map("updated_at")
@@ -1266,12 +1300,12 @@ model OutreachTemplate {
 // ============================================================================
 
 model UserPreference {
-  id              String   @id @default(uuid()) @db.Uuid
-  userId          String   @unique @map("user_id") @db.Uuid
-  onboardingSeen  String[] @default([]) @map("onboarding_seen") // dismissed flow keys
-  preferences     Json     @default("{}")                       // future-proof bag
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
+  id             String   @id @default(uuid()) @db.Uuid
+  userId         String   @unique @map("user_id") @db.Uuid
+  onboardingSeen String[] @default([]) @map("onboarding_seen") // dismissed flow keys
+  preferences    Json     @default("{}") // future-proof bag
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -1283,20 +1317,20 @@ model UserPreference {
 // ============================================================================
 
 enum TeamRole {
-  LEAD    // team lead / supervisor
-  MEMBER  // regular rep
+  LEAD // team lead / supervisor
+  MEMBER // regular rep
 }
 
 model SalesTeam {
-  id            String        @id @default(uuid()) @db.Uuid
-  name          String        @unique
-  description   String?       @db.Text
+  id           String        @id @default(uuid()) @db.Uuid
+  name         String        @unique
+  description  String?       @db.Text
   // Services this team sells. Drives auto-assignment heuristics + the
   // territory→team match. Empty array = generalist team.
-  serviceLines  ServiceLine[] @default([]) @map("service_lines")
-  active        Boolean       @default(true)
-  createdAt     DateTime      @default(now()) @map("created_at")
-  updatedAt     DateTime      @updatedAt @map("updated_at")
+  serviceLines ServiceLine[] @default([]) @map("service_lines")
+  active       Boolean       @default(true)
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
 
   members     SalesTeamMember[]
   territories SalesTerritory[]
@@ -1356,29 +1390,195 @@ enum CallSessionStatus {
 }
 
 model SalesCallSession {
-  id                String            @id @default(uuid()) @db.Uuid
-  leadId            String            @map("lead_id") @db.Uuid
-  initiatorUserId   String            @map("initiator_user_id") @db.Uuid
-  dailyRoomName     String            @unique @map("daily_room_name")
-  dailyRoomUrl      String            @map("daily_room_url")
+  id              String            @id @default(uuid()) @db.Uuid
+  leadId          String            @map("lead_id") @db.Uuid
+  initiatorUserId String            @map("initiator_user_id") @db.Uuid
+  dailyRoomName   String            @unique @map("daily_room_name")
+  dailyRoomUrl    String            @map("daily_room_url")
   // VIDEO_CALL or AUDIO_CALL (mirrors ActivityType for filtering).
   // v2.22 — no @default; call-start API always sets explicitly. The
   // Postgres "can't reference new enum value in same tx" rule made
   // this required (see migration.sql comment).
-  kind              ActivityType
-  status            CallSessionStatus @default(ACTIVE)
-  startedAt         DateTime          @default(now()) @map("started_at")
-  endedAt           DateTime?         @map("ended_at")
-  durationSeconds   Int?              @map("duration_seconds")
+  kind            ActivityType
+  status          CallSessionStatus @default(ACTIVE)
+  startedAt       DateTime          @default(now()) @map("started_at")
+  endedAt         DateTime?         @map("ended_at")
+  durationSeconds Int?              @map("duration_seconds")
   // v2.23 — populated by Daily.co webhook when recording lands
-  recordingUrl      String?           @map("recording_url")
+  recordingUrl    String?           @map("recording_url")
   // Linked Activity row so the rep's quick-action feed shows the call
-  activityId        String?           @map("activity_id") @db.Uuid
-  createdAt         DateTime          @default(now()) @map("created_at")
+  activityId      String?           @map("activity_id") @db.Uuid
+  createdAt       DateTime          @default(now()) @map("created_at")
 
   lead      Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
   initiator User @relation("CallInitiator", fields: [initiatorUserId], references: [id])
 
   @@index([leadId, startedAt])
   @@map("sales_call_sessions")
+}
+
+// ============================================================================
+// v3.3 — SOP-ALIGNMENT SWEEP (Proposal / SOW, Kickoff, Debrief)
+// ============================================================================
+
+// SOP Step 1: structured trigger event capture
+enum TriggerEvent {
+  NONE
+  CYBER_INSURANCE_RENEWAL
+  PEER_BREACH
+  FEDERAL_CONTRACT_ANNOUNCEMENT
+  MA_ACTIVITY
+  CUSTOMER_CYBER_QUESTIONNAIRE
+  COMPLIANCE_AUDIT
+  MSP_DISSATISFACTION
+  GROWTH_HIRING
+  OTHER
+}
+
+// SOP Step 6: proposal lifecycle
+enum ProposalStatus {
+  DRAFT
+  VCIO_REVIEW
+  MANAGER_REVIEW
+  APPROVED
+  SENT
+  ACCEPTED
+  DECLINED
+  SUPERSEDED
+}
+
+// Reused by Proposal review gates AND DiscoveryAssessment.vcioVerdict
+enum ReviewVerdict {
+  APPROVED
+  REJECTED
+  CHANGES_REQUESTED
+}
+
+// Step 6 + admin: a library of SOW templates the rep picks from
+model SowTemplate {
+  id                   String         @id @default(uuid()) @db.Uuid
+  name                 String // "Managed IT — Compliance Plus"
+  description          String?        @db.Text
+  bundle               ServiceBundle? // null = generalist
+  industry             Industry? // optional vertical filter
+  version              Int            @default(1)
+  active               Boolean        @default(true)
+  scopeMarkdown        String         @db.Text // each section is markdown with {{merge_fields}}
+  deliverablesMarkdown String         @db.Text
+  timelineMarkdown     String         @db.Text
+  exclusionsMarkdown   String         @db.Text
+  termsMarkdown        String         @db.Text
+  createdAt            DateTime       @default(now()) @map("created_at")
+  updatedAt            DateTime       @updatedAt @map("updated_at")
+  createdByUserId      String?        @map("created_by_user_id") @db.Uuid
+
+  createdBy User?      @relation("SowTemplateCreator", fields: [createdByUserId], references: [id])
+  proposals Proposal[]
+
+  @@index([bundle, active])
+  @@index([industry, active])
+  @@map("sow_templates")
+}
+
+// Step 6: a specific Proposal/SOW draft for a specific Lead
+model Proposal {
+  id                   String         @id @default(uuid()) @db.Uuid
+  leadId               String         @map("lead_id") @db.Uuid
+  templateId           String?        @map("template_id") @db.Uuid // which SowTemplate seeded the draft
+  version              Int            @default(1) // version-on-edit
+  status               ProposalStatus @default(DRAFT)
+  // Resolved sections (post-merge, editable)
+  scopeMarkdown        String         @db.Text
+  deliverablesMarkdown String         @db.Text
+  timelineMarkdown     String         @db.Text
+  exclusionsMarkdown   String         @db.Text
+  termsMarkdown        String         @db.Text
+  // Snapshot of pricing at the moment of draft so a later catalog change can't silently
+  // mutate the artifact the client saw
+  pricingSnapshot      Json           @default("{}")
+  // Gate sign-offs
+  vcioReviewedAt       DateTime?      @map("vcio_reviewed_at")
+  vcioReviewedById     String?        @map("vcio_reviewed_by_id") @db.Uuid
+  vcioReviewVerdict    ReviewVerdict? @map("vcio_review_verdict")
+  vcioReviewNotes      String?        @map("vcio_review_notes") @db.Text
+  managerReviewedAt    DateTime?      @map("manager_reviewed_at")
+  managerReviewedById  String?        @map("manager_reviewed_by_id") @db.Uuid
+  managerReviewVerdict ReviewVerdict? @map("manager_review_verdict")
+  managerReviewNotes   String?        @map("manager_review_notes") @db.Text
+  // Send / accept
+  sentAt               DateTime?      @map("sent_at")
+  sentByUserId         String?        @map("sent_by_user_id") @db.Uuid
+  pdfBlobUrl           String?        @map("pdf_blob_url")
+  acceptedAt           DateTime?      @map("accepted_at")
+  declinedAt           DateTime?      @map("declined_at")
+  declinedReason       String?        @map("declined_reason") @db.Text
+  // SOP Step 7b — redline escalation
+  redlineRequestedAt   DateTime?      @map("redline_requested_at")
+  redlineRequestReason String?        @map("redline_request_reason") @db.Text
+  redlineResolvedAt    DateTime?      @map("redline_resolved_at")
+  redlineResolution    String?        @map("redline_resolution") @db.Text
+  // AI provenance
+  aiDraftedAt          DateTime?      @map("ai_drafted_at")
+  aiDraftModel         String?        @map("ai_draft_model")
+  aiScopeQcJson        Json?          @map("ai_scope_qc_json") // most-recent SOW_SCOPE_QC output
+  aiScopeQcAt          DateTime?      @map("ai_scope_qc_at")
+  createdAt            DateTime       @default(now()) @map("created_at")
+  updatedAt            DateTime       @updatedAt @map("updated_at")
+
+  lead              Lead         @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  template          SowTemplate? @relation(fields: [templateId], references: [id])
+  vcioReviewedBy    User?        @relation("ProposalVcioReviewer", fields: [vcioReviewedById], references: [id])
+  managerReviewedBy User?        @relation("ProposalManagerReviewer", fields: [managerReviewedById], references: [id])
+  sentBy            User?        @relation("ProposalSender", fields: [sentByUserId], references: [id])
+
+  @@index([leadId, version])
+  @@index([status])
+  @@map("proposals")
+}
+
+// SOP Step 9: salesperson kickoff for new customer
+model Kickoff {
+  id                    String    @id @default(uuid()) @db.Uuid
+  customerId            String    @unique @map("customer_id") @db.Uuid
+  scheduledAt           DateTime? @map("scheduled_at")
+  completedAt           DateTime? @map("completed_at")
+  relationshipNarrative String?   @map("relationship_narrative") @db.Text
+  decisionMakerRecap    String?   @map("decision_maker_recap") @db.Text
+  day30CommitmentRecap  String?   @map("day30_commitment_recap") @db.Text
+  salesAttended         Boolean   @default(false) @map("sales_attended")
+  vcioAttended          Boolean   @default(false) @map("vcio_attended")
+  notes                 String?   @db.Text
+  // AI provenance (KICKOFF_NARRATIVE)
+  aiDraftedAt           DateTime? @map("ai_drafted_at")
+  aiDraftJson           Json?     @map("ai_draft_json")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@map("kickoffs")
+}
+
+// SOP Step 10: post-close debrief
+model DealDebrief {
+  id                String        @id @default(uuid()) @db.Uuid
+  leadId            String        @unique @map("lead_id") @db.Uuid
+  outcome           PipelineStage // CLOSED_WON or CLOSED_LOST
+  primaryReason     String // free enum: PRICE | SCOPE | TIMING | TRUST | RELATIONSHIP | INCUMBENT | OTHER
+  whatWorked        String?       @map("what_worked") @db.Text // CLOSED_WON only
+  objectionResolved String?       @map("objection_resolved") @db.Text // CLOSED_WON only
+  templateThatWon   String?       @map("template_that_won") // CLOSED_WON only — name of outreach template
+  whatBroke         String?       @map("what_broke") @db.Text // CLOSED_LOST only
+  playbookUpdate    String?       @map("playbook_update") @db.Text // what to tweak in objections / outreach / scoring
+  // AI provenance (DEBRIEF_DRAFT)
+  aiSuggestedAt     DateTime?     @map("ai_suggested_at")
+  aiSuggestedJson   Json?         @map("ai_suggested_json")
+  submittedById     String        @map("submitted_by_id") @db.Uuid
+  submittedAt       DateTime      @default(now()) @map("submitted_at")
+
+  lead        Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  submittedBy User @relation("DebriefSubmitter", fields: [submittedById], references: [id])
+
+  @@index([outcome])
+  @@map("deal_debriefs")
 }
