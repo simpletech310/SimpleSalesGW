@@ -147,7 +147,7 @@ export default async function AiUsagePage({
       title="AI usage"
       subtitle={
         <>
-          Month-to-date Claude spend. Caps: per-lead {config.perLeadMonthlyCallCap} calls / ${config.perLeadMonthlyCostUsd.toFixed(2)}, org $
+          Month-to-date Gateway AI spend. Caps: per-lead {config.perLeadMonthlyCallCap} calls / ${config.perLeadMonthlyCostUsd.toFixed(2)}, org $
           {config.orgMonthlyCostUsd.toFixed(2)}. Tune in{" "}
           <Link href="/admin/config" className="text-gtn-purple hover:underline font-medium">System config</Link>.
         </>
@@ -170,7 +170,7 @@ export default async function AiUsagePage({
     >
       <DashboardSection title="By feature this month" flush>
         {perFeature.length === 0 ? (
-          <p className="px-4 md:px-5 py-6 text-sm text-ink-muted">No Claude calls this month yet.</p>
+          <p className="px-4 md:px-5 py-6 text-sm text-ink-muted">No Gateway AI calls this month yet.</p>
         ) : (
           <DataTable
             columns={featureColumns}
@@ -186,7 +186,7 @@ export default async function AiUsagePage({
 
       <DashboardSection
         title={`Recent calls${featureFilter ? ` · ${FEATURE_LABEL[featureFilter]}` : ""}${leadFilter ? " · lead filter" : ""}`}
-        subtitle="Last 100 Claude calls"
+        subtitle="Last 100 Gateway AI calls"
         actions={
           (featureFilter || leadFilter) && (
             <Link href="/admin/ai-usage" className="text-xs text-gtn-purple hover:underline font-medium">

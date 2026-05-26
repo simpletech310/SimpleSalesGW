@@ -16,7 +16,7 @@ export default async function MspProfilePage() {
   return (
     <ListPage
       title="MSP business profile"
-      subtitle="Every Claude prompt in the platform reads this profile so AI output reflects your mission, voice, service emphasis, and real win stories — not generic copy. Changes apply to the next AI call. Cached for 30 seconds; the cache is cleared on every save."
+      subtitle="Every Gateway AI prompt in the platform reads this profile so AI output reflects your mission, voice, service emphasis, and real win stories — not generic copy. Changes apply to the next AI call. Cached for 30 seconds; the cache is cleared on every save."
       crumbs={[{ href: "/admin", label: "Admin" }, { label: "MSP profile" }]}
     >
       <MspProfileEditor initialProfile={profile} defaultProfile={DEFAULT_PROFILE} />

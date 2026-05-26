@@ -23,7 +23,7 @@ export const HELP = {
     executiveSponsor:
       "The C-level champion who's pulling Gateway in. Without one, deals stall in procurement.",
     websiteUrl:
-      "Pasting this lets the portal pull a fresh page snapshot during research and feed it to Claude for a summary.",
+      "Pasting this lets the portal pull a fresh page snapshot during research and feed it to Gateway AI for a summary.",
     linkedinCompanyUrl:
       "LinkedIn company page URL. Used for the research summary — public data only.",
     googleBusinessUrl:

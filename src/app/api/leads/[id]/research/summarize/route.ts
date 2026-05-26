@@ -21,7 +21,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       throw new ApiError(403, "Forbidden");
     }
     if (!isAnthropicConfigured()) {
-      throw new ApiError(400, "ANTHROPIC_API_KEY is not configured on the server.");
+      throw new ApiError(400, "Gateway AI is not configured. Ask your administrator to set the API key.");
     }
 
     const result = await summarizeResearch({

@@ -282,7 +282,7 @@ export function ObjectionsTab({ leadId, canEdit }: { leadId: string; canEdit: bo
                       <div className="flex items-center gap-2">
                         <Sparkles className="h-3.5 w-3.5 text-gtn-purple" />
                         <span className="text-[11px] uppercase tracking-wide font-semibold text-gtn-purple">
-                          Claude rebuttals ({c.rebuttals.length})
+                          Gateway AI rebuttals ({c.rebuttals.length})
                         </span>
                       </div>
                       <ol className="space-y-2 list-decimal list-inside">

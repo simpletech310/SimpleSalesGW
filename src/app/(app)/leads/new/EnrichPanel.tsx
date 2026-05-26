@@ -62,6 +62,16 @@ const SOURCE_BADGE: Record<string, string> = {
   seed: "bg-gtn-lavender text-gtn-grey-2",
 };
 
+// v3.3.12 — whitelabel the on-screen label for the underlying source.
+// The API still returns "claude" as the source value (so existing
+// snapshots and code paths don't break) but reps see "Gateway AI".
+const SOURCE_LABEL: Record<string, string> = {
+  website: "website",
+  claude: "Gateway AI",
+  regex: "regex",
+  seed: "rep",
+};
+
 export function EnrichPanel({ formId }: { formId: string }) {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<EnrichmentResult | null>(null);
@@ -235,7 +245,7 @@ export function EnrichPanel({ formId }: { formId: string }) {
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-semibold text-gtn-navy">{label}</span>
                           <span className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${SOURCE_BADGE[prop.source] ?? "bg-surface-3 text-ink-muted"}`}>
-                            {prop.source}
+                            {SOURCE_LABEL[prop.source] ?? prop.source}
                           </span>
                           <span className="text-[10px] text-ink-faint tabular">
                             {Math.round(prop.confidence * 100)}%

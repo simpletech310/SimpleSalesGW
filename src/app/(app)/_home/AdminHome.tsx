@@ -135,7 +135,7 @@ export async function AdminHome({
                 <HealthPill name="Database"     ok={health.database.configured}   ifOk="Connected" ifNot="DATABASE_URL missing" />
                 <HealthPill name="Auth secret"  ok={health.authSecretStable}      ifOk="Stable"     ifNot="Ephemeral — sessions reset on deploy" />
                 <HealthPill name="Email (Resend)" ok={health.resend.configured}   ifOk="Configured" ifNot="Magic-link + outreach disabled" />
-                <HealthPill name="Anthropic"    ok={health.anthropic.configured}  ifOk="Configured" ifNot="Auto-summary disabled" />
+                <HealthPill name="Gateway AI"   ok={health.anthropic.configured}  ifOk="Configured" ifNot="Auto-summary disabled" />
                 <HealthPill name="Blob storage" ok={health.blob.configured}       ifOk="Configured" ifNot="File uploads disabled" />
                 <HealthPill name="Mapbox"       ok={health.mapbox.configured}     ifOk="Configured" ifNot="/leads/map degraded" />
                 <HealthPill name="Daily.co"     ok={health.daily.configured}      ifOk="Configured" ifNot="Video/audio calls disabled" />

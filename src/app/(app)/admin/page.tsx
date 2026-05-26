@@ -48,7 +48,7 @@ export default async function AdminHomePage() {
     { name: "Database",       ok: health.database.configured,    note: health.database.configured ? "Connected" : "DATABASE_URL missing" },
     { name: "Auth secret",    ok: health.authSecretStable,       note: health.authSecretStable ? "Stable across deploys" : "Ephemeral — set AUTH_SECRET" },
     { name: "Email (Resend)", ok: health.resend.configured,      note: health.resend.configured ? "Magic-link + outreach live" : "Magic-link + outreach disabled" },
-    { name: "Anthropic",      ok: health.anthropic.configured,   note: health.anthropic.configured ? "AI features live" : "Auto-summary disabled" },
+    { name: "Gateway AI",     ok: health.anthropic.configured,   note: health.anthropic.configured ? "AI features live" : "Auto-summary disabled" },
     { name: "Blob storage",   ok: health.blob.configured,        note: health.blob.configured ? "File uploads live" : "File uploads disabled" },
     { name: "Mapbox",         ok: health.mapbox.configured,      note: health.mapbox.configured ? "Maps + geocoding live" : "/leads/map degraded" },
     { name: "Daily.co",       ok: health.daily.configured,       note: health.daily.configured ? "Video/audio live" : "Video/audio disabled" },
@@ -146,10 +146,10 @@ export default async function AdminHomePage() {
             <AdminTile icon={MessageCircle} href="/admin/objections" title="Objections library" desc="Catalog of objections + tested rebuttals." />
           )}
           {can(role, "audit:view") && (
-            <AdminTile icon={Sparkles} href="/admin/ai-usage" title="AI usage" desc="Month-to-date Claude spend by feature, lead, and user." />
+            <AdminTile icon={Sparkles} href="/admin/ai-usage" title="AI usage" desc="Month-to-date Gateway AI spend by feature, lead, and user." />
           )}
           {can(role, "msp:profile:edit") && (
-            <AdminTile icon={Building2} href="/admin/msp-profile" title="MSP profile" desc="Mission, brand voice, services emphasis, win stories — feeds every Claude prompt." />
+            <AdminTile icon={Building2} href="/admin/msp-profile" title="MSP profile" desc="Mission, brand voice, services emphasis, win stories — feeds every Gateway AI prompt." />
           )}
         </div>
       </DashboardSection>

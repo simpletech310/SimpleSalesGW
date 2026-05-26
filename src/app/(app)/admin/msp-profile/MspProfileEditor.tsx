@@ -214,9 +214,9 @@ export function MspProfileEditor({
 
       {tab === "preview" && (
         <div className="rounded-xl bg-surface border border-line-subtle p-4 md:p-5">
-          <h3 className="text-sm font-semibold text-ink-strong mb-1">What Claude will see</h3>
+          <h3 className="text-sm font-semibold text-ink-strong mb-1">What Gateway AI will see</h3>
           <p className="text-xs text-ink-muted mb-3">
-            Live preview of the system-prompt preamble prepended to every Claude call.
+            Live preview of the system-prompt preamble prepended to every Gateway AI call.
             Re-renders on every change.
           </p>
           <pre className="w-full font-mono text-xs whitespace-pre-wrap rounded-md border border-line-subtle bg-surface-2 px-4 py-3 max-h-[600px] overflow-y-auto text-ink-strong leading-relaxed">
@@ -317,7 +317,7 @@ function IdentityTab({
           placeholder="Warm + direct, no fluff, no MBA-speak. Specific over generic."
         />
         <p className="text-[11px] text-ink-faint">
-          Claude reads this as style rules for every output. Be specific — list do&apos;s and don&apos;ts.
+          Gateway AI reads this as style rules for every output. Be specific — list do&apos;s and don&apos;ts.
         </p>
       </div>
 
@@ -413,7 +413,7 @@ function MarketsTab({
     <div className="space-y-3">
       <StringListEditor
         label="Target markets (verticals)"
-        helpText="Industries the company actively pursues. Claude uses this to identify fit signals."
+        helpText="Industries the company actively pursues. Gateway AI uses this to identify fit signals."
         placeholder="Medical"
         values={profile.targetMarkets}
         onChange={(next) => patch("targetMarkets", next)}
@@ -427,7 +427,7 @@ function MarketsTab({
       />
       <StringListEditor
         label="Out of scope (do NOT propose)"
-        helpText="Claude won't suggest these services — and Handoff QC flags handoffs that promise them."
+        helpText="Gateway AI won't suggest these services — and Handoff QC flags handoffs that promise them."
         placeholder="Consumer / residential support"
         values={profile.outOfScope}
         onChange={(next) => patch("outOfScope", next)}

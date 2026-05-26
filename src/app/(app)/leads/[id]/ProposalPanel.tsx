@@ -164,7 +164,7 @@ export function ProposalPanel({ leadId, canEdit }: { leadId: string; canEdit: bo
         <div className="rounded-xl bg-surface border border-line-subtle p-4 md:p-5 space-y-3">
           <h3 className="text-sm font-semibold text-ink-strong">Pick a starting point</h3>
           <p className="text-xs text-ink-muted">
-            Choose a template. Click <strong>Draft with AI</strong> to have Claude fill the merge fields
+            Choose a template. Click <strong>Draft with AI</strong> to have Gateway AI fill the merge fields
             from this lead&apos;s discovery + approved pricing + brand voice.
           </p>
           {templates.length === 0 ? (

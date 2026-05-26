@@ -9,7 +9,7 @@ import { Input, Label, Textarea } from "@/components/ui/Input";
 
 const PRE_CALL_CHECKS = [
   { key: "research_done",             label: "LinkedIn + website + Google Business reviewed" },
-  { key: "claude_summary",            label: "Claude research summary read or generated" },
+  { key: "claude_summary",            label: "Gateway AI research summary read or generated" },
   { key: "decision_maker_confirmed",  label: "Decision-maker / sponsor confirmed on the invite" },
   { key: "agenda_sent",               label: "Agenda + outcomes sent ≥24h ahead" },
   { key: "calendar_blocked",          label: "60-minute block (45 + 15 buffer)" },

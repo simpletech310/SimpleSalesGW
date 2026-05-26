@@ -17,7 +17,7 @@ export default async function SowTemplatesPage() {
   return (
     <ListPage
       title="SOW templates"
-      subtitle="Library of Statement-of-Work skeletons. Salespeople pick one when drafting a proposal — Claude fills the {{merge_fields}} from the lead's discovery + approved pricing + your MSP brand voice."
+      subtitle="Library of Statement-of-Work skeletons. Salespeople pick one when drafting a proposal — Gateway AI fills the {{merge_fields}} from the lead's discovery + approved pricing + your MSP brand voice."
       crumbs={[{ href: "/admin", label: "Admin" }, { label: "SOW templates" }]}
     >
       <SowTemplatesEditor initial={templates.map((t) => ({

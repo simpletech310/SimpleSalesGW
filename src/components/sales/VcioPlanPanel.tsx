@@ -225,7 +225,7 @@ export function VcioPlanPanel({
         <div>
           <h3 className="text-sm font-semibold text-gtn-navy">vCIO plan</h3>
           <p className="text-xs text-gtn-grey-2">
-            Claude reads the scorecard + MSP profile and turns it into a structured plan with tasks, services, and risks.
+            Gateway AI reads the scorecard + MSP profile and turns it into a structured plan with tasks, services, and risks.
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -288,7 +288,7 @@ export function VcioPlanPanel({
           <div className="text-sm flex-1">
             <p className="font-semibold text-gtn-red">Plan came back in an unreadable format</p>
             <p className="text-xs text-gtn-grey-2 mt-0.5">
-              Claude responded with text we couldn&apos;t parse as a plan. Click <strong>Re-generate plan</strong> to try again — the prompt was tightened so this should be rare.
+              Gateway AI responded with text we couldn&apos;t parse as a plan. Click <strong>Re-generate plan</strong> to try again — the prompt was tightened so this should be rare.
               {reopenApiUrl && (
                 <> Or open the assessment and fill in more answers, then re-generate.</>
               )}
@@ -303,7 +303,7 @@ export function VcioPlanPanel({
           <div className="text-sm flex-1">
             <p className="font-semibold text-gtn-amber">Plan returned no tasks</p>
             <p className="text-xs text-gtn-grey-2 mt-0.5">
-              Claude generated a summary but couldn&apos;t turn the assessment into specific tasks.
+              Gateway AI generated a summary but couldn&apos;t turn the assessment into specific tasks.
               The scorecard is probably too thin — answer more of the site-survey questions
               (especially Identity / Security / Backups / Compliance) and re-generate.
             </p>
@@ -445,7 +445,7 @@ export function VcioPlanPanel({
 
       {!hasAnyContent && !generating && !error && (
         <p className="text-xs text-gtn-grey-2 italic">
-          No plan yet. Click <strong>Generate plan</strong> to have Claude turn this assessment into recommended tasks + services.
+          No plan yet. Click <strong>Generate plan</strong> to have Gateway AI turn this assessment into recommended tasks + services.
         </p>
       )}
     </Card>

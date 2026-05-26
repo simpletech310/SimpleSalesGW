@@ -384,7 +384,7 @@ function ResearchTab({ lead, canEdit }: { lead: Lead; canEdit: boolean }) {
         setFitSignals(Array.isArray(data.fitSignals) ? data.fitSignals : []);
         setSuggestedQuestions(Array.isArray(data.suggestedQuestions) ? data.suggestedQuestions : []);
         setRisks(Array.isArray(data.risks) ? data.risks : []);
-        toast.success("Claude summary ready");
+        toast.success("Gateway AI summary ready");
         router.refresh();
       }
     } finally {
@@ -402,7 +402,7 @@ function ResearchTab({ lead, canEdit }: { lead: Lead; canEdit: boolean }) {
               {gathering ? "Gathering…" : "Gather research"}
             </Button>
             <Button variant="accent" type="button" onClick={summarize} disabled={summarizing}>
-              {summarizing ? "Summarizing…" : "Summarize with Claude"}
+              {summarizing ? "Summarizing…" : "Summarize with Gateway AI"}
             </Button>
           </div>
         )}
@@ -415,7 +415,7 @@ function ResearchTab({ lead, canEdit }: { lead: Lead; canEdit: boolean }) {
         onChange={(e) => setText(e.target.value)}
         disabled={!canEdit}
         rows={10}
-        placeholder="Click 'Gather research' to scrape website/LinkedIn/Google, then 'Summarize with Claude' for a tight briefing."
+        placeholder="Click 'Gather research' to scrape website/LinkedIn/Google, then 'Summarize with Gateway AI' for a tight briefing."
       />
       {canEdit && (
         <div className="mt-3 flex justify-end">
@@ -449,7 +449,7 @@ function ResearchTab({ lead, canEdit }: { lead: Lead; canEdit: boolean }) {
           onChange={setRisks}
           placeholder="Red flag — e.g. 'no compelling event'"
           canEdit={canEdit}
-          emptyHint="Risks Claude surfaces — or add your own."
+          emptyHint="Risks Gateway AI surfaces — or add your own."
         />
       </div>
 

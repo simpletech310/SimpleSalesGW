@@ -29,7 +29,9 @@ function getClient(): Anthropic {
 }
 
 export class AnthropicNotConfiguredError extends Error {
-  constructor() { super("ANTHROPIC_API_KEY not configured"); this.name = "AnthropicNotConfiguredError"; }
+  // v3.3.12 — user-visible message is whitelabeled to "Gateway AI". Admins
+  // still see the underlying env var name on /admin/setup.
+  constructor() { super("Gateway AI is not configured. Ask your administrator to set the API key."); this.name = "AnthropicNotConfiguredError"; }
 }
 
 export type ClaudeCompletionInput = {
