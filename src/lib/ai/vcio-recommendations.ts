@@ -87,9 +87,12 @@ before the opening { or after the closing }:
   "strengthen": ["short bullet — 'Fill in the Backups section', 'Confirm seat count', etc. — concrete items the vCIO can go back and answer to make the next plan stronger", ...]
 }
 
+Aim for 6-10 tasks total (not 15+ — keep the response compact enough
+to fit in 6000 output tokens with all the required JSON fields).
+
 ALWAYS produce a plan, even when the assessment is thin. When coverage
 is low (< 50%) or there are many gaps:
-  - Generate a smaller plan (4-8 tasks instead of 8-15)
+  - Generate a smaller plan (3-6 tasks)
   - Lead the summary with "Based on limited data, our initial read is..."
   - Set confidence to "low" or "medium"
   - Fill out limitations[] specifically (e.g. "No answers in the
@@ -133,33 +136,89 @@ export type VcioRecommendation = {
 };
 
 /**
- * Robustly pull a JSON object out of a Claude response that may include
- * markdown fences, leading prose, or a trailing summary. Tries (1) strict
- * parse on the trimmed text, (2) strip ```json / ``` fences anywhere,
- * (3) extract the largest balanced {...} substring.
+ * Robustly pull a JSON object out of a Claude response. Handles the
+ * common ways Claude can break a strict JSON.parse:
+ *   1. Markdown fences (```json … ``` or ``` … ```)
+ *   2. Leading prose ("Here's the plan:")
+ *   3. Trailing prose after the closing brace
+ *   4. Trailing commas in objects / arrays
+ *   5. Smart quotes (curly " ' instead of straight " ')
+ *   6. Truncated mid-response — close the outstanding braces / brackets
+ *      and try again so the partial plan still lands
  */
+function tryParse(candidate: string): unknown | null {
+  try { return JSON.parse(candidate); } catch { return null; }
+}
+
+function repairCommonJsonGlitches(s: string): string {
+  return s
+    // smart quotes → straight
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    // trailing comma before } or ]
+    .replace(/,\s*([}\]])/g, "$1");
+}
+
+function closeOpenBraces(s: string): string {
+  // Naive but effective: walk the string outside-of-string-state and
+  // append matching } / ] for whatever was left open. Doesn't handle
+  // escaped quotes perfectly but Claude rarely emits raw " inside strings.
+  let inStr = false;
+  let escape = false;
+  const stack: Array<"}" | "]"> = [];
+  for (const ch of s) {
+    if (escape) { escape = false; continue; }
+    if (ch === "\\") { escape = true; continue; }
+    if (ch === '"') { inStr = !inStr; continue; }
+    if (inStr) continue;
+    if (ch === "{") stack.push("}");
+    else if (ch === "[") stack.push("]");
+    else if (ch === "}" || ch === "]") stack.pop();
+  }
+  let out = s;
+  // Strip a trailing comma that would now sit before our synthetic close.
+  out = out.replace(/,\s*$/, "");
+  // If we're inside a string when truncation hit, close it.
+  if (inStr) out += '"';
+  while (stack.length) out += stack.pop();
+  return out;
+}
+
 function extractJsonObject(text: string): unknown | null {
   const stripped = text
     .trim()
-    // remove triple-backtick fences anywhere
     .replace(/```(?:json)?/gi, "")
     .replace(/```$/g, "")
     .trim();
 
-  // Strict first
-  try {
-    return JSON.parse(stripped);
-  } catch { /* fall through */ }
+  // 1. Strict parse on the cleaned text.
+  let parsed = tryParse(stripped);
+  if (parsed != null) return parsed;
 
-  // Find first { and matching last } and try slices
-  const first = stripped.indexOf("{");
-  const last = stripped.lastIndexOf("}");
+  // 2. Repair common glitches (smart quotes, trailing commas) and retry.
+  const repaired = repairCommonJsonGlitches(stripped);
+  parsed = tryParse(repaired);
+  if (parsed != null) return parsed;
+
+  // 3. Slice from first { to last } (drops any prose before/after).
+  const first = repaired.indexOf("{");
+  const last = repaired.lastIndexOf("}");
   if (first >= 0 && last > first) {
-    const slice = stripped.slice(first, last + 1);
-    try {
-      return JSON.parse(slice);
-    } catch { /* fall through */ }
+    const slice = repaired.slice(first, last + 1);
+    parsed = tryParse(slice);
+    if (parsed != null) return parsed;
   }
+
+  // 4. Truncated mid-response: take from first { to end of string,
+  // repair, close all open braces/brackets, retry. Salvages partial
+  // plans when maxTokens cut off the response.
+  if (first >= 0) {
+    const tail = repaired.slice(first);
+    const closed = closeOpenBraces(repairCommonJsonGlitches(tail));
+    parsed = tryParse(closed);
+    if (parsed != null) return parsed;
+  }
+
   return null;
 }
 
@@ -272,11 +331,15 @@ export async function generateVcioPlan(
   const profile = await loadProfile();
   const systemPrompt = `${renderMspProfileBlock(profile)}\n\n${TASK_INSTRUCTIONS}`;
 
+  // v3.3.8 — bumped to 6000. The plan schema added confidence +
+  // limitations + strengthen on top of 8-15 tasks each with 6 fields;
+  // 2500 was getting truncated mid-array on rich assessments and the
+  // truncated JSON tripped the parse-error UI.
   const { text } = await claudeCompletion({
     system: systemPrompt,
     user,
     responseHint,
-    maxTokens: 2500,
+    maxTokens: 6000,
     budget: budget.leadId
       ? { leadId: budget.leadId, userId: budget.userId, feature: AiFeatureKind.VCIO_RECOMMENDATION }
       : undefined,
@@ -284,6 +347,15 @@ export async function generateVcioPlan(
 
   const extracted = extractJsonObject(text);
   const parseError = extracted == null;
+  if (parseError) {
+    // Surface what Claude actually returned in the server log so the
+    // next "Plan came back unreadable" report is debuggable. Truncate
+    // to keep the log line bounded.
+    console.error(
+      "[vcio-recommendations] JSON parse failed after all repair attempts. raw=",
+      text.slice(0, 800),
+    );
+  }
   const parsed: Partial<VcioRecommendation> = parseError
     ? {}
     : (extracted as Partial<VcioRecommendation>);
