@@ -123,12 +123,15 @@ export async function SalesManagerHome({
     .slice(0, 5);
 
   // Stage counts as a quick scoreboard (LEAD → CLOSED_WON, ignore LOST/NURTURE for the band).
+  // v3.3.22 — MSP-friendly stage flow for the pipeline funnel.
   const stageOrder: PipelineStage[] = [
     PipelineStage.LEAD,
     PipelineStage.QUALIFIED,
+    PipelineStage.FIRST_INTERACTION,
+    PipelineStage.SITE_SURVEY_SCHEDULED,
     PipelineStage.DISCOVERY,
-    PipelineStage.PRE_SALES,
-    PipelineStage.PROPOSAL,
+    PipelineStage.QUOTE_IN_PROGRESS,
+    PipelineStage.QUOTE_SENT,
     PipelineStage.NEGOTIATION,
     PipelineStage.CLOSED_WON,
   ];

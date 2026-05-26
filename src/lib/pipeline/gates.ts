@@ -64,7 +64,11 @@ async function sowAndMsaSigned(leadId: string) {
 
 export const GATES: ReadonlyArray<GateDefinition> = [
   { from: PipelineStage.LEAD, to: PipelineStage.QUALIFIED, label: "Qualification ≥ 30", check: qualificationOver30 },
+  // v3.3.22 — new MSP-friendly transitions. Old PROPOSAL/PRE_SALES gates
+  // stay so legacy leads keep evaluating; new ones cover the new flow.
+  { from: PipelineStage.DISCOVERY, to: PipelineStage.QUOTE_IN_PROGRESS, label: "Assessment completed", check: hasCompletedAssessment },
   { from: PipelineStage.DISCOVERY, to: PipelineStage.PRE_SALES, label: "Assessment completed", check: hasCompletedAssessment },
+  { from: PipelineStage.QUOTE_SENT, to: PipelineStage.NEGOTIATION, label: "SOW tracked", check: hasSowDocument },
   { from: PipelineStage.PROPOSAL, to: PipelineStage.NEGOTIATION, label: "SOW tracked", check: hasSowDocument },
   { from: PipelineStage.NEGOTIATION, to: PipelineStage.CLOSED_WON, label: "SOW + MSA signed", check: sowAndMsaSigned },
 ];

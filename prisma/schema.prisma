@@ -44,8 +44,18 @@ enum Industry {
 enum PipelineStage {
   LEAD
   QUALIFIED
+  // v3.3.22 — MSP-friendly canonical flow:
+  // LEAD → QUALIFIED → FIRST_INTERACTION → SITE_SURVEY_SCHEDULED →
+  // DISCOVERY ("Discovery / Engineering") → QUOTE_IN_PROGRESS →
+  // QUOTE_SENT → NEGOTIATION → CLOSED_WON / CLOSED_LOST.
+  // PRE_SALES + PROPOSAL stay as legacy values so existing leads
+  // don't break — new leads use the new flow.
+  FIRST_INTERACTION
+  SITE_SURVEY_SCHEDULED
   DISCOVERY
   PRE_SALES
+  QUOTE_IN_PROGRESS
+  QUOTE_SENT
   PROPOSAL
   NEGOTIATION
   CLOSED_WON

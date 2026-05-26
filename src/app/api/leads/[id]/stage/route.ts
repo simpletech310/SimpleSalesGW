@@ -26,10 +26,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       throw new ApiError(403, "Forbidden");
     }
 
-    // Non-strategic deals cannot advance past PROPOSAL without manager approval.
+    // Non-strategic deals cannot advance past the quote-sent / proposal
+    // stage without manager approval. v3.3.22 — include the new
+    // MSP-friendly stages on the "early" side so the gate still fires.
     const advancedStages: PipelineStage[] = [PipelineStage.NEGOTIATION, PipelineStage.CLOSED_WON];
     const earlyStages: PipelineStage[] = [
-      PipelineStage.LEAD, PipelineStage.QUALIFIED, PipelineStage.DISCOVERY,
+      PipelineStage.LEAD, PipelineStage.QUALIFIED,
+      PipelineStage.FIRST_INTERACTION, PipelineStage.SITE_SURVEY_SCHEDULED,
+      PipelineStage.DISCOVERY,
+      PipelineStage.QUOTE_IN_PROGRESS, PipelineStage.QUOTE_SENT,
+      // legacy
       PipelineStage.PRE_SALES, PipelineStage.PROPOSAL,
     ];
     const advancing = advancedStages.includes(stage) && earlyStages.includes(lead.pipelineStage);

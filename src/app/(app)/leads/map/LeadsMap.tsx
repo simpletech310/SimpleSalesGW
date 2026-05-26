@@ -16,10 +16,17 @@ type MapLead = {
   lng: number;
 };
 
+// v3.3.22 — MSP-friendly stage palette. New stages slot into the
+// purple→blue→green→amber→red ramp matching the canonical flow.
 const STAGE_COLOR: Record<string, string> = {
-  LEAD: "#8B5CF6",          // gtn-purple
+  LEAD: "#8B5CF6",                   // gtn-purple
   QUALIFIED: "#6366F1",
+  FIRST_INTERACTION: "#4F46E5",
+  SITE_SURVEY_SCHEDULED: "#2563EB",
   DISCOVERY: "#3B82F6",
+  QUOTE_IN_PROGRESS: "#0891B2",
+  QUOTE_SENT: "#0D9488",
+  // legacy
   PRE_SALES: "#10B981",
   PROPOSAL: "#F59E0B",
   NEGOTIATION: "#EF4444",

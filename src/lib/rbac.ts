@@ -190,6 +190,13 @@ export class RbacError extends Error {
 
 /** Pipeline stages that vCIO is allowed to see. */
 export const VCIO_VISIBLE_STAGES: PipelineStage[] = [
+  // v3.3.22 — vCIO gets pulled in from "Site survey scheduled" onward
+  // on the new MSP-friendly flow. Legacy PRE_SALES + PROPOSAL still
+  // visible so existing leads don't disappear.
+  PipelineStage.SITE_SURVEY_SCHEDULED,
+  PipelineStage.DISCOVERY,
+  PipelineStage.QUOTE_IN_PROGRESS,
+  PipelineStage.QUOTE_SENT,
   PipelineStage.PRE_SALES,
   PipelineStage.PROPOSAL,
   PipelineStage.NEGOTIATION,

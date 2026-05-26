@@ -30,9 +30,15 @@ export const STRINGS = {
     stages: {
       LEAD: "Lead",
       QUALIFIED: "Qualified",
-      DISCOVERY: "Discovery",
-      PRE_SALES: "Pre-Sales",
-      PROPOSAL: "Proposal",
+      // v3.3.22 — MSP-friendly canonical flow
+      FIRST_INTERACTION: "1st interaction",
+      SITE_SURVEY_SCHEDULED: "Site survey scheduled",
+      DISCOVERY: "Discovery / Engineering",
+      QUOTE_IN_PROGRESS: "Quote in progress",
+      QUOTE_SENT: "Quote sent",
+      // legacy
+      PRE_SALES: "Pre-Sales (legacy)",
+      PROPOSAL: "Proposal (legacy)",
       NEGOTIATION: "Negotiation",
       CLOSED_WON: "Closed Won",
       CLOSED_LOST: "Closed Lost",

@@ -94,10 +94,17 @@ export async function SalespersonHome({
     }),
   ]);
 
+  // v3.3.22 — MSP-friendly stage list. PRE_SALES + PROPOSAL kept for
+  // legacy leads that haven't been migrated to QUOTE_IN_PROGRESS /
+  // QUOTE_SENT yet.
   const activeStages: PipelineStage[] = [
     PipelineStage.LEAD,
     PipelineStage.QUALIFIED,
+    PipelineStage.FIRST_INTERACTION,
+    PipelineStage.SITE_SURVEY_SCHEDULED,
     PipelineStage.DISCOVERY,
+    PipelineStage.QUOTE_IN_PROGRESS,
+    PipelineStage.QUOTE_SENT,
     PipelineStage.PRE_SALES,
     PipelineStage.PROPOSAL,
     PipelineStage.NEGOTIATION,
@@ -105,6 +112,7 @@ export async function SalespersonHome({
   const active = leads.filter((l) => activeStages.includes(l.pipelineStage));
   const lateStage = leads.filter(
     (l) =>
+      l.pipelineStage === PipelineStage.QUOTE_SENT ||
       l.pipelineStage === PipelineStage.PROPOSAL ||
       l.pipelineStage === PipelineStage.NEGOTIATION,
   );

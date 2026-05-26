@@ -16,7 +16,13 @@ export const dynamic = "force-dynamic";
 const STAGE_TONE: Record<PipelineStage, "brand" | "success" | "danger" | "neutral" | "warn"> = {
   LEAD: "brand",
   QUALIFIED: "brand",
+  // v3.3.22 — new MSP-friendly stages
+  FIRST_INTERACTION: "brand",
+  SITE_SURVEY_SCHEDULED: "brand",
   DISCOVERY: "brand",
+  QUOTE_IN_PROGRESS: "warn",
+  QUOTE_SENT: "warn",
+  // legacy
   PRE_SALES: "brand",
   PROPOSAL: "warn",
   NEGOTIATION: "warn",
@@ -28,7 +34,11 @@ const STAGE_TONE: Record<PipelineStage, "brand" | "success" | "danger" | "neutra
 const OPEN_STAGES: PipelineStage[] = [
   PipelineStage.LEAD,
   PipelineStage.QUALIFIED,
+  PipelineStage.FIRST_INTERACTION,
+  PipelineStage.SITE_SURVEY_SCHEDULED,
   PipelineStage.DISCOVERY,
+  PipelineStage.QUOTE_IN_PROGRESS,
+  PipelineStage.QUOTE_SENT,
   PipelineStage.PRE_SALES,
   PipelineStage.PROPOSAL,
   PipelineStage.NEGOTIATION,
