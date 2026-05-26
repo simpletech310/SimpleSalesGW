@@ -29,6 +29,10 @@ import { VideoCallButton } from "./VideoCallButton";
 import { SalesCoachPanel } from "./SalesCoachPanel";
 import type { LineItem } from "@/lib/pricing/deal-kinds";
 import { DealKind, HandoffStatus, PipelineStage } from "@prisma/client";
+// v3.3.21 — derive a sensible score for the top tiles when the legacy
+// MSP-Fit Assessment hasn't been run yet (uses qualification + the
+// new per-service fit math from v3.3.15).
+import { computeAllServiceFits } from "@/lib/scoring/service-fit";
 
 export default async function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
@@ -272,26 +276,75 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
         <CloseDealButtons leadId={lead.id} currentStage={lead.pipelineStage} />
       </div>
 
-      {/* Score strip */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4">
-        <ScoreTile label={STRINGS.scoring.services} value={lead.servicesScore} />
-        <ScoreTile label={STRINGS.scoring.customer} value={lead.customerScore} />
-        <ScoreTile
-          label={STRINGS.scoring.dealQuality}
-          value={lead.dealQualityScore}
-          primary
-          override={
-            can(session.user.role, "score:override") ? (
-              <ScoreOverrideButton
-                leadId={lead.id}
-                initialServices={lead.servicesScore}
-                initialCustomer={lead.customerScore}
-                initialDealQuality={lead.dealQualityScore}
-              />
-            ) : null
-          }
-        />
-      </div>
+      {/* Score strip — values come straight from Lead when an MSP-Fit
+          Assessment has been run; otherwise we derive a sensible
+          fallback from qualification dims + the v3.3.15 per-service
+          fit so reps see something meaningful immediately on intake. */}
+      {(() => {
+        const hasAssessmentScore =
+          lead.servicesScore > 0 || lead.customerScore > 0 || lead.dealQualityScore > 0;
+        // Derive fallback when assessment hasn't been run yet.
+        const fitInput = {
+          industryFit: lead.qualification?.industryFit ?? 0,
+          sizeFit: lead.qualification?.sizeFit ?? 0,
+          geography: lead.qualification?.geography ?? 0,
+          growthPosture: lead.qualification?.growthPosture ?? 0,
+          authority: lead.qualification?.authority ?? 0,
+          budget: lead.qualification?.budget ?? 0,
+          timeline: lead.qualification?.timeline ?? 0,
+          complianceDriver: lead.qualification?.complianceDriver ?? 0,
+          industry: lead.industry,
+          seatCount: lead.seatCount,
+          siteCount: lead.siteCount,
+          complianceDrivers: lead.complianceDrivers,
+          currentMspName: lead.currentMspName,
+          currentMspSatisfaction: lead.currentMspSatisfaction,
+          interestedServices: lead.interestedServices ?? [],
+          currentPhoneSystem: lead.currentPhoneSystem,
+          currentPhonePainPoint: lead.currentPhonePainPoint,
+          currentAccessControl: lead.currentAccessControl,
+          currentAccessDoorCount: lead.currentAccessDoorCount,
+          currentVideoSurveillance: lead.currentVideoSurveillance,
+          currentVideoCameraCount: lead.currentVideoCameraCount,
+          cablingStatus: lead.cablingStatus,
+          expansionPlans: lead.expansionPlans,
+          aiAdvisoryInterest: lead.aiAdvisoryInterest,
+        };
+        const fits = computeAllServiceFits(fitInput);
+        const avgTopFits =
+          fits.length === 0 ? 0 : Math.round(fits.slice(0, 4).reduce((s, f) => s + f.score, 0) / Math.min(4, fits.length));
+        // Customer score derived from generic dims (size + authority + budget + timeline + growth + compliance + industry).
+        const qSum = (lead.qualification?.total ?? 0);
+        // Show whichever is higher: stored vs derived (lets a recently-run assessment win).
+        const servicesScore = hasAssessmentScore ? lead.servicesScore : avgTopFits;
+        const customerScore = hasAssessmentScore ? lead.customerScore : qSum;
+        const dealQualityScore = hasAssessmentScore
+          ? lead.dealQualityScore
+          : Math.round((avgTopFits * 0.5) + (qSum * 0.5));
+        const derived = !hasAssessmentScore;
+        return (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4">
+            <ScoreTile label={STRINGS.scoring.services} value={servicesScore} derived={derived} />
+            <ScoreTile label={STRINGS.scoring.customer} value={customerScore} derived={derived} />
+            <ScoreTile
+              label={STRINGS.scoring.dealQuality}
+              value={dealQualityScore}
+              primary
+              derived={derived}
+              override={
+                can(session.user.role, "score:override") ? (
+                  <ScoreOverrideButton
+                    leadId={lead.id}
+                    initialServices={servicesScore}
+                    initialCustomer={customerScore}
+                    initialDealQuality={dealQualityScore}
+                  />
+                ) : null
+              }
+            />
+          </div>
+        );
+      })()}
 
       {lead.nonStrategicFlag && (
         <Callout kind="warning" label="Non-strategic">
@@ -375,11 +428,16 @@ function ScoreTile({
   value,
   primary,
   override,
+  derived,
 }: {
   label: string;
   value: number;
   primary?: boolean;
   override?: React.ReactNode;
+  /** v3.3.21 — when true, render a small "(estimated)" tag so the rep
+   *  knows the value is from intake + qualification math, not a
+   *  legacy MSP-Fit Assessment submission. */
+  derived?: boolean;
 }) {
   if (primary) {
     // Tone the big number against the dark navy tile so the score reads at a
@@ -397,7 +455,10 @@ function ScoreTile({
       <div className="rounded-xl bg-gtn-navy text-white p-4 md:p-5 relative overflow-hidden">
         <div className="absolute -right-12 -top-12 w-32 h-32 rounded-full bg-gtn-purple/30 pointer-events-none" />
         <div className="relative flex items-center justify-between gap-2">
-          <p className="text-[10px] uppercase tracking-wider text-white/80 font-semibold">{label}</p>
+          <p className="text-[10px] uppercase tracking-wider text-white/80 font-semibold inline-flex items-center gap-1.5">
+            {label}
+            {derived && <span className="text-[9px] font-normal text-white/60 normal-case tracking-normal">(estimated)</span>}
+          </p>
           {override}
         </div>
         <div className="relative mt-2 flex items-baseline gap-3">
@@ -406,13 +467,19 @@ function ScoreTile({
             {pillLabel}
           </span>
         </div>
+        {derived && (
+          <p className="relative text-[10px] text-white/60 mt-1.5">From intake + qualification — run the MSP-Fit assessment for a calibrated score.</p>
+        )}
       </div>
     );
   }
   return (
     <div className="rounded-xl bg-surface border border-line-subtle p-4 md:p-5">
       <div className="flex items-center justify-between gap-2">
-        <p className="ui-label">{label}</p>
+        <p className="ui-label inline-flex items-center gap-1.5">
+          {label}
+          {derived && <span className="text-[9px] font-normal text-ink-muted normal-case tracking-normal">(estimated)</span>}
+        </p>
         {override}
       </div>
       <div className="mt-2.5 flex items-baseline gap-3">

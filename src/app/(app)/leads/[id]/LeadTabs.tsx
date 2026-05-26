@@ -29,6 +29,7 @@ type Lead = {
   primaryContactEmail: string | null;
   primaryContactPhone: string | null;
   executiveSponsorName: string | null;
+  executiveSponsorTitle: string | null;
   complianceDrivers: string[];
   currentMspName: string | null;
   currentMspSatisfaction: string;
@@ -70,6 +71,19 @@ type Lead = {
     verdict: string | null;
     scoredAt: Date | null;
   } | null;
+  // v3.3.21 — richer Overview cards
+  businessName: string;
+  dbaName: string | null;
+  subindustry: string | null;
+  addressStreet: string | null;
+  source: string;
+  dealKind: string;
+  dealLineItems: unknown;
+  triggerEvent: string | null;
+  triggerEventNote: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  owner: { id: string; name: string | null; email: string };
   assessments: Array<{ id: string; status: string; createdAt: Date; completedAt: Date | null; createdBy: { name: string } }>;
   preSaleAssessments: Array<{
     id: string;
@@ -378,35 +392,118 @@ function OverviewTab({ lead }: { lead: Lead }) {
         </Card>
       )}
 
-      {/* Original detail grid */}
+      {/* v3.3.21 — Original detail grid expanded so reps see every signal
+          we collect, not just the 4-row legacy dl. */}
       <div className="grid md:grid-cols-2 gap-4">
       <Card>
-        <h3 className="text-sm font-semibold text-gtn-navy mb-3">Contact</h3>
+        <div className="flex items-center justify-between gap-2 mb-3">
+          <h3 className="text-sm font-semibold text-gtn-navy">Contact + ownership</h3>
+        </div>
         <dl className="text-sm space-y-2">
-          <Row k="Primary contact" v={lead.primaryContactName} />
-          <Row k="Title" v={lead.primaryContactTitle} />
-          <Row k="Email" v={lead.primaryContactEmail} />
-          <Row k="Phone" v={lead.primaryContactPhone} />
-          <Row k="Exec sponsor" v={lead.executiveSponsorName} />
+          <Row k="Primary contact" v={[lead.primaryContactName, lead.primaryContactTitle].filter(Boolean).join(" · ") || null} />
+          <Row
+            k="Email"
+            v={lead.primaryContactEmail ? (
+              <a className="text-gtn-purple hover:underline break-all" href={`mailto:${lead.primaryContactEmail}`}>{lead.primaryContactEmail}</a>
+            ) : null}
+          />
+          <Row
+            k="Phone"
+            v={lead.primaryContactPhone ? (
+              <a className="text-gtn-purple hover:underline" href={`tel:${lead.primaryContactPhone.replace(/\D/g, "")}`}>{lead.primaryContactPhone}</a>
+            ) : null}
+          />
+          <Row
+            k="Exec sponsor"
+            v={[lead.executiveSponsorName, lead.executiveSponsorTitle].filter(Boolean).join(" · ") || null}
+          />
+          <Row
+            k="Lead owner"
+            v={lead.owner ? `${lead.owner.name ?? lead.owner.email} (${lead.owner.email})` : null}
+          />
+          <Row k="Lead created" v={format(new Date(lead.createdAt), "MMM d, yyyy")} />
+          <Row k="Last updated" v={format(new Date(lead.updatedAt), "MMM d, yyyy")} />
         </dl>
       </Card>
       <Card>
-        <h3 className="text-sm font-semibold text-gtn-navy mb-3">Business</h3>
+        <div className="flex items-center justify-between gap-2 mb-3">
+          <h3 className="text-sm font-semibold text-gtn-navy">Business profile</h3>
+        </div>
         <dl className="text-sm space-y-2">
-          <Row k="Industry" v={lead.industry.replace(/_/g, " ")} />
-          <Row k="Seats" v={lead.seatCount} />
-          <Row k="Sites" v={lead.siteCount} />
-          <Row k="Address" v={[lead.addressCity, lead.addressState, lead.addressZip].filter(Boolean).join(", ")} />
-          <Row k="Website" v={lead.websiteUrl} />
+          <Row k="Legal name" v={lead.businessName} />
+          <Row k="DBA" v={lead.dbaName} />
+          <Row
+            k="Industry"
+            v={[lead.industry.replace(/_/g, " "), lead.subindustry].filter(Boolean).join(" · ")}
+          />
+          <Row
+            k="Size"
+            v={[
+              lead.seatCount ? `${lead.seatCount} seats` : null,
+              `${lead.siteCount} site${lead.siteCount === 1 ? "" : "s"}`,
+            ].filter(Boolean).join(" · ")}
+          />
+          <Row
+            k="Address"
+            v={
+              [lead.addressStreet, lead.addressCity, lead.addressState, lead.addressZip]
+                .filter(Boolean).join(", ") || null
+            }
+          />
+          <Row
+            k="Website"
+            v={lead.websiteUrl ? (
+              <a className="text-gtn-purple hover:underline break-all" href={lead.websiteUrl} target="_blank" rel="noreferrer">{lead.websiteUrl}</a>
+            ) : null}
+          />
+          <Row k="Deal kind" v={lead.dealKind.replace(/_/g, " ").toLowerCase()} />
+          <Row k="Lead source" v={lead.source.replace(/_/g, " ").toLowerCase()} />
+          <Row
+            k="Trigger event"
+            v={lead.triggerEvent && lead.triggerEvent !== "NONE"
+              ? `${lead.triggerEvent.replace(/_/g, " ").toLowerCase()}${lead.triggerEventNote ? ` — ${lead.triggerEventNote.slice(0, 80)}` : ""}`
+              : null}
+          />
         </dl>
       </Card>
       <Card>
-        <h3 className="text-sm font-semibold text-gtn-navy mb-3">Compliance + MSP</h3>
+        <div className="flex items-center justify-between gap-2 mb-3">
+          <h3 className="text-sm font-semibold text-gtn-navy">Compliance, insurance + current MSP</h3>
+        </div>
         <dl className="text-sm space-y-2">
-          <Row k="Compliance" v={lead.complianceDrivers.join(", ")} />
+          <Row
+            k="Compliance drivers"
+            v={
+              lead.complianceDrivers.length === 0 ? null :
+              <div className="flex flex-wrap gap-1 justify-end">
+                {lead.complianceDrivers.map((d) => (
+                  <span key={d} className="inline-block rounded-full bg-amber-100 text-amber-800 px-2 py-0.5 text-[11px] font-semibold">
+                    {d.replace(/_/g, " ")}
+                  </span>
+                ))}
+              </div>
+            }
+          />
           <Row k="Current MSP" v={lead.currentMspName} />
-          <Row k="MSP satisfaction" v={lead.currentMspSatisfaction} />
-          <Row k="Cyber insurance" v={lead.cyberInsuranceRenewalDate ? format(new Date(lead.cyberInsuranceRenewalDate), "PPP") : null} />
+          <Row
+            k="MSP satisfaction"
+            v={
+              lead.currentMspSatisfaction === "NONE" ? "No current MSP / unsure" :
+              lead.currentMspSatisfaction === "HAPPY" ? "Happy with current MSP" :
+              lead.currentMspSatisfaction === "NEUTRAL" ? "Neutral — open to alternatives" :
+              lead.currentMspSatisfaction === "LEAVING" ? "Actively leaving current MSP" :
+              null
+            }
+          />
+          <Row
+            k="Cyber insurance renewal"
+            v={(() => {
+              if (!lead.cyberInsuranceRenewalDate) return null;
+              const d = new Date(lead.cyberInsuranceRenewalDate);
+              const days = Math.floor((d.getTime() - Date.now()) / 86400000);
+              return `${format(d, "MMM d, yyyy")}${days >= 0 && days <= 120 ? ` · in ${days}d` : days < 0 ? " · past due" : ""}`;
+            })()}
+          />
         </dl>
       </Card>
       {hasMultiServiceSignal && (
@@ -454,14 +551,27 @@ function OverviewTab({ lead }: { lead: Lead }) {
         </Card>
       )}
       <Card>
-        <h3 className="text-sm font-semibold text-gtn-navy mb-3">Notes</h3>
+        <div className="flex items-baseline justify-between gap-2 mb-3">
+          <h3 className="text-sm font-semibold text-gtn-navy">
+            Notes
+            <span className="ml-2 text-xs font-normal text-gtn-grey-2">
+              {lead.notes.length} total · {lead.notes.filter((n) => n.pinned).length} pinned
+            </span>
+          </h3>
+        </div>
         <QuickNoteComposer leadId={lead.id} />
         {lead.notes.length === 0 ? (
-          <p className="text-sm text-gtn-grey-2 mt-4">No notes yet.</p>
+          <p className="text-sm text-gtn-grey-2 mt-4">No notes yet — pin a first-impression note as you build context.</p>
         ) : (
           <ul className="space-y-3 mt-4">
-            {lead.notes.slice(0, 5).map((n) => (
-              <li key={n.id} className="text-sm">
+            {/* Always show every pinned note first, then up to 4 most-
+                recent unpinned. Old slice(0,5) hid pinned ones if the
+                rep had logged a flurry of recent unpinned notes. */}
+            {[
+              ...lead.notes.filter((n) => n.pinned),
+              ...lead.notes.filter((n) => !n.pinned).slice(0, 4),
+            ].map((n) => (
+              <li key={n.id} className="text-sm border-l-2 pl-3 border-gtn-lavender-2">
                 {n.pinned && <span className="text-[10px] uppercase font-semibold text-gtn-purple mr-2">Pinned</span>}
                 <p className="whitespace-pre-wrap">{n.body}</p>
                 <p className="text-xs text-gtn-grey-3 mt-1">{n.actor.name} · {format(new Date(n.createdAt), "PPp")}</p>
