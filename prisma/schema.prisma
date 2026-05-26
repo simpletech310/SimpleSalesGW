@@ -646,6 +646,9 @@ model Handoff {
   stakeholderContext    String?        @map("stakeholder_context") @db.Text
   budgetSnapshot        Json?          @map("budget_snapshot") // { status, range, notes }
   successCriteria       Json           @default("[]") @map("success_criteria") // [{ metric, target, owner }]
+  // v3.3 — SOP Step 8: stated-pain recap + Day-30 quick win
+  statedPain            String?        @map("stated_pain") @db.Text
+  day30QuickWin         String?        @map("day30_quick_win") @db.Text
 
   notes          String?   @db.Text
   initiatedAt    DateTime? @map("initiated_at")

@@ -51,6 +51,14 @@ ALTER TYPE "AiFeatureKind" ADD VALUE IF NOT EXISTS 'KICKOFF_NARRATIVE';
 ALTER TYPE "AiFeatureKind" ADD VALUE IF NOT EXISTS 'DEBRIEF_DRAFT';
 
 -- ---------------------------------------------------------------------------
+-- 2b. Handoff — stated pain + Day-30 quick win (SOP Step 8)
+-- ---------------------------------------------------------------------------
+
+ALTER TABLE "handoffs"
+  ADD COLUMN "stated_pain"      TEXT,
+  ADD COLUMN "day30_quick_win"  TEXT;
+
+-- ---------------------------------------------------------------------------
 -- 3. Lead — trigger event + payment-method flag
 -- ---------------------------------------------------------------------------
 

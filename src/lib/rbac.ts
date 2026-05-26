@@ -40,7 +40,14 @@ export type PermissionKey =
   | "onboarding:manage"
   | "qbr:schedule"
   | "qbr:complete"
-  | "customer:archive";
+  | "customer:archive"
+  // v3.3 — SOP-alignment sweep
+  | "proposal:draft"            // create / edit / send a proposal for own leads
+  | "proposal:vcio-review"      // scope review gate
+  | "proposal:manager-review"   // pricing review gate
+  | "sow:template:edit"         // /admin/sow-templates CRUD
+  | "kickoff:edit"              // edit kickoff record on customer (source-lead owner OR vCIO/COO)
+  | "debrief:submit";           // submit deal debrief on CLOSED_WON/LOST
 
 const matrix: Record<Role, ReadonlyArray<PermissionKey>> = {
   SALESPERSON: [
@@ -51,6 +58,10 @@ const matrix: Record<Role, ReadonlyArray<PermissionKey>> = {
     "handoff:initiate",
     "pricing:view:sticker",
     "customer:view:own",
+    // v3.3
+    "proposal:draft",
+    "kickoff:edit",
+    "debrief:submit",
   ],
   SALES_MANAGER: [
     "lead:view:own",
@@ -76,6 +87,12 @@ const matrix: Record<Role, ReadonlyArray<PermissionKey>> = {
     "team:manage",
     "sales-rep:create",
     "lead:assign",
+    // v3.3
+    "proposal:draft",
+    "proposal:manager-review",
+    "sow:template:edit",
+    "kickoff:edit",
+    "debrief:submit",
   ],
   VCIO: [
     "lead:view:own",
@@ -88,6 +105,9 @@ const matrix: Record<Role, ReadonlyArray<PermissionKey>> = {
     "onboarding:manage",
     "qbr:schedule",
     "qbr:complete",
+    // v3.3
+    "proposal:vcio-review",
+    "kickoff:edit",
   ],
   COO: [
     "lead:view:own",
@@ -103,6 +123,8 @@ const matrix: Record<Role, ReadonlyArray<PermissionKey>> = {
     "customer:view:all",
     "onboarding:manage",
     "customer:archive",
+    // v3.3
+    "kickoff:edit",
   ],
   SUPERADMIN: [
     "lead:view:own",
@@ -138,6 +160,13 @@ const matrix: Record<Role, ReadonlyArray<PermissionKey>> = {
     "qbr:schedule",
     "qbr:complete",
     "customer:archive",
+    // v3.3
+    "proposal:draft",
+    "proposal:vcio-review",
+    "proposal:manager-review",
+    "sow:template:edit",
+    "kickoff:edit",
+    "debrief:submit",
   ],
 };
 
