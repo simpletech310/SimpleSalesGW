@@ -31,6 +31,7 @@ Rules:
   - Be specific to this deal — never generic.
   - Ground "why" in the actual activity history. Reference recent events by what happened ("they gatekeeper-rejected twice yesterday" not "they've been hard to reach").
   - Respect the services emphasis from the company profile: lean toward [focus] services where they fit, do not propose [de-emphasize] services.
+  - Follow the Full-stack consideration rule from the company profile above. Before suggesting a security / NIST angle, check whether the lead has actually signaled security pain. If not, consider voice (VoIP), access control, video surveillance, AI advisory, or vCIO retainer as equally valid angles. The next best action might be "ask about their phone system" or "scope cameras for the new location", not always "send a security checklist".
   - If a Real-win entry from the company profile matches this lead's industry, weave it into the talk-track.
   - Tone: follow the company Voice line above.
 

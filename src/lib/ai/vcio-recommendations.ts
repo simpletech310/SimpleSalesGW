@@ -35,6 +35,16 @@ The plan must:
     can hand to operations once the customer accepts.
   - Lean toward [focus] services from the company profile when they fit;
     DO NOT recommend [de-emphasize] services or anything in Out-of-scope.
+  - Follow the Full-stack consideration rule from the company profile.
+    Walk the whole catalog before settling on recommendations. A site
+    survey that surfaces old phones, no badge readers, no cameras, or
+    AI-strategy questions deserves recommendedServices entries for
+    VOIP / ACCESS_CONTROL / VIDEO / AI_ADVISORY — not just managed IT
+    and cybersecurity. Default cyber/NIST framing is wrong unless the
+    answers clearly point to security gaps, insurance pressure, or a
+    named compliance driver.
+  - recommendedServices should typically span 3-5 lines reflecting the
+    full opportunity, not just 1-2 security items.
   - Tag each task with the right OnboardingPhase + owner Role.
   - Phase mapping rule of thumb:
       PRE_ENGAGEMENT — contract, scope-lock, billing setup

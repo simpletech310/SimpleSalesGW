@@ -33,6 +33,17 @@ Output strictly as a single JSON object with this shape:
   "fitSignals": ["signal that supports a fit with our services", ...]
 }
 
+Follow the Full-stack consideration rule from the company profile
+above. fitSignals + suggestedQuestions should cover the full catalog
+where relevant — phones (signs of legacy PBX, mobile workforce), access
+control (multi-location, recent staff turnover, key-rekey costs),
+video surveillance (insurance, liability, retail loss-prevention),
+cabling (new builds, expansions), AI advisory (leaders publicly talking
+about AI), vCIO retainer (no internal IT leadership) — not just
+managed IT and cybersecurity. A research summary that talks only about
+"security posture" when the website screams "we just opened 3 new
+locations" is failing the rep.
+
 Never invent facts not in the provided context. When context is thin,
 say so in the summary and keep arrays empty.`;
 

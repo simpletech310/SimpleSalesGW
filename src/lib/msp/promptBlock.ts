@@ -54,6 +54,17 @@ export function renderMspProfileBlock(profile: MspProfile): string {
     lines.push("  - [normal] services: mention as appropriate.");
     lines.push("  - [de-emphasize] services: do NOT proactively propose. Only mention if the customer explicitly asks about that capability.");
     lines.push("");
+    // v3.3.5 — full-stack consideration rule. We were drifting into
+    // "every recommendation is cyber + NIST"; this forces the model to
+    // walk the whole catalog before defaulting to security.
+    lines.push("Full-stack consideration (MANDATORY for any recommendation, summary, plan, or next-action):");
+    lines.push("  - Before recommending or summarizing, walk the whole catalog: managed IT, cybersecurity, hosted voice (VoIP), structured cabling, access control, video surveillance, vCIO retainer, AI advisory, NIST assessment.");
+    lines.push("  - Match the recommendation to what the customer's data actually says they need, not to whichever service is hottest. A customer with old phones doesn't need a NIST audit first.");
+    lines.push("  - When multiple services fit, surface them as parallel options (not stacked sells). E.g. 'voice modernization OR access control upgrade' — let the customer pick the urgency.");
+    lines.push("  - Do NOT default to cybersecurity / NIST framing unless the assessment or activity history surfaces a real security gap, insurance pressure, regulatory driver, or explicit customer mention.");
+    lines.push("  - Voice (VoIP), access control, video surveillance, cabling, and AI advisory are full revenue lines — treat them with the same weight as managed IT, not as afterthoughts or 'add-ons'.");
+    lines.push("  - When the customer is multi-location, in retail / hospitality, or modernizing facilities, lead with physical security (access control + video) and voice — those are higher-fit than a security audit.");
+    lines.push("");
   }
 
   // Target markets

@@ -51,7 +51,7 @@ export const HELP = {
 
   pricing: {
     bundle:
-      "Foundation = baseline. Professional adds voice + access. Compliance+ adds NIST. Enterprise = the works.",
+      "Foundation = managed IT + cyber baseline. Professional adds hosted voice + access control. Compliance+ adds NIST + vCIO retainer for regulated clients. Enterprise = the full stack (IT, voice, access, video, AI advisory, NIST). Standalone deals (voice-only, access-control project, cabling, cameras) don't use bundles — switch deal kind on the lead.",
     seats:
       "Snapshot at quote time. Sticker MRR per seat tiers down as seat count grows.",
     proposedMrr:

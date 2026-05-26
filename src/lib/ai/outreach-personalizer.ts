@@ -36,6 +36,12 @@ template already does. Use a Real-wins entry from the company profile
 above if one matches the lead's industry — that's the strongest
 opener.
 
+Follow the Full-stack consideration rule from the company profile.
+Don't default every outreach to "harden your security" — for retail
+or multi-location leads lead with access control or video; for fast-
+growing leads lead with voice or AI advisory; for new builds lead
+with cabling. Match the angle to the lead's actual signals.
+
 Tone modes (overrides the default Voice when set):
   - warm: like a real human, conversational, contractions OK
   - formal: business-appropriate, no contractions, slightly more polished

@@ -84,21 +84,26 @@ export type MspProfile = {
 // ---------------------------------------------------------------------------
 
 export const DEFAULT_PROFILE: MspProfile = {
-  version: "2026-05-23-defaults",
+  // v3.3.5 — rebalanced from cyber-first to full-stack so AI prompts
+  // stop defaulting every recommendation to "harden security + NIST".
+  // We genuinely sell voice, access control, video, cabling, and AI
+  // advisory as standalone revenue lines, not afterthoughts.
+  version: "2026-05-26-fullstack",
   companyName: "Gateway TelNet",
   location: "Burbank, CA",
-  tagline: "a Southern-California managed-services provider",
+  tagline: "a Southern-California managed-services and technology partner",
   missionStatement:
-    "Help SoCal SMBs run on reliable IT and pass their next compliance audit without hiring a CIO.",
+    "Help SoCal businesses run on reliable IT, modern phones, secure facilities, and the right AI strategy — without juggling four vendors.",
   brandVoice:
     "Warm + direct, no fluff, no MBA-speak. Specific over generic. Concrete over vague. We respect the reader's time.",
   background:
-    "Gateway TelNet is a Burbank-based MSP serving Southern California businesses since the early 2000s. We bundle managed IT with cybersecurity + NIST/CMMC compliance because the two cannot live separately in 2026. We also handle voice, cabling, access control, and video surveillance so a customer never has to coordinate 4 vendors for a new office.",
+    "Gateway TelNet is a Burbank-based managed services and technology partner serving Southern California businesses since the early 2000s. Our stack spans managed IT, cybersecurity, hosted voice, structured cabling, access control, video surveillance, vCIO strategy, AI advisory, and NIST/CMMC compliance — sold individually or as bundles. The differentiator is breadth: a customer can move offices, modernize phones, harden security, and roll out badge readers without onboarding four separate vendors.",
   differentiators: [
-    "Built-in NIST/CMMC pre-audit at every annual renewal",
-    "Single throat to choke for IT + voice + physical security",
-    "vCIO retainer included on the Compliance+ bundle, no per-hour billing surprises",
-    "Local SoCal feet-on-the-ground for on-site work (no remote-only)",
+    "One vendor across IT, voice, cabling, access control, video, and strategy — projects don't get stuck between trades",
+    "Local SoCal feet-on-the-ground for on-site installs (no remote-only)",
+    "vCIO retainer included on the Compliance+ bundle — strategic roadmap, not just tickets",
+    "Project + MRR pricing both — you can buy phones outright, run a cabling job, or sign a multi-year managed agreement",
+    "Annual NIST/CMMC pre-audit built into Compliance+ and Enterprise — auditors find nothing new",
   ],
   targetMarkets: [
     "Medical",
@@ -110,17 +115,54 @@ export const DEFAULT_PROFILE: MspProfile = {
     "Professional Services",
     "Education",
     "Nonprofit",
+    "Retail / Multi-location",
   ],
   services: [
-    { serviceLine: ServiceLine.MANAGED_IT, emphasis: "focus", note: "Anchor service — everything else attaches" },
-    { serviceLine: ServiceLine.CYBERSECURITY, emphasis: "focus", note: "Required pair with Managed IT in 2026" },
-    { serviceLine: ServiceLine.NIST_ASSESSMENT, emphasis: "focus", note: "Compliance is the wedge for Medical / Federal / Legal" },
-    { serviceLine: ServiceLine.AI_ADVISORY, emphasis: "normal", note: "New offering — push where customer asks about AI" },
-    { serviceLine: ServiceLine.VCIO_RETAINER, emphasis: "normal" },
-    { serviceLine: ServiceLine.VOIP, emphasis: "normal", note: "Cross-sell on existing Managed IT customers" },
-    { serviceLine: ServiceLine.CABLING, emphasis: "normal", note: "Project-based, tied to new-office moves" },
-    { serviceLine: ServiceLine.ACCESS_CONTROL, emphasis: "normal" },
-    { serviceLine: ServiceLine.VIDEO, emphasis: "normal" },
+    {
+      serviceLine: ServiceLine.MANAGED_IT,
+      emphasis: "focus",
+      note: "Anchor recurring revenue — most cross-sells attach to a managed IT customer",
+    },
+    {
+      serviceLine: ServiceLine.CYBERSECURITY,
+      emphasis: "normal",
+      note: "Pair with Managed IT for bundles; standalone when client renews insurance or fails a vendor questionnaire",
+    },
+    {
+      serviceLine: ServiceLine.VOIP,
+      emphasis: "focus",
+      note: "Real standalone revenue line — VoIP project deals close fast and are a clean cross-sell into managed IT later",
+    },
+    {
+      serviceLine: ServiceLine.ACCESS_CONTROL,
+      emphasis: "focus",
+      note: "Standalone project work, no MRR. Wedge for multi-location retail / professional services modernizing facilities",
+    },
+    {
+      serviceLine: ServiceLine.VIDEO,
+      emphasis: "focus",
+      note: "Standalone project work, no MRR. Often paired with access control; insurance / liability driver",
+    },
+    {
+      serviceLine: ServiceLine.AI_ADVISORY,
+      emphasis: "focus",
+      note: "Forward-positioning — leaders are getting pressure to 'use AI'; we lead with workshops + measured pilots",
+    },
+    {
+      serviceLine: ServiceLine.CABLING,
+      emphasis: "normal",
+      note: "Project work tied to new offices, build-outs, voice rollouts, or PoE for cameras / access readers",
+    },
+    {
+      serviceLine: ServiceLine.VCIO_RETAINER,
+      emphasis: "normal",
+      note: "Standalone retainer for clients between 'need an IT person' and 'need a CIO'",
+    },
+    {
+      serviceLine: ServiceLine.NIST_ASSESSMENT,
+      emphasis: "normal",
+      note: "Triggered by compliance driver (HIPAA, PCI, CMMC) or insurance pressure. Don't lead with it unless the customer signals it",
+    },
   ],
   outOfScope: [
     "Consumer / residential support",
