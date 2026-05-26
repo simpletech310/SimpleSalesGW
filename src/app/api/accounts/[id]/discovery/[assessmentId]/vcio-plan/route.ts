@@ -7,6 +7,7 @@ import { writeAudit } from "@/lib/audit";
 import { generateVcioPlan } from "@/lib/ai/vcio-recommendations";
 import { AnthropicNotConfiguredError, isAnthropicConfigured } from "@/lib/ai/anthropic";
 import { AiBudgetExceededError } from "@/lib/ai/budget";
+import { scoreDiscovery } from "@/lib/discovery/scoring";
 
 /**
  * v2.23 — POST /api/accounts/[id]/discovery/[assessmentId]/vcio-plan
@@ -65,6 +66,20 @@ export async function POST(
 
     if (!isAnthropicConfigured()) throw new AnthropicNotConfiguredError();
 
+    // Re-score on the fly when the stored scorecard pre-dates the v3.3.2
+    // section digest, so the prompt always carries the richer structure.
+    const scorecard = (() => {
+      const stored = assessment.scorecard as Record<string, unknown> | null;
+      const answers = (assessment.answers ?? {}) as Record<string, unknown>;
+      const hasSections = stored && Array.isArray((stored as { sections?: unknown }).sections);
+      if (stored && hasSections) return stored;
+      try {
+        return scoreDiscovery(assessment.kind, answers) as unknown as Record<string, unknown>;
+      } catch {
+        return stored;
+      }
+    })();
+
     const plan = await generateVcioPlan(
       {
         context: {
@@ -78,7 +93,7 @@ export async function POST(
         },
         assessment: {
           kind: String(assessment.kind),
-          scorecard: assessment.scorecard as Record<string, unknown> | null,
+          scorecard,
           answers: (assessment.answers ?? {}) as Record<string, unknown>,
         },
       },

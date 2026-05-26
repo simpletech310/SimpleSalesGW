@@ -144,14 +144,65 @@ export async function generateVcioPlan(
     ctx.currentMspName ? `Current MSP: ${ctx.currentMspName}` : null,
   ].filter(Boolean).join("\n");
 
-  const scorecardBlock = input.assessment.scorecard
-    ? JSON.stringify(input.assessment.scorecard, null, 2).slice(0, 4000)
-    : "(no structured scorecard — work from raw answers)";
+  // Prefer the structured sections digest from the scorecard (v3.3.2 —
+  // SiteSurvey now emits per-section answered lines, gaps, findings, and
+  // risks). Falls back to raw answers when sections aren't present (older
+  // assessment kinds, or pre-v3.3.2 stored scorecards).
+  const sc = (input.assessment.scorecard ?? null) as
+    | (Record<string, unknown> & {
+        summary?: string;
+        findings?: string[];
+        risks?: Array<{ severity?: string; description?: string }>;
+        recommendedActions?: string[];
+        coveragePct?: number;
+        sections?: Array<{ section: string; answeredCount?: number; totalCount?: number; coveragePct?: number; answers?: string[] }>;
+        gaps?: Array<{ section: string; missing: number }>;
+      })
+    | null;
 
-  // Trim answers to keep prompt size manageable.
-  const answersBlock = JSON.stringify(input.assessment.answers, null, 2).slice(0, 4000);
+  const sectionsBlock = Array.isArray(sc?.sections) && sc!.sections!.length > 0
+    ? sc!.sections!
+        .map((s) => {
+          const header = `### ${s.section} (${s.answeredCount ?? 0}/${s.totalCount ?? 0} answered, ${s.coveragePct ?? 0}%)`;
+          const body = Array.isArray(s.answers) && s.answers.length > 0
+            ? s.answers.map((a) => `- ${a}`).join("\n")
+            : "(no answers)";
+          return `${header}\n${body}`;
+        })
+        .join("\n\n")
+        .slice(0, 7000)
+    : null;
 
-  const user = `CUSTOMER CONTEXT\n${ctxBlock}\n\nASSESSMENT KIND\n${input.assessment.kind}\n\nSCORECARD\n${scorecardBlock}\n\nRAW ANSWERS (truncated)\n${answersBlock}`;
+  const scorecardSummaryBlock = sc
+    ? [
+        sc.summary ? `Summary: ${sc.summary}` : null,
+        typeof sc.coveragePct === "number" ? `Coverage: ${sc.coveragePct}%` : null,
+        Array.isArray(sc.findings) && sc.findings.length > 0 ? `Findings:\n- ${sc.findings.join("\n- ")}` : null,
+        Array.isArray(sc.risks) && sc.risks.length > 0
+          ? `Risks:\n${sc.risks.map((r) => `- [${r.severity ?? "?"}] ${r.description ?? ""}`).join("\n")}`
+          : null,
+        Array.isArray(sc.recommendedActions) && sc.recommendedActions.length > 0
+          ? `Recommended actions (from scorer):\n- ${sc.recommendedActions.join("\n- ")}`
+          : null,
+        Array.isArray(sc.gaps) && sc.gaps.length > 0
+          ? `Gaps (unanswered required questions):\n${sc.gaps.map((g) => `- ${g.section}: ${g.missing}`).join("\n")}`
+          : null,
+      ].filter(Boolean).join("\n\n")
+    : "(no structured scorecard)";
+
+  // Raw answers fallback — only used when the scorecard didn't supply a
+  // sections digest, since otherwise it's duplicate signal eating tokens.
+  const rawAnswersBlock = sectionsBlock
+    ? null
+    : JSON.stringify(input.assessment.answers, null, 2).slice(0, 4000);
+
+  const user = [
+    `CUSTOMER CONTEXT\n${ctxBlock}`,
+    `ASSESSMENT KIND\n${input.assessment.kind}`,
+    `SCORECARD SUMMARY\n${scorecardSummaryBlock}`,
+    sectionsBlock ? `ASSESSMENT ANSWERS (by section)\n${sectionsBlock}` : null,
+    rawAnswersBlock ? `RAW ANSWERS (fallback, truncated)\n${rawAnswersBlock}` : null,
+  ].filter(Boolean).join("\n\n");
 
   const responseHint = `Return ONLY the JSON object — no markdown, no commentary.`;
 

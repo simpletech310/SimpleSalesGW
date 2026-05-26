@@ -70,20 +70,46 @@ export function VcioPlanPanel({
   const [plan, setPlan] = useState<PlanSnapshot | null>(initialPlan);
   const [generating, setGenerating] = useState(false);
   const [accepting, setAccepting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function generate() {
     setGenerating(true);
+    setError(null);
     try {
       const res = await fetch(generateUrl, { method: "POST" });
-      const data = await res.json();
+      let data: unknown = null;
+      try {
+        data = await res.json();
+      } catch {
+        data = null;
+      }
+      const errMsg =
+        (data && typeof data === "object" && "error" in data && typeof (data as { error: unknown }).error === "string"
+          ? (data as { error: string }).error
+          : null) ?? `HTTP ${res.status}`;
       if (!res.ok) {
-        if (res.status === 429) toast.error(data?.error ?? "AI budget exceeded for this lead.");
-        else toast.error(data?.error ?? "Plan generation failed");
+        const friendly =
+          res.status === 429 ? `AI budget exceeded for this lead. ${errMsg}`
+          : res.status === 400 ? `Configuration issue: ${errMsg}`
+          : res.status === 403 ? "You don't have permission to run this plan."
+          : res.status === 409 ? "The assessment must be marked complete before generating a plan."
+          : `Plan generation failed — ${errMsg}`;
+        setError(friendly);
+        toast.error(friendly);
         return;
       }
-      setPlan(data);
-      toast.success("Plan ready");
+      setPlan(data as PlanSnapshot);
+      const taskCount = (data as PlanSnapshot)?.recommendedTasks?.length ?? 0;
+      if (taskCount === 0) {
+        toast.message("Plan ready, but no tasks were extracted — review summary/risks below.");
+      } else {
+        toast.success(`Plan ready — ${taskCount} task${taskCount === 1 ? "" : "s"}`);
+      }
       router.refresh();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Network error";
+      setError(msg);
+      toast.error(msg);
     } finally {
       setGenerating(false);
     }
@@ -116,7 +142,20 @@ export function VcioPlanPanel({
     }
   }
 
-  const hasPlan = Boolean(plan && plan.recommendedTasks && plan.recommendedTasks.length > 0);
+  // hasAnyContent: did we get anything back at all? Used to flip the empty
+  // state. Previously gated on recommendedTasks > 0 which made a partial
+  // Claude response look like the button did nothing.
+  const taskCount = plan?.recommendedTasks?.length ?? 0;
+  const hasAnyContent = Boolean(
+    plan && (
+      taskCount > 0 ||
+      (plan.summary && plan.summary.trim()) ||
+      (plan.customerNextStep && plan.customerNextStep.trim()) ||
+      (plan.risks && plan.risks.length > 0) ||
+      (plan.recommendedServices && plan.recommendedServices.length > 0)
+    ),
+  );
+  const hasTasks = taskCount > 0;
   const isAccepted = Boolean(acceptedAt);
 
   return (
@@ -138,9 +177,9 @@ export function VcioPlanPanel({
           )}
           <Button size="sm" onClick={generate} disabled={generating}>
             {generating ? <><Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> Generating…</>
-              : <><Sparkles className="h-3.5 w-3.5 mr-1" /> {hasPlan ? "Re-generate plan" : "Generate plan"}</>}
+              : <><Sparkles className="h-3.5 w-3.5 mr-1" /> {hasAnyContent ? "Re-generate plan" : "Generate plan"}</>}
           </Button>
-          {hasPlan && acceptUrl && !isAccepted && (
+          {hasTasks && acceptUrl && !isAccepted && (
             <Button size="sm" onClick={() => accept(false)} disabled={accepting}>
               {accepting ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : null}
               Accept plan
@@ -166,7 +205,31 @@ export function VcioPlanPanel({
         </div>
       )}
 
-      {hasPlan && plan && (
+      {error && !generating && (
+        <div className="rounded-md border border-gtn-red/40 bg-gtn-red/5 p-3 mb-3 flex items-start gap-2">
+          <AlertTriangle className="h-4 w-4 text-gtn-red mt-0.5 flex-shrink-0" />
+          <div className="text-sm flex-1">
+            <p className="font-semibold text-gtn-red">Plan generation failed</p>
+            <p className="text-xs text-gtn-grey-2 mt-0.5">{error}</p>
+          </div>
+        </div>
+      )}
+
+      {hasAnyContent && plan && !hasTasks && (
+        <div className="rounded-md border border-gtn-amber/40 bg-amber-50 p-3 mb-3 flex items-start gap-2">
+          <AlertTriangle className="h-4 w-4 text-gtn-amber mt-0.5 flex-shrink-0" />
+          <div className="text-sm flex-1">
+            <p className="font-semibold text-gtn-amber">Plan returned no tasks</p>
+            <p className="text-xs text-gtn-grey-2 mt-0.5">
+              Claude generated a summary but couldn&apos;t turn the assessment into specific tasks.
+              The scorecard is probably too thin — answer more of the site-survey questions
+              (especially Identity / Security / Backups / Compliance) and re-generate.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {hasAnyContent && plan && (
         <div className="space-y-4">
           {plan.summary && (
             <div>
@@ -183,6 +246,7 @@ export function VcioPlanPanel({
           )}
 
           {/* Recommended tasks, grouped by phase */}
+          {hasTasks && (
           <div>
             <p className="text-[10px] uppercase tracking-wide font-semibold text-gtn-purple mb-2">
               Recommended tasks ({plan.recommendedTasks?.length ?? 0})
@@ -218,6 +282,7 @@ export function VcioPlanPanel({
               })}
             </div>
           </div>
+          )}
 
           {/* Risks */}
           {plan.risks && plan.risks.length > 0 && (
@@ -254,7 +319,7 @@ export function VcioPlanPanel({
         </div>
       )}
 
-      {!hasPlan && !generating && (
+      {!hasAnyContent && !generating && !error && (
         <p className="text-xs text-gtn-grey-2 italic">
           No plan yet. Click <strong>Generate plan</strong> to have Claude turn this assessment into recommended tasks + services.
         </p>

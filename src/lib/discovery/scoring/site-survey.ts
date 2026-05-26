@@ -14,6 +14,22 @@ export type SiteSurveyScorecard = {
   recommendedActions: string[];
   /** Coverage % — how many questions had non-empty answers. */
   coveragePct: number;
+  /**
+   * Per-section digest of all answered questions, grouped under the
+   * section heading. Drives downstream consumers (AI plan generator,
+   * proposal narrative, vCIO read-out) so they have something richer
+   * than just the hard-coded findings/risks above.
+   */
+  sections: Array<{
+    section: string;
+    answeredCount: number;
+    totalCount: number;
+    coveragePct: number;
+    /** "prompt — answer" lines, sanitized + truncated, in question order. */
+    answers: string[];
+  }>;
+  /** Counts of unanswered required questions per section, surfaced as gaps. */
+  gaps: Array<{ section: string; missing: number }>;
 };
 
 function asString(v: unknown): string | undefined {
@@ -39,6 +55,26 @@ function asNumber(v: unknown): number | undefined {
   return undefined;
 }
 
+function isAnswered(v: unknown): boolean {
+  if (v === null || v === undefined) return false;
+  if (typeof v === "string" && v.trim() === "") return false;
+  if (Array.isArray(v) && v.length === 0) return false;
+  return true;
+}
+
+function formatAnswer(q: { type: string; options?: ReadonlyArray<{ value: string; label: string }> }, v: unknown): string {
+  const labelFor = (val: string) => q.options?.find((o) => o.value === val)?.label ?? val;
+  if (Array.isArray(v)) return v.map((x) => (typeof x === "string" ? labelFor(x) : String(x))).join(", ");
+  if (typeof v === "boolean") return v ? "Yes" : "No";
+  if (typeof v === "string") return labelFor(v);
+  if (typeof v === "number") return String(v);
+  if (v && typeof v === "object" && "value" in (v as Record<string, unknown>)) {
+    const inner = (v as Record<string, unknown>).value;
+    return typeof inner === "string" ? labelFor(inner) : typeof inner === "boolean" ? (inner ? "Yes" : "No") : String(inner);
+  }
+  return String(v);
+}
+
 export function scoreSiteSurvey(answers: Record<string, unknown>): SiteSurveyScorecard {
   const findings: string[] = [];
   const risks: SiteSurveyScorecard["risks"] = [];
@@ -46,13 +82,40 @@ export function scoreSiteSurvey(answers: Record<string, unknown>): SiteSurveySco
 
   const totalQuestions = SITE_SURVEY_QUESTIONS.length || 1;
   let answered = 0;
-  for (const v of Object.values(answers)) {
-    if (v === null || v === undefined) continue;
-    if (typeof v === "string" && v.trim() === "") continue;
-    if (Array.isArray(v) && v.length === 0) continue;
-    answered++;
-  }
+  for (const v of Object.values(answers)) if (isAnswered(v)) answered++;
   const coveragePct = Math.min(100, Math.round((answered / totalQuestions) * 100));
+
+  // Per-section digest — preserve question order, render value labels not raw
+  // codes. Plan generator and other downstream consumers read this instead of
+  // having to re-walk the question bank themselves.
+  const bySection = new Map<string, { total: number; answered: number; missingRequired: number; lines: string[] }>();
+  for (const q of SITE_SURVEY_QUESTIONS) {
+    const bucket = bySection.get(q.section) ?? { total: 0, answered: 0, missingRequired: 0, lines: [] };
+    bucket.total++;
+    const v = answers[q.id];
+    if (isAnswered(v)) {
+      bucket.answered++;
+      const rendered = formatAnswer(q, v).slice(0, 240);
+      bucket.lines.push(`${q.prompt} — ${rendered}`);
+    } else if (q.required) {
+      bucket.missingRequired++;
+    }
+    bySection.set(q.section, bucket);
+  }
+  const sections: SiteSurveyScorecard["sections"] = [];
+  const gaps: SiteSurveyScorecard["gaps"] = [];
+  for (const [section, b] of bySection) {
+    if (b.answered > 0) {
+      sections.push({
+        section,
+        answeredCount: b.answered,
+        totalCount: b.total,
+        coveragePct: Math.round((b.answered / b.total) * 100),
+        answers: b.lines,
+      });
+    }
+    if (b.missingRequired > 0) gaps.push({ section, missing: b.missingRequired });
+  }
 
   // Profile + sites
   const sites = asNumber(answers["SP01"]);
@@ -174,5 +237,7 @@ export function scoreSiteSurvey(answers: Record<string, unknown>): SiteSurveySco
     risks,
     recommendedActions: actions,
     coveragePct,
+    sections,
+    gaps,
   };
 }
