@@ -58,7 +58,9 @@ The plan must:
 Tone: warm + direct, follow the company Voice line above. The
 customerNextStep is in the CUSTOMER's words, not internal jargon.
 
-Output strictly as a single JSON object:
+Output strictly as a single JSON object — your ENTIRE response is the
+JSON object, no markdown code fences, no "Here's the plan", nothing
+before the opening { or after the closing }:
 {
   "summary": "one paragraph, 4-6 sentences, customer-facing — what we found and what we recommend",
   "recommendedTasks": [
@@ -79,12 +81,24 @@ Output strictly as a single JSON object:
   "risks": [
     { "severity": "high | medium | low", "description": "what's at stake if unaddressed" }
   ],
-  "customerNextStep": "one sentence the customer reads — 'Sign the attached SOW so we can kick off next Monday', etc."
+  "customerNextStep": "one sentence the customer reads — 'Sign the attached SOW so we can kick off next Monday', etc.",
+  "confidence": "high | medium | low — how strongly the assessment supports this plan",
+  "limitations": ["short bullet of what the assessment did NOT cover that limited this plan", ...],
+  "strengthen": ["short bullet — 'Fill in the Backups section', 'Confirm seat count', etc. — concrete items the vCIO can go back and answer to make the next plan stronger", ...]
 }
 
-Aim for 8-15 tasks total spread across phases. If the assessment is
-thin (few findings, low coverage), produce a smaller plan and call out
-in summary that a deeper discovery is the right next step.`;
+ALWAYS produce a plan, even when the assessment is thin. When coverage
+is low (< 50%) or there are many gaps:
+  - Generate a smaller plan (4-8 tasks instead of 8-15)
+  - Lead the summary with "Based on limited data, our initial read is..."
+  - Set confidence to "low" or "medium"
+  - Fill out limitations[] specifically (e.g. "No answers in the
+    Backups / DR section — restore-test posture unknown")
+  - Fill out strengthen[] with concrete next questions to answer
+  - Bias recommendedTasks toward DISCOVERY-phase items that close the
+    gaps before committing to ONBOARD work
+Never refuse to produce a plan. A skeleton plan with clear limitations
+is more useful than no plan.`;
 
 export type VcioRecommendedTask = {
   phase: OnboardingPhase;
@@ -107,8 +121,47 @@ export type VcioRecommendation = {
   recommendedServices: VcioRecommendedService[];
   risks: Array<{ severity: "high" | "medium" | "low"; description: string }>;
   customerNextStep: string;
+  /** v3.3.6 — how strongly the assessment data backs this plan. */
+  confidence: "high" | "medium" | "low";
+  /** v3.3.6 — what the assessment didn't cover. Surfaced to vCIO. */
+  limitations: string[];
+  /** v3.3.6 — concrete questions to fill in to make the next plan stronger. */
+  strengthen: string[];
+  /** True when the model returned something we couldn't parse as JSON. */
+  parseError: boolean;
   raw: string;
 };
+
+/**
+ * Robustly pull a JSON object out of a Claude response that may include
+ * markdown fences, leading prose, or a trailing summary. Tries (1) strict
+ * parse on the trimmed text, (2) strip ```json / ``` fences anywhere,
+ * (3) extract the largest balanced {...} substring.
+ */
+function extractJsonObject(text: string): unknown | null {
+  const stripped = text
+    .trim()
+    // remove triple-backtick fences anywhere
+    .replace(/```(?:json)?/gi, "")
+    .replace(/```$/g, "")
+    .trim();
+
+  // Strict first
+  try {
+    return JSON.parse(stripped);
+  } catch { /* fall through */ }
+
+  // Find first { and matching last } and try slices
+  const first = stripped.indexOf("{");
+  const last = stripped.lastIndexOf("}");
+  if (first >= 0 && last > first) {
+    const slice = stripped.slice(first, last + 1);
+    try {
+      return JSON.parse(slice);
+    } catch { /* fall through */ }
+  }
+  return null;
+}
 
 export type VcioRecommendationInput = {
   context: {
@@ -229,15 +282,19 @@ export async function generateVcioPlan(
       : undefined,
   });
 
-  let parsed: Partial<VcioRecommendation> = {};
-  try {
-    const cleaned = text.trim().replace(/^```(json)?/i, "").replace(/```$/, "").trim();
-    parsed = JSON.parse(cleaned) as Partial<VcioRecommendation>;
-  } catch {
-    parsed = { summary: text, recommendedTasks: [], recommendedServices: [], risks: [], customerNextStep: "" };
-  }
+  const extracted = extractJsonObject(text);
+  const parseError = extracted == null;
+  const parsed: Partial<VcioRecommendation> = parseError
+    ? {}
+    : (extracted as Partial<VcioRecommendation>);
+
+  const conf = (parsed.confidence as string | undefined) ?? "medium";
+  const confidence: "high" | "medium" | "low" =
+    conf === "high" || conf === "medium" || conf === "low" ? conf : "medium";
 
   return {
+    // Never put raw JSON in the summary — if parsing failed, leave summary
+    // empty and let the UI render an explicit parse-error state instead.
     summary: typeof parsed.summary === "string" ? parsed.summary : "",
     recommendedTasks: Array.isArray(parsed.recommendedTasks)
       ? parsed.recommendedTasks.map(normalizeTask).filter((t): t is VcioRecommendedTask => t != null)
@@ -259,6 +316,14 @@ export async function generateVcioPlan(
           .filter((r): r is { severity: "high" | "medium" | "low"; description: string } => r != null)
       : [],
     customerNextStep: typeof parsed.customerNextStep === "string" ? parsed.customerNextStep : "",
+    confidence,
+    limitations: Array.isArray(parsed.limitations)
+      ? parsed.limitations.filter((s): s is string => typeof s === "string" && s.trim().length > 0)
+      : [],
+    strengthen: Array.isArray(parsed.strengthen)
+      ? parsed.strengthen.filter((s): s is string => typeof s === "string" && s.trim().length > 0)
+      : [],
+    parseError,
     raw: text,
   };
 }

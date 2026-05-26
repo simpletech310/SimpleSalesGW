@@ -71,6 +71,7 @@ export default async function LeadDiscoveryAssessmentPage({
             initialPlan={(assessment.aiPlanSnapshot as never) ?? null}
             acceptedAt={null}
             acceptedByName={null}
+            reopenApiUrl={`/api/leads/${id}/discovery/${assessment.id}`}
           />
         )}
       </div>

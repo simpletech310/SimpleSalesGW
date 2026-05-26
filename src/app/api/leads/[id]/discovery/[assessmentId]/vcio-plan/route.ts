@@ -106,6 +106,15 @@ export async function POST(
       recommendedServices: plan.recommendedServices,
       risks: plan.risks,
       customerNextStep: plan.customerNextStep,
+      // v3.3.6 — confidence + what's missing + how to strengthen
+      confidence: plan.confidence,
+      limitations: plan.limitations,
+      strengthen: plan.strengthen,
+      parseError: plan.parseError,
+      coveragePct:
+        scorecard && typeof (scorecard as { coveragePct?: unknown }).coveragePct === "number"
+          ? (scorecard as { coveragePct: number }).coveragePct
+          : null,
       generatedAt: new Date().toISOString(),
       generatedByUserId: user.id,
     };

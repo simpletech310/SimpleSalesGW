@@ -54,6 +54,7 @@ export default async function DiscoveryAssessmentPage({ params }: { params: Prom
             acceptedByName={assessment.planAcceptedBy?.name ?? null}
             onboardingTasksUrl={`/accounts/${id}/onboarding/tasks`}
             printDocUrl={`/accounts/${id}/discovery/${assessment.id}/site-survey-doc`}
+            reopenApiUrl={`/api/accounts/${id}/discovery/${assessment.id}`}
           />
         )}
       </div>
