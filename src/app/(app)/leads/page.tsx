@@ -176,6 +176,11 @@ export default async function LeadsPage() {
             </Button>
           )}
           {can(session.user.role, "lead:create") && (
+            <Button asChild variant="secondary" size="sm">
+              <Link href="/leads/import">Bulk import</Link>
+            </Button>
+          )}
+          {can(session.user.role, "lead:create") && (
             <Button asChild size="sm">
               <Link href="/leads/new" className="inline-flex items-center gap-1.5">
                 <Plus className="h-4 w-4" />

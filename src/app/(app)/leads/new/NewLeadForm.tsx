@@ -22,6 +22,11 @@ import { FormSection, FormField, FormActions } from "@/components/templates";
 import { FieldHelp } from "@/components/help/FieldHelp";
 import { HELP } from "@/lib/help-copy";
 import { cn } from "@/lib/utils";
+// v3.3.9 — OSINT enrichment panel: rep types name + maybe a URL, we
+// scrape the public web and propose the rest.
+import { EnrichPanel } from "./EnrichPanel";
+
+const FORM_ID = "new-lead-form";
 
 /**
  * v3.0.4 — Deal-kind picker now renders icon-led tiles instead of plain
@@ -131,8 +136,11 @@ export function NewLeadForm() {
   }
 
   return (
-    <form onSubmit={onSubmit}>
+    <form id={FORM_ID} onSubmit={onSubmit}>
       <div className="space-y-4 md:space-y-5 pb-24 md:pb-0">
+        {/* OSINT enrichment — populates the form below from public web sources */}
+        <EnrichPanel formId={FORM_ID} />
+
         {/* Deal kind picker */}
         <FormSection
           title="What's this deal about?"
