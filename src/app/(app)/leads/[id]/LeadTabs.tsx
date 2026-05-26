@@ -34,6 +34,15 @@ type Lead = {
   activities: Array<{ id: string; type: ActivityType; subject: string; body: string | null; createdAt: Date; outcome: ActivityOutcome | null; nextAction: string | null; nextActionDueAt: Date | null; actor: { name: string } }>;
   notes: Array<{ id: string; body: string; pinned: boolean; createdAt: Date; actor: { name: string } }>;
   assessments: Array<{ id: string; status: string; createdAt: Date; completedAt: Date | null; createdBy: { name: string } }>;
+  preSaleAssessments: Array<{
+    id: string;
+    kind: string;
+    status: string;
+    createdAt: Date;
+    completedAt: Date | null;
+    scorecard: unknown;
+    createdBy: { name: string };
+  }>;
   serviceMatches: Array<{ id: string; serviceLine: string; fitScore: number; reasoning: string; recommended: boolean }>;
   researchSummary: string | null;
   researchArtifacts: Array<{ id: string; type: string; sourceUrl: string | null; createdAt: Date }>;
@@ -480,6 +489,7 @@ function ActivityTab({ lead, canEdit }: { lead: Lead; canEdit: boolean }) {
 }
 
 function AssessmentTab({ lead }: { lead: Lead }) {
+  const hasAny = lead.assessments.length > 0 || lead.preSaleAssessments.length > 0;
   return (
     <Card>
       <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
@@ -491,14 +501,14 @@ function AssessmentTab({ lead }: { lead: Lead }) {
           </Button>
         </div>
       </div>
-      {lead.assessments.length === 0 ? (
+      {!hasAny ? (
         <p className="text-sm text-gtn-grey-2">No assessments yet.</p>
       ) : (
         <ul className="space-y-2">
           {lead.assessments.map((a) => (
             <li key={a.id} className="flex items-center justify-between border-t border-gtn-lavender-2 pt-3 first:border-0 first:pt-0">
               <div>
-                <p className="text-sm font-medium">{a.status}</p>
+                <p className="text-sm font-medium">MSP Fit · {a.status}</p>
                 <p className="text-xs text-gtn-grey-2">
                   {a.createdBy.name} · {format(new Date(a.createdAt), "PPp")}
                 </p>
@@ -511,6 +521,36 @@ function AssessmentTab({ lead }: { lead: Lead }) {
               )}
             </li>
           ))}
+          {lead.preSaleAssessments.map((d) => {
+            const sc = (d.scorecard ?? null) as
+              | { summary?: string; coveragePct?: number; risks?: Array<{ severity?: string }>; recommendedLineItems?: unknown[] }
+              | null;
+            const riskCount = Array.isArray(sc?.risks) ? sc!.risks!.length : 0;
+            const lineItemCount = Array.isArray(sc?.recommendedLineItems) ? sc!.recommendedLineItems!.length : 0;
+            return (
+              <li key={d.id} className="flex items-start justify-between gap-3 border-t border-gtn-lavender-2 pt-3 first:border-0 first:pt-0">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">
+                    {d.kind.replace(/_/g, " ")} · {d.status}
+                  </p>
+                  <p className="text-xs text-gtn-grey-2">
+                    {d.createdBy.name} · {format(new Date(d.createdAt), "PPp")}
+                    {d.completedAt && ` · completed ${format(new Date(d.completedAt), "MMM d")}`}
+                  </p>
+                  {d.status === "COMPLETED" && sc && (
+                    <p className="text-xs text-gtn-grey-2 mt-1">
+                      {typeof sc.coveragePct === "number" && <>Coverage {sc.coveragePct}% · </>}
+                      {riskCount > 0 && <>{riskCount} risk{riskCount === 1 ? "" : "s"} · </>}
+                      {lineItemCount > 0 && <>{lineItemCount} recommended line item{lineItemCount === 1 ? "" : "s"}</>}
+                    </p>
+                  )}
+                </div>
+                <a className="text-sm text-gtn-purple underline whitespace-nowrap" href={`/leads/${lead.id}/discovery/${d.id}`}>
+                  {d.status === "COMPLETED" ? "View result" : "Open"}
+                </a>
+              </li>
+            );
+          })}
         </ul>
       )}
 

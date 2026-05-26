@@ -51,13 +51,34 @@ export function CloseDealButtons({ leadId, currentStage }: { leadId: string; cur
   return (
     <>
       <div className="flex flex-wrap gap-2">
-        <Button size="sm" disabled={busy} onClick={() => setDebriefFor("CLOSED_WON")} className="bg-gtn-green hover:bg-gtn-green/90">
-          ✓ Closed Won
+        <Button
+          variant="secondary"
+          size="sm"
+          disabled={busy}
+          onClick={() => setDebriefFor("CLOSED_WON")}
+          className="border-gtn-green/40 text-gtn-green hover:bg-gtn-green hover:text-white hover:border-gtn-green focus-visible:bg-gtn-green focus-visible:text-white"
+        >
+          <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
+          Closed Won
         </Button>
-        <Button variant="secondary" size="sm" disabled={busy} onClick={() => setDebriefFor("CLOSED_LOST")}>
+        <Button
+          variant="secondary"
+          size="sm"
+          disabled={busy}
+          onClick={() => setDebriefFor("CLOSED_LOST")}
+          className="border-gtn-red/40 text-gtn-red hover:bg-gtn-red hover:text-white hover:border-gtn-red focus-visible:bg-gtn-red focus-visible:text-white"
+        >
+          <X className="h-3.5 w-3.5 mr-1.5" />
           Closed Lost
         </Button>
-        <Button variant="ghost" size="sm" disabled={busy} onClick={moveNurture}>
+        <Button
+          variant="secondary"
+          size="sm"
+          disabled={busy}
+          onClick={moveNurture}
+          className="border-gtn-purple/40 text-gtn-purple hover:bg-gtn-purple hover:text-white hover:border-gtn-purple focus-visible:bg-gtn-purple focus-visible:text-white"
+        >
+          <Sparkles className="h-3.5 w-3.5 mr-1.5" />
           Move to Nurture
         </Button>
       </div>

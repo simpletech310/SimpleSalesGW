@@ -34,7 +34,14 @@ type AssessmentRow = {
   status: DiscoveryStatus;
   startedAt: string | null;
   completedAt: string | null;
-  scorecard: { recommendedLineItems?: LineItem[] } | null;
+  scorecard: {
+    recommendedLineItems?: LineItem[];
+    summary?: string;
+    findings?: string[];
+    risks?: Array<{ severity: "high" | "medium" | "low"; description: string }>;
+    recommendedActions?: string[];
+    coveragePct?: number;
+  } | null;
   createdBy: { name: string };
 };
 
@@ -72,6 +79,23 @@ export function PreSaleAssessmentPanel({
   }, [leadId]);
 
   useEffect(() => { void refresh(); }, [refresh]);
+
+  // Poll while there's any non-completed assessment so the salesperson sees
+  // vCIO's completion + scorecard land without a manual refresh. Pauses
+  // when the tab is hidden and stops once everything is COMPLETED.
+  useEffect(() => {
+    if (!items) return;
+    const anyOpen = items.some((a) => a.status !== DiscoveryStatus.COMPLETED);
+    if (!anyOpen) return;
+    const tick = () => {
+      if (document.visibilityState === "visible") {
+        void refresh();
+        router.refresh();
+      }
+    };
+    const interval = window.setInterval(tick, 30000);
+    return () => window.clearInterval(interval);
+  }, [items, refresh, router]);
 
   async function request(kind: DiscoveryKind) {
     setCreating(kind);
@@ -298,6 +322,65 @@ export function PreSaleAssessmentPanel({
                     </Button>
                   </div>
                 </div>
+
+                {isCompleted && a.scorecard && (
+                  <div className="rounded-md border border-gtn-lavender-2 bg-white p-3 text-xs space-y-2">
+                    {a.scorecard.summary && (
+                      <p className="text-sm text-gtn-navy">{a.scorecard.summary}</p>
+                    )}
+                    <div className="flex flex-wrap gap-2 text-[11px]">
+                      {typeof a.scorecard.coveragePct === "number" && (
+                        <span className="rounded-full bg-gtn-lavender text-gtn-navy px-2 py-0.5 font-semibold">
+                          Coverage {a.scorecard.coveragePct}%
+                        </span>
+                      )}
+                      {a.scorecard.risks && a.scorecard.risks.length > 0 && (
+                        <span className="rounded-full bg-gtn-lavender text-gtn-navy px-2 py-0.5 font-semibold">
+                          {a.scorecard.risks.length} risk{a.scorecard.risks.length === 1 ? "" : "s"}
+                        </span>
+                      )}
+                      {a.scorecard.findings && a.scorecard.findings.length > 0 && (
+                        <span className="rounded-full bg-gtn-lavender text-gtn-navy px-2 py-0.5 font-semibold">
+                          {a.scorecard.findings.length} finding{a.scorecard.findings.length === 1 ? "" : "s"}
+                        </span>
+                      )}
+                      {recCount > 0 && (
+                        <span className="rounded-full bg-gtn-green-bg text-gtn-green px-2 py-0.5 font-semibold">
+                          {recCount} recommended line item{recCount === 1 ? "" : "s"}
+                        </span>
+                      )}
+                    </div>
+                    {a.scorecard.risks && a.scorecard.risks.length > 0 && (
+                      <ul className="space-y-1">
+                        {a.scorecard.risks.slice(0, 4).map((r, i) => (
+                          <li key={i} className="flex items-start gap-2">
+                            <span
+                              className={
+                                r.severity === "high"
+                                  ? "mt-0.5 inline-block h-1.5 w-1.5 rounded-full bg-red-500 flex-shrink-0"
+                                  : r.severity === "medium"
+                                  ? "mt-0.5 inline-block h-1.5 w-1.5 rounded-full bg-gtn-amber flex-shrink-0"
+                                  : "mt-0.5 inline-block h-1.5 w-1.5 rounded-full bg-gtn-grey-3 flex-shrink-0"
+                              }
+                              aria-hidden
+                            />
+                            <span className="text-gtn-navy">{r.description}</span>
+                          </li>
+                        ))}
+                        {a.scorecard.risks.length > 4 && (
+                          <li>
+                            <Link
+                              href={`/leads/${leadId}/discovery/${a.id}`}
+                              className="text-gtn-purple hover:underline"
+                            >
+                              +{a.scorecard.risks.length - 4} more · view result →
+                            </Link>
+                          </li>
+                        )}
+                      </ul>
+                    )}
+                  </div>
+                )}
 
                 {n && (
                   <div className="rounded-md border border-gtn-lavender-2 bg-gtn-lavender/30 p-3 space-y-3">

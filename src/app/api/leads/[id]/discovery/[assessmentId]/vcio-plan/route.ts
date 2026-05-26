@@ -40,8 +40,15 @@ export async function POST(
       },
     });
     if (!lead) throw new ApiError(404, "Lead not found");
+    // v2.17.1 — VCIO's `leadIsVisible` short-circuits to PRE_SALES+, but
+    // pre-sale scoping happens on early-stage leads. Bypass for users with
+    // `discovery:edit` (VCIO + SUPERADMIN) — they are the ones who run the
+    // plan after being notified.
     const teams = await userTeamIds(user.id);
-    if (!leadIsVisible(user.role, user.id, lead.ownerUserId, lead.pipelineStage, lead.teamId, teams)) {
+    const canSee =
+      leadIsVisible(user.role, user.id, lead.ownerUserId, lead.pipelineStage, lead.teamId, teams) ||
+      can(user.role, "discovery:edit");
+    if (!canSee) {
       throw new ApiError(403, "Forbidden");
     }
 

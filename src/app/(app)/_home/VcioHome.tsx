@@ -7,7 +7,9 @@ import {
   AlertTriangle,
   Activity as ActivityIcon,
   ShieldAlert,
+  Sparkles,
 } from "lucide-react";
+import { AutoRefresh } from "./AutoRefresh";
 import { format, formatDistanceToNow } from "date-fns";
 import { prisma } from "@/lib/prisma";
 import { Button } from "@/components/ui/Button";
@@ -236,6 +238,40 @@ export async function VcioHome({
         </>
       }
     >
+      <AutoRefresh intervalMs={30000} />
+
+      {notifications.preSaleAssessments.length > 0 && (
+        <div className="rounded-xl border border-brand/40 bg-brand-soft px-4 py-3 flex items-start gap-3">
+          <Sparkles className="h-5 w-5 text-gtn-purple mt-0.5 flex-shrink-0" />
+          <div className="text-sm flex-1">
+            <p className="font-semibold text-ink-strong">
+              {notifications.preSaleAssessments.length} pre-sale scoping request
+              {notifications.preSaleAssessments.length === 1 ? "" : "s"} awaiting you
+            </p>
+            <ul className="mt-1 space-y-0.5 text-ink-muted">
+              {notifications.preSaleAssessments.slice(0, 3).map((a) => (
+                <li key={a.id} className="truncate">
+                  <Link
+                    href={`/leads/${a.leadId}/discovery/${a.id}`}
+                    className="text-gtn-purple hover:underline font-medium"
+                  >
+                    {a.leadName}
+                  </Link>{" "}
+                  · {a.kind.replace(/_/g, " ").toLowerCase()} · requested by {a.requestedByName}
+                </li>
+              ))}
+              {notifications.preSaleAssessments.length > 3 && (
+                <li>
+                  <Link href="/notifications" className="text-gtn-purple hover:underline font-medium">
+                    +{notifications.preSaleAssessments.length - 3} more in notifications →
+                  </Link>
+                </li>
+              )}
+            </ul>
+          </div>
+        </div>
+      )}
+
       {overdueTaskCount > 0 && (
         <div className="rounded-xl border border-warn/40 bg-warn-soft px-4 py-3 flex items-start gap-3">
           <AlertTriangle className="h-5 w-5 text-warn mt-0.5 flex-shrink-0" />

@@ -52,6 +52,10 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
         orderBy: { createdAt: "desc" },
         include: { answers: true, createdBy: { select: { name: true } } },
       },
+      preSaleAssessments: {
+        orderBy: { createdAt: "desc" },
+        include: { createdBy: { select: { name: true } } },
+      },
       serviceMatches: true,
       researchArtifacts: { orderBy: { createdAt: "desc" } },
     },
@@ -348,14 +352,30 @@ function ScoreTile({
   override?: React.ReactNode;
 }) {
   if (primary) {
+    // Tone the big number against the dark navy tile so the score reads at a
+    // glance: green ≥ 70, amber ≥ 40, red below.
+    const toneClass =
+      value >= 70 ? "text-emerald-300"
+      : value >= 40 ? "text-amber-300"
+      : "text-rose-300";
+    const pillClass =
+      value >= 70 ? "bg-emerald-400/15 text-emerald-200 border-emerald-300/30"
+      : value >= 40 ? "bg-amber-400/15 text-amber-200 border-amber-300/30"
+      : "bg-rose-400/15 text-rose-200 border-rose-300/30";
+    const pillLabel = value >= 70 ? "Strong" : value >= 40 ? "Marginal" : "Weak";
     return (
       <div className="rounded-xl bg-gtn-navy text-white p-4 md:p-5 relative overflow-hidden">
         <div className="absolute -right-12 -top-12 w-32 h-32 rounded-full bg-gtn-purple/30 pointer-events-none" />
         <div className="relative flex items-center justify-between gap-2">
-          <p className="text-[10px] uppercase tracking-wider text-white/70 font-semibold">{label}</p>
+          <p className="text-[10px] uppercase tracking-wider text-white/80 font-semibold">{label}</p>
           {override}
         </div>
-        <p className="relative mt-2 ui-stat text-4xl">{formatScore(value)}</p>
+        <div className="relative mt-2 flex items-baseline gap-3">
+          <p className={`ui-stat text-4xl tabular ${toneClass}`}>{formatScore(value)}</p>
+          <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${pillClass}`}>
+            {pillLabel}
+          </span>
+        </div>
       </div>
     );
   }

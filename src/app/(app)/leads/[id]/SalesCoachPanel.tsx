@@ -67,7 +67,7 @@ export function SalesCoachPanel({ leadId }: { leadId: string }) {
       </p>
 
       {coach && (
-        <div className="space-y-3">
+        <div className="max-h-80 overflow-y-auto pr-1 space-y-3 rounded-md border border-gtn-lavender-2 bg-gtn-lavender/20 p-3">
           <div>
             <p className="text-[10px] uppercase tracking-wide font-semibold text-gtn-purple">Next action</p>
             <p className="text-sm text-gtn-navy mt-0.5">{coach.nextAction}</p>
