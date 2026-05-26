@@ -54,6 +54,11 @@ const updateSchema = z.object({
   dealKind: z.nativeEnum(DealKind).optional(),
   dealLineItems: z.unknown().optional(), // Json — validated by PricingCard payload
   researchSummary: z.string().max(20_000).nullable().optional(),
+  // v3.3.10 — research-tab cards now first-class on the lead. Rep can curate
+  // the auto-generated lists; truncate any single bullet to 500 chars.
+  researchFitSignals: z.array(z.string().max(500)).max(20).optional(),
+  researchSuggestedQuestions: z.array(z.string().max(500)).max(20).optional(),
+  researchRisks: z.array(z.string().max(500)).max(20).optional(),
   expectedCloseDate: z.string().datetime().nullable().optional(),
   closedLostReason: z.string().max(2_000).nullable().optional(),
 });

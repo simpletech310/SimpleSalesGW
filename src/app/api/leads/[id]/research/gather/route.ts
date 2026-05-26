@@ -135,7 +135,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
           }),
           prisma.lead.update({
             where: { id },
-            data: { researchSummary: result.summary, researchCompletedAt: new Date() },
+            data: {
+              researchSummary: result.summary,
+              researchCompletedAt: new Date(),
+              // v3.3.10 — persist the three cards on the lead so they
+              // survive reload + are editable from the Save Research path.
+              researchFitSignals: result.fitSignals ?? [],
+              researchSuggestedQuestions: result.suggestedQuestions ?? [],
+              researchRisks: result.risks ?? [],
+            },
           }),
         ]);
         summary = result.summary;

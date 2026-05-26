@@ -468,6 +468,11 @@ model Lead {
   currentMspSatisfaction     MspSatisfaction     @default(NONE) @map("current_msp_satisfaction")
   researchSummary            String?             @map("research_summary") @db.Text
   researchCompletedAt        DateTime?           @map("research_completed_at")
+  // v3.3.10 — persist the three cards Claude returns on Gather/Summarize so
+  // the rep sees them on reload + can edit them inline.
+  researchFitSignals         String[]            @default([]) @map("research_fit_signals")
+  researchSuggestedQuestions String[]            @default([]) @map("research_suggested_questions")
+  researchRisks              String[]            @default([]) @map("research_risks")
   suggestedBundle            ServiceBundle?      @map("suggested_bundle")
   servicesScore              Int                 @default(0) @map("services_score")
   customerScore              Int                 @default(0) @map("customer_score")

@@ -33,6 +33,10 @@ type Lead = {
   cyberInsuranceRenewalDate: Date | null;
   activities: Array<{ id: string; type: ActivityType; subject: string; body: string | null; createdAt: Date; outcome: ActivityOutcome | null; nextAction: string | null; nextActionDueAt: Date | null; actor: { name: string } }>;
   notes: Array<{ id: string; body: string; pinned: boolean; createdAt: Date; actor: { name: string } }>;
+  // v3.3.10 — research-tab cards persisted on the lead
+  researchFitSignals: string[];
+  researchSuggestedQuestions: string[];
+  researchRisks: string[];
   assessments: Array<{ id: string; status: string; createdAt: Date; completedAt: Date | null; createdBy: { name: string } }>;
   preSaleAssessments: Array<{
     id: string;
@@ -243,7 +247,11 @@ function ResearchTab({ lead, canEdit }: { lead: Lead; canEdit: boolean }) {
   const [saving, setSaving] = useState(false);
   const [gathering, setGathering] = useState(false);
   const [summarizing, setSummarizing] = useState(false);
-  const [extras, setExtras] = useState<{ suggestedQuestions?: string[]; risks?: string[]; fitSignals?: string[] }>({});
+  // v3.3.10 — hydrate the three cards from the lead so they persist across
+  // reloads, not just the immediate post-gather toast.
+  const [fitSignals, setFitSignals] = useState<string[]>(lead.researchFitSignals ?? []);
+  const [suggestedQuestions, setSuggestedQuestions] = useState<string[]>(lead.researchSuggestedQuestions ?? []);
+  const [risks, setRisks] = useState<string[]>(lead.researchRisks ?? []);
 
   async function save() {
     setSaving(true);
@@ -251,7 +259,13 @@ function ResearchTab({ lead, canEdit }: { lead: Lead; canEdit: boolean }) {
       const res = await fetch(`/api/leads/${lead.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ researchSummary: text }),
+        body: JSON.stringify({
+          researchSummary: text,
+          // v3.3.10 — persist the three cards alongside the prose.
+          researchFitSignals: fitSignals,
+          researchSuggestedQuestions: suggestedQuestions,
+          researchRisks: risks,
+        }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -278,11 +292,9 @@ function ResearchTab({ lead, canEdit }: { lead: Lead; canEdit: boolean }) {
         toast.success(`Gathered ${okCount} source(s)`);
         if (data.summary) {
           setText(data.summary);
-          setExtras({
-            suggestedQuestions: data.suggestedQuestions,
-            risks: data.risks,
-            fitSignals: data.fitSignals,
-          });
+          setFitSignals(Array.isArray(data.fitSignals) ? data.fitSignals : []);
+          setSuggestedQuestions(Array.isArray(data.suggestedQuestions) ? data.suggestedQuestions : []);
+          setRisks(Array.isArray(data.risks) ? data.risks : []);
         }
         router.refresh();
       }
@@ -300,11 +312,9 @@ function ResearchTab({ lead, canEdit }: { lead: Lead; canEdit: boolean }) {
         toast.error(data?.error ?? "Summarize failed");
       } else {
         setText(data.summary);
-        setExtras({
-          suggestedQuestions: data.suggestedQuestions,
-          risks: data.risks,
-          fitSignals: data.fitSignals,
-        });
+        setFitSignals(Array.isArray(data.fitSignals) ? data.fitSignals : []);
+        setSuggestedQuestions(Array.isArray(data.suggestedQuestions) ? data.suggestedQuestions : []);
+        setRisks(Array.isArray(data.risks) ? data.risks : []);
         toast.success("Claude summary ready");
         router.refresh();
       }
@@ -344,28 +354,35 @@ function ResearchTab({ lead, canEdit }: { lead: Lead; canEdit: boolean }) {
         </div>
       )}
 
-      {(extras.suggestedQuestions?.length || extras.risks?.length || extras.fitSignals?.length) ? (
-        <div className="mt-6 grid md:grid-cols-3 gap-3">
-          {extras.fitSignals && extras.fitSignals.length > 0 && (
-            <div className="gtn-callout gtn-callout--success">
-              <p className="text-xs uppercase tracking-wide font-semibold mb-1">Fit signals</p>
-              <ul className="text-sm list-disc pl-4 space-y-1">{extras.fitSignals.map((s, i) => <li key={i}>{s}</li>)}</ul>
-            </div>
-          )}
-          {extras.suggestedQuestions && extras.suggestedQuestions.length > 0 && (
-            <div className="gtn-callout gtn-callout--info">
-              <p className="text-xs uppercase tracking-wide font-semibold mb-1">Ask them</p>
-              <ul className="text-sm list-disc pl-4 space-y-1">{extras.suggestedQuestions.map((s, i) => <li key={i}>{s}</li>)}</ul>
-            </div>
-          )}
-          {extras.risks && extras.risks.length > 0 && (
-            <div className="gtn-callout gtn-callout--warning">
-              <p className="text-xs uppercase tracking-wide font-semibold mb-1">Risks</p>
-              <ul className="text-sm list-disc pl-4 space-y-1">{extras.risks.map((s, i) => <li key={i}>{s}</li>)}</ul>
-            </div>
-          )}
-        </div>
-      ) : null}
+      <div className="mt-6 grid md:grid-cols-3 gap-3">
+        <ResearchCardEditor
+          title="Fit signals"
+          tone="success"
+          items={fitSignals}
+          onChange={setFitSignals}
+          placeholder="Why they're a fit — e.g. 'in a Gateway priority vertical'"
+          canEdit={canEdit}
+          emptyHint="Click Gather research, or add manually."
+        />
+        <ResearchCardEditor
+          title="Ask them"
+          tone="info"
+          items={suggestedQuestions}
+          onChange={setSuggestedQuestions}
+          placeholder="What to ask on the next call — e.g. 'how many sites?'"
+          canEdit={canEdit}
+          emptyHint="Discovery questions appear here after Gather research."
+        />
+        <ResearchCardEditor
+          title="Risks"
+          tone="warning"
+          items={risks}
+          onChange={setRisks}
+          placeholder="Red flag — e.g. 'no compelling event'"
+          canEdit={canEdit}
+          emptyHint="Risks Claude surfaces — or add your own."
+        />
+      </div>
 
       {lead.researchArtifacts.length > 0 && (
         <div className="mt-6">
@@ -383,6 +400,100 @@ function ResearchTab({ lead, canEdit }: { lead: Lead; canEdit: boolean }) {
         </div>
       )}
     </Card>
+  );
+}
+
+/**
+ * v3.3.10 — Editable card for one of the three persisted research lists
+ * (Fit signals / Ask them / Risks). Owns its own input draft + buttons
+ * for add/remove. State is lifted to ResearchTab so Save research can
+ * PATCH all three lists in one call alongside the prose.
+ */
+function ResearchCardEditor({
+  title,
+  tone,
+  items,
+  onChange,
+  placeholder,
+  canEdit,
+  emptyHint,
+}: {
+  title: string;
+  tone: "success" | "info" | "warning";
+  items: string[];
+  onChange: (next: string[]) => void;
+  placeholder: string;
+  canEdit: boolean;
+  emptyHint: string;
+}) {
+  const [draft, setDraft] = useState("");
+  const calloutClass =
+    tone === "success" ? "gtn-callout gtn-callout--success"
+    : tone === "info" ? "gtn-callout gtn-callout--info"
+    : "gtn-callout gtn-callout--warning";
+  function add() {
+    const v = draft.trim();
+    if (!v) return;
+    if (items.includes(v)) {
+      setDraft("");
+      return;
+    }
+    onChange([...items, v.slice(0, 500)]);
+    setDraft("");
+  }
+  function remove(idx: number) {
+    onChange(items.filter((_, i) => i !== idx));
+  }
+  return (
+    <div className={calloutClass}>
+      <div className="flex items-baseline justify-between gap-2 mb-1">
+        <p className="text-xs uppercase tracking-wide font-semibold">{title}</p>
+        <span className="text-[10px] text-gtn-grey-2 tabular">{items.length}</span>
+      </div>
+      {items.length === 0 ? (
+        <p className="text-xs text-gtn-grey-2 italic">{emptyHint}</p>
+      ) : (
+        <ul className="text-sm space-y-1">
+          {items.map((s, i) => (
+            <li key={i} className="flex items-start gap-2">
+              <span className="text-gtn-grey-3 mt-0.5">•</span>
+              <span className="flex-1 break-words">{s}</span>
+              {canEdit && (
+                <button
+                  type="button"
+                  onClick={() => remove(i)}
+                  aria-label={`Remove "${s.slice(0, 40)}"`}
+                  className="text-gtn-grey-3 hover:text-gtn-red text-xs flex-shrink-0"
+                >
+                  ✕
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      {canEdit && (
+        <div className="mt-2 flex gap-1.5">
+          <input
+            type="text"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add(); } }}
+            placeholder={placeholder}
+            className="flex-1 h-7 rounded border border-gtn-lavender-2 px-2 text-xs bg-white focus:outline-none focus:border-gtn-purple"
+            maxLength={500}
+          />
+          <button
+            type="button"
+            onClick={add}
+            disabled={!draft.trim()}
+            className="h-7 px-2 rounded bg-gtn-purple text-white text-xs disabled:opacity-40"
+          >
+            Add
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 
