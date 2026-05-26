@@ -8,8 +8,9 @@ import { DiscoveryPanel } from "./DiscoveryPanel";
 import { QbrsPanel } from "./QbrsPanel";
 import { InventoryPanel } from "./InventoryPanel";
 import { DocumentsPanel } from "./DocumentsPanel";
+import { KickoffPanel } from "./KickoffPanel";
 
-const TABS = ["Onboarding", "Discovery", "Inventory", "QBRs", "Documents", "Roadmap"] as const;
+const TABS = ["Onboarding", "Kickoff", "Discovery", "Inventory", "QBRs", "Documents", "Roadmap"] as const;
 
 type Props = {
   customerId: string;
@@ -66,6 +67,7 @@ export function AccountTabs({ customerId, currentPhase, discoveryAssessments, qb
 
       <div className="mt-6">
         {tab === "Onboarding" && <OnboardingPanel customerId={customerId} currentPhase={currentPhase} />}
+        {tab === "Kickoff" && <KickoffPanel customerId={customerId} />}
         {tab === "Discovery" && <DiscoveryPanel customerId={customerId} assessments={discoveryAssessments} />}
         {tab === "Inventory" && <InventoryPanel customerId={customerId} />}
         {tab === "QBRs" && <QbrsPanel customerId={customerId} qbrs={qbrs} />}

@@ -43,6 +43,8 @@ export async function POST(req: Request) {
         stakeholderContext: data.stakeholderContext ?? null,
         budgetSnapshot: (data.budgetSnapshot ?? Prisma.JsonNull) as unknown as InputJsonValue,
         successCriteria: (data.successCriteria ?? []) as object,
+        statedPain: data.statedPain ?? null,
+        day30QuickWin: data.day30QuickWin ?? null,
         notes: data.notes ?? null,
         initiatedAt: new Date(),
       },

@@ -74,7 +74,40 @@ export function HandoffForm({ lead }: { lead: Lead }) {
   // Success criteria
   const [successCriteria, setSuccessCriteria] = useState<SuccessCriterion[]>([{ metric: "", target: "", owner: "" }]);
 
+  // v3.3 — SOP Step 8 — stated pain + Day-30 quick win
+  const [statedPain, setStatedPain] = useState("");
+  const [day30QuickWin, setDay30QuickWin] = useState("");
+  const [aiBusy, setAiBusy] = useState<"pain" | "quickwin" | null>(null);
+
   const [notes, setNotes] = useState("");
+
+  async function aiSuggestPain() {
+    setAiBusy("pain");
+    try {
+      const res = await fetch(`/api/leads/${lead.id}/handoff/ai-pain-recap`, { method: "POST" });
+      const data = await res.json();
+      if (data.ok) {
+        setStatedPain(data.value.statedPain);
+        toast.success("Pain recap drafted — review and edit");
+      } else {
+        toast.error(data.detail ?? "AI unavailable");
+      }
+    } finally { setAiBusy(null); }
+  }
+
+  async function aiSuggestQuickWin() {
+    setAiBusy("quickwin");
+    try {
+      const res = await fetch(`/api/leads/${lead.id}/handoff/ai-quick-win`, { method: "POST" });
+      const data = await res.json();
+      if (data.ok) {
+        setDay30QuickWin(data.value.quickWin);
+        toast.success("Quick win suggested — review and edit");
+      } else {
+        toast.error(data.detail ?? "AI unavailable");
+      }
+    } finally { setAiBusy(null); }
+  }
 
   function toggleArray(setter: (v: string[]) => void, list: string[], value: string) {
     setter(list.includes(value) ? list.filter((v) => v !== value) : [...list, value]);
@@ -115,6 +148,8 @@ export function HandoffForm({ lead }: { lead: Lead }) {
             ? { status: budgetStatus, range: budgetRange || undefined, notes: budgetNotes || undefined }
             : undefined,
           successCriteria: cleanSuccess,
+          statedPain: statedPain.trim() || undefined,
+          day30QuickWin: day30QuickWin.trim() || undefined,
           notes: notes.trim() || undefined,
         }),
       });
@@ -339,6 +374,52 @@ export function HandoffForm({ lead }: { lead: Lead }) {
           ))}
           <Button variant="ghost" size="sm" onClick={() => setSuccessCriteria((s) => [...s, { metric: "" }])}>+ Add success criterion</Button>
         </div>
+      </Card>
+
+      {/* v3.3 — SOP Step 8: stated pain + Day-30 quick win */}
+      <Card>
+        <div className="flex items-start justify-between gap-2 mb-3">
+          <h2 className="text-sm font-semibold text-gtn-navy">Stated pain (in the customer&apos;s words)</h2>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={aiSuggestPain}
+            disabled={aiBusy !== null}
+          >
+            {aiBusy === "pain" ? "Pulling…" : "✨ Pull from discovery"}
+          </Button>
+        </div>
+        <Textarea
+          rows={3}
+          value={statedPain}
+          onChange={(e) => setStatedPain(e.target.value)}
+          placeholder="1-2 sentences paraphrasing the strongest pain signal. The COO + vCIO read this first."
+        />
+      </Card>
+
+      <Card>
+        <div className="flex items-start justify-between gap-2 mb-3">
+          <h2 className="text-sm font-semibold text-gtn-navy">Day-30 quick win we promised</h2>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={aiSuggestQuickWin}
+            disabled={aiBusy !== null}
+          >
+            {aiBusy === "quickwin" ? "Thinking…" : "✨ Suggest a quick win"}
+          </Button>
+        </div>
+        <Textarea
+          rows={2}
+          value={day30QuickWin}
+          onChange={(e) => setDay30QuickWin(e.target.value)}
+          placeholder='e.g. "Deploy MFA on all 47 O365 accounts by Day 14, summarize results at the Day-30 check-in."'
+        />
+        <p className="text-[11px] text-gtn-grey-3 mt-2">
+          Becomes an OnboardingTask on the new Customer with due date = handoff acceptance + 30 days.
+        </p>
       </Card>
 
       {/* Notes */}

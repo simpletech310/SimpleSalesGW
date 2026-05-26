@@ -80,6 +80,10 @@ export const handoffInitiateSchema = z.object({
   // Success criteria
   successCriteria:       z.array(successCriterionSchema).max(20).optional(),
 
+  // v3.3 — SOP Step 8 — stated pain + Day-30 quick win
+  statedPain:            z.string().max(2000).optional(),
+  day30QuickWin:         z.string().max(1000).optional(),
+
   // Free-form notes
   notes:                 z.string().max(20_000).optional(),
 });
