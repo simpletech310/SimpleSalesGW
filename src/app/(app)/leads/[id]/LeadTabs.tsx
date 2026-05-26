@@ -12,6 +12,8 @@ import { FilesTab } from "./FilesTab";
 import { ObjectionsTab } from "./ObjectionsTab";
 import { DocumentsPanel } from "@/app/(app)/accounts/[id]/DocumentsPanel";
 import { ProposalPanel } from "./ProposalPanel";
+// v3.3.16 — per-service fit derivation for the Overview ribbon
+import { computeAllServiceFits } from "@/lib/scoring/service-fit";
 
 type Lead = {
   id: string;
@@ -48,6 +50,26 @@ type Lead = {
   researchFitSignals: string[];
   researchSuggestedQuestions: string[];
   researchRisks: string[];
+  // v3.3.16 — overview-tab surface
+  servicesScore: number;
+  customerScore: number;
+  dealQualityScore: number;
+  pipelineStage: string;
+  expectedCloseDate: Date | null;
+  attachments: Array<{
+    id: string;
+    filename: string;
+    contentType: string;
+    publicUrl: string;
+    category: string | null;
+    createdAt: Date;
+    uploadedBy: { name: string };
+  }>;
+  qualification: {
+    total: number;
+    verdict: string | null;
+    scoredAt: Date | null;
+  } | null;
   assessments: Array<{ id: string; status: string; createdAt: Date; completedAt: Date | null; createdBy: { name: string } }>;
   preSaleAssessments: Array<{
     id: string;
@@ -132,8 +154,232 @@ function OverviewTab({ lead }: { lead: Lead }) {
     lead.expansionPlans ||
     lead.aiAdvisoryInterest;
 
+  // v3.3.16 — derive per-service fit at render time. No DB writes; the
+  // input fields are already on the lead from intake + qualification.
+  const fitInput: import("@/lib/scoring/service-fit").FitInput = {
+    industryFit: 0, sizeFit: 0, geography: 0, growthPosture: 0,
+    authority: 0, budget: 0, timeline: 0, complianceDriver: 0,
+    industry: lead.industry,
+    seatCount: lead.seatCount,
+    siteCount: lead.siteCount,
+    complianceDrivers: lead.complianceDrivers,
+    currentMspName: lead.currentMspName,
+    currentMspSatisfaction: lead.currentMspSatisfaction,
+    interestedServices: lead.interestedServices ?? [],
+    currentPhoneSystem: lead.currentPhoneSystem,
+    currentPhonePainPoint: lead.currentPhonePainPoint,
+    currentAccessControl: lead.currentAccessControl,
+    currentAccessDoorCount: lead.currentAccessDoorCount,
+    currentVideoSurveillance: lead.currentVideoSurveillance,
+    currentVideoCameraCount: lead.currentVideoCameraCount,
+    cablingStatus: lead.cablingStatus,
+    expansionPlans: lead.expansionPlans,
+    aiAdvisoryInterest: lead.aiAdvisoryInterest,
+  };
+  // If qualification scored, blend in those dims for better signal.
+  if (lead.qualification) {
+    // Type cast through unknown — qualification is JSON-shaped on Lead include
+    const q = lead.qualification as unknown as {
+      industryFit?: number; sizeFit?: number; geography?: number; growthPosture?: number;
+      authority?: number; budget?: number; timeline?: number; complianceDriver?: number;
+    };
+    Object.assign(fitInput, {
+      industryFit: q.industryFit ?? 0, sizeFit: q.sizeFit ?? 0,
+      geography: q.geography ?? 0, growthPosture: q.growthPosture ?? 0,
+      authority: q.authority ?? 0, budget: q.budget ?? 0,
+      timeline: q.timeline ?? 0, complianceDriver: q.complianceDriver ?? 0,
+    });
+  }
+  const fits = computeAllServiceFits(fitInput);
+  const topFits = fits.slice(0, 4);
+  const weakFits = fits.slice().reverse().filter((f) => f.band === "weak").slice(0, 2);
+
+  // Activity pulse
+  const lastActivity = lead.activities[0];
+  const daysSince = lastActivity
+    ? Math.floor((Date.now() - new Date(lastActivity.createdAt).getTime()) / 86400000)
+    : null;
+  const recentActivityCount = lead.activities.filter(
+    (a) => Date.now() - new Date(a.createdAt).getTime() < 30 * 86400000,
+  ).length;
+
+  // Attachments — group by category for the at-a-glance card
+  const imageAttachments = lead.attachments
+    .filter((a) => a.contentType.startsWith("image/"))
+    .slice(0, 6);
+  const attachmentCounts = lead.attachments.reduce<Record<string, number>>((m, a) => {
+    const key = a.category ?? "uncategorized";
+    m[key] = (m[key] ?? 0) + 1;
+    return m;
+  }, {});
+  const attachmentTopCategories = Object.entries(attachmentCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 4);
+
   return (
-    <div className="grid md:grid-cols-2 gap-4">
+    <div className="space-y-4">
+
+      {/* Per-service fit ribbon — shows which services this lead is best
+          for. Helps reps lead with the right line. */}
+      <Card>
+        <div className="flex items-baseline justify-between gap-2 flex-wrap mb-3">
+          <div>
+            <h3 className="text-sm font-semibold text-gtn-navy">Best service fits for this lead</h3>
+            <p className="text-xs text-gtn-grey-2 mt-0.5">
+              Per-service 0-100 score derived from industry, size, intake signals, and qualification.
+              A lead can score great for IT but weak for VoIP — lead with the strong ones.
+            </p>
+          </div>
+        </div>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+          {topFits.map((f) => <ServiceFitTile key={f.serviceLine} fit={f} />)}
+        </div>
+        {weakFits.length > 0 && (
+          <div className="mt-3 pt-3 border-t border-gtn-lavender-2">
+            <p className="text-[10px] uppercase tracking-wide font-semibold text-gtn-grey-2 mb-1.5">
+              Weak fits — skip or de-emphasize
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {weakFits.map((f) => (
+                <span key={f.serviceLine} className="inline-flex items-center gap-1.5 rounded-full bg-gtn-lavender text-gtn-grey-2 px-2 py-0.5 text-[11px] font-semibold">
+                  {f.label}
+                  <span className="text-[10px] text-gtn-grey-3 tabular">{f.score}</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+      </Card>
+
+      {/* Activity pulse + qualification verdict + paperwork — short status row */}
+      <div className="grid sm:grid-cols-3 gap-3">
+        <Card>
+          <p className="ui-label mb-1">Pipeline + close</p>
+          <p className="text-sm font-semibold text-gtn-navy capitalize">
+            {lead.pipelineStage.replace(/_/g, " ").toLowerCase()}
+          </p>
+          <p className="text-xs text-gtn-grey-2 mt-1">
+            {lead.expectedCloseDate
+              ? `Expected close ${format(new Date(lead.expectedCloseDate), "MMM d, yyyy")}`
+              : "No close date set"}
+          </p>
+        </Card>
+        <Card>
+          <p className="ui-label mb-1">Activity pulse</p>
+          <p className="text-sm font-semibold text-gtn-navy">
+            {lastActivity ? `${daysSince ?? 0}d since last touch` : "No activity logged"}
+          </p>
+          <p className="text-xs text-gtn-grey-2 mt-1">
+            {recentActivityCount} event{recentActivityCount === 1 ? "" : "s"} in last 30 days
+          </p>
+        </Card>
+        <Card>
+          <p className="ui-label mb-1">Qualification</p>
+          {lead.qualification && lead.qualification.scoredAt ? (
+            <>
+              <p className="text-sm font-semibold text-gtn-navy">
+                {lead.qualification.total}/100 · {(lead.qualification.verdict ?? "—").replace(/_/g, " ").toLowerCase()}
+              </p>
+              <p className="text-xs text-gtn-grey-2 mt-1">
+                Scored {format(new Date(lead.qualification.scoredAt), "MMM d")}
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-sm font-semibold text-gtn-grey-2">Not scored yet</p>
+              <p className="text-xs text-gtn-grey-2 mt-1">Fill the scorecard on this page</p>
+            </>
+          )}
+        </Card>
+      </div>
+
+      {/* Research signals snippet — only when we have data */}
+      {(lead.researchFitSignals.length > 0 || lead.researchSuggestedQuestions.length > 0 || lead.researchRisks.length > 0) && (
+        <Card>
+          <div className="flex items-baseline justify-between gap-2 mb-2">
+            <h3 className="text-sm font-semibold text-gtn-navy">Research signals</h3>
+            <p className="text-[11px] text-gtn-grey-2">Edit on the Research tab</p>
+          </div>
+          <div className="grid md:grid-cols-3 gap-3 text-sm">
+            <div>
+              <p className="text-[10px] uppercase tracking-wide font-semibold text-gtn-green mb-1">
+                Fit signals ({lead.researchFitSignals.length})
+              </p>
+              <ul className="space-y-0.5 text-xs">
+                {lead.researchFitSignals.slice(0, 4).map((s, i) => (
+                  <li key={i} className="text-gtn-navy">• {s}</li>
+                ))}
+                {lead.researchFitSignals.length > 4 && (
+                  <li className="text-gtn-grey-2">+{lead.researchFitSignals.length - 4} more</li>
+                )}
+              </ul>
+            </div>
+            <div>
+              <p className="text-[10px] uppercase tracking-wide font-semibold text-gtn-purple mb-1">
+                Ask them ({lead.researchSuggestedQuestions.length})
+              </p>
+              <ul className="space-y-0.5 text-xs">
+                {lead.researchSuggestedQuestions.slice(0, 4).map((s, i) => (
+                  <li key={i} className="text-gtn-navy">• {s}</li>
+                ))}
+                {lead.researchSuggestedQuestions.length > 4 && (
+                  <li className="text-gtn-grey-2">+{lead.researchSuggestedQuestions.length - 4} more</li>
+                )}
+              </ul>
+            </div>
+            <div>
+              <p className="text-[10px] uppercase tracking-wide font-semibold text-gtn-amber mb-1">
+                Risks ({lead.researchRisks.length})
+              </p>
+              <ul className="space-y-0.5 text-xs">
+                {lead.researchRisks.slice(0, 4).map((s, i) => (
+                  <li key={i} className="text-gtn-navy">• {s}</li>
+                ))}
+                {lead.researchRisks.length > 4 && (
+                  <li className="text-gtn-grey-2">+{lead.researchRisks.length - 4} more</li>
+                )}
+              </ul>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* Attachments at a glance — image strip + category counts */}
+      {lead.attachments.length > 0 && (
+        <Card>
+          <div className="flex items-baseline justify-between gap-2 mb-2">
+            <h3 className="text-sm font-semibold text-gtn-navy">
+              Site files + media ({lead.attachments.length})
+            </h3>
+            <p className="text-[11px] text-gtn-grey-2">Open the Files tab to manage</p>
+          </div>
+          {imageAttachments.length > 0 && (
+            <div className="flex gap-2 overflow-x-auto pb-2 mb-3">
+              {imageAttachments.map((a) => (
+                <a key={a.id} href={a.publicUrl} target="_blank" rel="noreferrer" className="flex-shrink-0">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={a.publicUrl}
+                    alt={a.filename}
+                    title={a.filename}
+                    className="h-20 w-28 object-cover rounded border border-gtn-lavender-2"
+                  />
+                </a>
+              ))}
+            </div>
+          )}
+          <div className="flex flex-wrap gap-1.5">
+            {attachmentTopCategories.map(([cat, n]) => (
+              <span key={cat} className="inline-block rounded-full bg-gtn-lavender text-gtn-navy px-2 py-0.5 text-[11px] font-semibold capitalize">
+                {cat.replace(/_/g, " ")} · {n}
+              </span>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {/* Original detail grid */}
+      <div className="grid md:grid-cols-2 gap-4">
       <Card>
         <h3 className="text-sm font-semibold text-gtn-navy mb-3">Contact</h3>
         <dl className="text-sm space-y-2">
@@ -224,6 +470,48 @@ function OverviewTab({ lead }: { lead: Lead }) {
           </ul>
         )}
       </Card>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * v3.3.16 — Service-fit tile for the Overview ribbon. Shows label, a
+ * 0-100 score in a tinted bar, the band pill, and the top 2 reasons.
+ */
+function ServiceFitTile({ fit }: { fit: import("@/lib/scoring/service-fit").ServiceFit }) {
+  const barClass =
+    fit.band === "strong" ? "bg-gtn-green"
+    : fit.band === "good" ? "bg-gtn-purple"
+    : fit.band === "marginal" ? "bg-gtn-amber"
+    : "bg-gtn-grey-3";
+  const pillClass =
+    fit.band === "strong" ? "bg-gtn-green-bg text-gtn-green"
+    : fit.band === "good" ? "bg-brand-soft text-gtn-purple"
+    : fit.band === "marginal" ? "bg-amber-100 text-amber-800"
+    : "bg-gtn-lavender text-gtn-grey-2";
+  return (
+    <div className="rounded-lg border border-gtn-lavender-2 bg-white p-3">
+      <div className="flex items-baseline justify-between gap-2">
+        <p className="text-sm font-semibold text-gtn-navy truncate">{fit.label}</p>
+        <span className={`text-[10px] font-bold uppercase tracking-wide rounded-full px-2 py-0.5 ${pillClass}`}>
+          {fit.band}
+        </span>
+      </div>
+      <div className="mt-2 flex items-baseline gap-2">
+        <p className="text-xl font-mono font-bold text-gtn-navy tabular">{fit.score}</p>
+        <p className="text-[10px] text-gtn-grey-2">/100</p>
+      </div>
+      <div className="mt-1.5 h-1.5 rounded-full bg-gtn-lavender overflow-hidden">
+        <div className={`h-full ${barClass}`} style={{ width: `${fit.score}%` }} />
+      </div>
+      {fit.reasons.length > 0 && (
+        <ul className="mt-2 space-y-0.5">
+          {fit.reasons.slice(0, 2).map((r, i) => (
+            <li key={i} className="text-[11px] text-gtn-grey-2 leading-snug">• {r}</li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

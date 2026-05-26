@@ -58,6 +58,13 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
       },
       serviceMatches: true,
       researchArtifacts: { orderBy: { createdAt: "desc" } },
+      // v3.3.16 — Overview tab summary cards
+      attachments: {
+        orderBy: { createdAt: "desc" },
+        take: 24,
+        include: { uploadedBy: { select: { name: true } } },
+      },
+      qualification: true,
     },
   });
   if (!lead) notFound();
