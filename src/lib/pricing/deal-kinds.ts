@@ -164,16 +164,20 @@ export const LINE_ITEM_STICKERS: Record<LineItemKind, { label: string; perUnitMr
     helpText: "Per drop: cable + terminations + plate + test + cert.",
   },
   DOOR_READER: {
+    // v3.3.4 — access control sold as project work only, no MRR per
+    // Gateway policy. Software licensing folds into bundle MRR when sold
+    // inside Professional/Enterprise.
     label: "Access control door (reader + software)",
-    perUnitMrr: 14,
+    perUnitMrr: 0,
     perUnitOneTime: 950,
-    helpText: "Per door: reader + REX + strike + cloud software licensing.",
+    helpText: "Per door: reader + REX + strike + cloud software licensing. One-time install — no recurring fee on standalone deals.",
   },
   CAMERA: {
+    // v3.3.4 — video surveillance is project work, not recurring.
     label: "Surveillance camera",
-    perUnitMrr: 12,
+    perUnitMrr: 0,
     perUnitOneTime: 425,
-    helpText: "Per camera: IP camera (4MP+) + mount + PoE drop + recording. NVR priced separately.",
+    helpText: "Per camera: IP camera (4MP+) + mount + PoE drop + recording. NVR priced separately. No MRR on standalone deals.",
   },
   NVR_DVR: {
     label: "NVR / DVR recording unit",

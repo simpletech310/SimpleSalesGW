@@ -10,10 +10,33 @@
  */
 
 import { prisma } from "@/lib/prisma";
-import { DEFAULT_CATALOG, type PricingCatalog } from "./catalog";
+import { DEFAULT_CATALOG, type PricingCatalog, type BundleDefinition } from "./catalog";
 
 let cached: { catalog: PricingCatalog; loadedAt: number } | null = null;
 const TTL_MS = 30_000; // re-read at most every 30s
+
+/**
+ * v3.3.4 — Backfill rep-pitch fields from defaults so a pre-existing
+ * admin override (saved before pitch existed) still surfaces the
+ * sales-rep guide. The override wins on numbers; defaults fill in any
+ * `pitch` that's missing.
+ */
+function mergePitches(catalog: PricingCatalog): PricingCatalog {
+  let touched = false;
+  const merged: Record<string, BundleDefinition> = {};
+  const defaults = DEFAULT_CATALOG.bundles as Record<string, BundleDefinition>;
+  for (const [id, b] of Object.entries(catalog.bundles)) {
+    const defaultPitch = defaults[id]?.pitch;
+    if (!b.pitch && defaultPitch) {
+      merged[id] = { ...b, pitch: defaultPitch };
+      touched = true;
+    } else {
+      merged[id] = b;
+    }
+  }
+  if (!touched) return catalog;
+  return { ...catalog, bundles: merged as PricingCatalog["bundles"] };
+}
 
 export async function loadCatalog(): Promise<PricingCatalog> {
   const now = Date.now();
@@ -21,7 +44,8 @@ export async function loadCatalog(): Promise<PricingCatalog> {
 
   try {
     const row = await prisma.systemConfig.findUnique({ where: { key: "pricing.catalog" } });
-    const catalog = (row?.value as PricingCatalog | null) ?? DEFAULT_CATALOG;
+    const raw = (row?.value as PricingCatalog | null) ?? DEFAULT_CATALOG;
+    const catalog = mergePitches(raw);
     cached = { catalog, loadedAt: now };
     return catalog;
   } catch {

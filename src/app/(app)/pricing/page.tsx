@@ -22,6 +22,7 @@ import { Callout } from "@/components/brand";
 import { DashboardPage, DashboardSection } from "@/components/templates";
 import { loadCatalog } from "@/lib/pricing/loader";
 import {
+  SERVICE_LINE_GUIDE,
   SERVICE_LINE_TIERS,
   bundleIncludesNormalized,
   fmtUsd,
@@ -182,6 +183,43 @@ export default async function PricingPage() {
                   )}
                 </div>
 
+                {/* Rep guide: what / who / how / process — collapsed details
+                    so the card stays compact but reps can expand to coach
+                    themselves on the pitch. */}
+                {b.pitch && (
+                  <details className="px-5 py-3 border-b border-line-subtle group">
+                    <summary className="cursor-pointer text-xs font-semibold text-gtn-purple flex items-center justify-between list-none">
+                      <span>Sales-rep guide — what it is, who it&apos;s for, how we deliver</span>
+                      <span aria-hidden className="transition-transform group-open:rotate-180">▾</span>
+                    </summary>
+                    <div className="mt-3 space-y-3 text-xs leading-relaxed">
+                      <div>
+                        <p className="ui-label mb-1">What it is</p>
+                        <p className="text-ink">{b.pitch.whatItIs}</p>
+                      </div>
+                      <div>
+                        <p className="ui-label mb-1">Best for</p>
+                        <p className="text-ink">{b.pitch.bestFor}</p>
+                      </div>
+                      <div>
+                        <p className="ui-label mb-1">How it helps</p>
+                        <ul className="space-y-1">
+                          {b.pitch.howItHelps.map((h, i) => (
+                            <li key={i} className="flex items-start gap-2">
+                              <Check className="h-3 w-3 text-gtn-green mt-1 flex-shrink-0" strokeWidth={3} />
+                              <span className="text-ink">{h}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                      <div>
+                        <p className="ui-label mb-1">Delivery process</p>
+                        <p className="text-ink">{b.pitch.process}</p>
+                      </div>
+                    </div>
+                  </details>
+                )}
+
                 {/* What's included */}
                 {includes.length > 0 && (
                   <div className="px-5 py-4 flex-1">
@@ -270,11 +308,83 @@ export default async function PricingPage() {
       </DashboardSection>
 
       {/* ----------------------------------------------------------------
-          Standalone service lines
+          Service line guide — plain-English rep cheat sheet
+          ----------------------------------------------------------------*/}
+      <DashboardSection
+        title="Service guide — what each line actually does"
+        subtitle="Plain-English cheat sheet so reps can answer 'what is this?' and 'who's it for?' on a discovery call."
+      >
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {(Object.entries(SERVICE_LINE_GUIDE) as Array<[ServiceLine, NonNullable<typeof SERVICE_LINE_GUIDE[ServiceLine]>]>).map(([line, g]) => {
+            const standalone = catalog.standalone[line];
+            return (
+              <details
+                key={line}
+                className="rounded-xl border border-line-subtle bg-surface px-4 py-3 group hover:border-line-strong transition-colors"
+              >
+                <summary className="cursor-pointer list-none">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-ink-strong capitalize">
+                        {line.replace(/_/g, " ").toLowerCase()}
+                      </p>
+                      <p className="text-xs text-ink-muted mt-0.5 leading-snug">{g.whatItIs}</p>
+                    </div>
+                    {standalone && (
+                      <div className="text-right flex-shrink-0">
+                        {standalone.perSeatMrr > 0 ? (
+                          <>
+                            <p className="text-xs font-mono tabular text-ink-strong">{fmtUsd(standalone.perSeatMrr)}</p>
+                            <p className="text-[10px] text-ink-muted">/seat/mo</p>
+                          </>
+                        ) : standalone.oneTime > 0 ? (
+                          <>
+                            <p className="text-xs font-mono tabular text-ink-strong">{fmtUsd(standalone.oneTime)}</p>
+                            <p className="text-[10px] text-ink-muted">one-time</p>
+                          </>
+                        ) : (
+                          <p className="text-[10px] text-ink-muted">scoped</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-gtn-purple font-semibold mt-2 group-open:hidden">
+                    Show the rep pitch ▾
+                  </p>
+                </summary>
+                <div className="mt-3 pt-3 border-t border-line-subtle space-y-3 text-xs leading-relaxed">
+                  <div>
+                    <p className="ui-label mb-1">Best for</p>
+                    <p className="text-ink">{g.bestFor}</p>
+                  </div>
+                  <div>
+                    <p className="ui-label mb-1">How it helps</p>
+                    <ul className="space-y-1">
+                      {g.howItHelps.map((h, i) => (
+                        <li key={i} className="flex items-start gap-2">
+                          <Check className="h-3 w-3 text-gtn-green mt-1 flex-shrink-0" strokeWidth={3} />
+                          <span className="text-ink">{h}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div>
+                    <p className="ui-label mb-1">How we deliver</p>
+                    <p className="text-ink">{g.process}</p>
+                  </div>
+                </div>
+              </details>
+            );
+          })}
+        </div>
+      </DashboardSection>
+
+      {/* ----------------------------------------------------------------
+          Standalone service lines — sticker table
           ----------------------------------------------------------------*/}
       <DashboardSection
         title="Standalone service lines"
-        subtitle="Per-seat MRR + one-time setup when sold line-by-line — no bundle discount."
+        subtitle="Per-seat MRR + one-time setup when sold line-by-line — no bundle discount. Access control and video are install-only (no MRR)."
         flush
       >
         <div className="overflow-x-auto">
