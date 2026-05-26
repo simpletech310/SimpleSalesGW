@@ -95,6 +95,26 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
     );
   }
 
+  // v3.3.23 — Backfill derived scores for legacy leads that pre-date
+  // the persist-on-save hook. If the lead has 0 stored scores but a
+  // qualification has been scored (or intake fields are populated),
+  // recompute + persist once so the leads list / dashboard / pipeline
+  // pick up the same value the lead-detail tiles show. Fire-and-
+  // forget so the page render isn't blocked.
+  if (
+    lead.servicesScore === 0 && lead.customerScore === 0 && lead.dealQualityScore === 0 &&
+    (lead.qualification?.scoredAt || (lead.interestedServices && lead.interestedServices.length > 0))
+  ) {
+    void (async () => {
+      try {
+        const { recomputeAndStoreLeadScores } = await import("@/lib/scoring/persist-derived");
+        await recomputeAndStoreLeadScores(id);
+      } catch (e) {
+        console.warn("[lead/page] backfill derived scores failed:", (e as Error).message);
+      }
+    })();
+  }
+
   const latestHandoff = await prisma.handoff.findFirst({
     where: { leadId: id },
     orderBy: { createdAt: "desc" },
@@ -276,10 +296,12 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
         <CloseDealButtons leadId={lead.id} currentStage={lead.pipelineStage} />
       </div>
 
-      {/* Score strip — values come straight from Lead when an MSP-Fit
-          Assessment has been run; otherwise we derive a sensible
-          fallback from qualification dims + the v3.3.15 per-service
-          fit so reps see something meaningful immediately on intake. */}
+      {/* v3.3.23 — derived scores are now persisted on save, so most
+          leads will show the stored values directly. We keep the
+          render-time recompute as a safety net for leads that existed
+          before v3.3.23 (no intake save has triggered a backfill yet)
+          and as the source of the "(estimated)" tag when no
+          qualification/assessment has run. */}
       {(() => {
         const hasAssessmentScore =
           lead.servicesScore > 0 || lead.customerScore > 0 || lead.dealQualityScore > 0;

@@ -103,6 +103,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       ...getAuditContext(req),
     });
 
+    // v3.3.23 — re-derive + persist Services/Customer/DealQuality so the
+    // leads list, pipeline board, and dashboards reflect the same score
+    // the lead-detail tiles compute (no more "DQ 48 here, 0 over there").
+    try {
+      const { recomputeAndStoreLeadScores } = await import("@/lib/scoring/persist-derived");
+      await recomputeAndStoreLeadScores(id);
+    } catch (e) {
+      console.warn("[qualification] derived-score recompute failed:", (e as Error).message);
+    }
+
     return NextResponse.json({ qualification: card }, { status: existing ? 200 : 201 });
   } catch (err) {
     return jsonError(err);

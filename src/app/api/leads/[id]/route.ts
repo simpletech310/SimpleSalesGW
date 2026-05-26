@@ -221,6 +221,25 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       }
     }
 
+    // v3.3.23 — if any intake field that feeds the per-service fit
+    // changed (or qualification just re-ran above), recompute + persist
+    // the lead's Services/Customer/DealQuality so the leads list,
+    // dashboard, and pipeline reflect the same number the lead-detail
+    // tiles show.
+    try {
+      const { INTAKE_FIELDS_THAT_AFFECT_SCORE, recomputeAndStoreLeadScores } = await import(
+        "@/lib/scoring/persist-derived"
+      );
+      const changedIntakeField = Object.keys(cleaned).some((k) =>
+        INTAKE_FIELDS_THAT_AFFECT_SCORE.includes(k),
+      );
+      if (changedScoringField || changedIntakeField) {
+        await recomputeAndStoreLeadScores(id);
+      }
+    } catch (e) {
+      console.warn("[lead/PATCH] derived-score recompute failed:", (e as Error).message);
+    }
+
     // v2.23.3 — if any address field changed, re-geocode + re-match
     // territory in the background. Mirrors the POST /api/leads pattern.
     if (addressChanged) {

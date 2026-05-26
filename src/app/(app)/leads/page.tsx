@@ -54,6 +54,8 @@ export default async function LeadsPage() {
       id: l.id,
       name: l.businessName,
       stage: l.pipelineStage,
+      // v3.3.23 — industry now drives the marker icon on the map.
+      industry: l.industry,
       dq: l.dealQualityScore,
       city: l.addressCity,
       state: l.addressState,

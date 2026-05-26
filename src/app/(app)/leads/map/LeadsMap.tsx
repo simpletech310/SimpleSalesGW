@@ -8,6 +8,8 @@ type MapLead = {
   id: string;
   name: string;
   stage: string;
+  // v3.3.23 — industry drives the icon glyph inside each marker
+  industry: string;
   dq: number;
   city: string | null;
   state: string | null;
@@ -15,6 +17,41 @@ type MapLead = {
   lat: number;
   lng: number;
 };
+
+/**
+ * v3.3.23 — Per-industry SVG path. We inline path-d strings (Lucide-
+ * derived) so each marker can render a tiny industry glyph centered
+ * inside the stage-colored circle. Reps glance and immediately know
+ * "that's a hospital" vs "that's a law firm" vs "that's a warehouse"
+ * without opening a popup.
+ */
+const INDUSTRY_ICON: Record<string, string> = {
+  // Cross / first-aid (heart pulse) — medical
+  MEDICAL: "M22 12h-4l-3 9L9 3l-3 9H2",
+  // Scale of justice — legal
+  LEGAL: "M7 21h10 M12 3v18 M5 7l-3 6h6zM19 7l-3 6h6z",
+  // Flag — federal contracting
+  FEDERAL_CONTRACTING: "M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1zM4 22V15",
+  // Factory — manufacturing
+  MANUFACTURING: "M2 20h20V8l-6 4V8l-6 4V4H2z M6 16h2 M10 16h2 M14 16h2",
+  // Utensils — hospitality
+  HOSPITALITY: "M3 2v7c0 1.1.9 2 2 2h2c1.1 0 2-.9 2-2V2 M7 22v-9 M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3zm0 0v7",
+  // Dollar sign — financial services
+  FINANCIAL_SERVICES: "M12 2v20 M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6",
+  // Briefcase — professional services
+  PROFESSIONAL_SERVICES: "M20 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2zM16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16",
+  // Graduation cap — education
+  EDUCATION: "M22 10v6 M6 12.5V16c0 1.66 4.03 3 9 3s9-1.34 9-3v-3.5 M2 10l10-5 10 5-10 5z",
+  // Heart — nonprofit
+  NONPROFIT: "M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z",
+  // Building generic — fallback
+  OTHER: "M3 21h18 M5 21V7l8-4v18 M19 21V11l-6-4",
+};
+
+function iconSvg(industry: string, color: string): string {
+  const path = INDUSTRY_ICON[industry] ?? INDUSTRY_ICON.OTHER;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="${path}"/></svg>`;
+}
 
 // v3.3.22 — MSP-friendly stage palette. New stages slot into the
 // purple→blue→green→amber→red ramp matching the canonical flow.
@@ -67,30 +104,54 @@ export function LeadsMap({ leads }: { leads: MapLead[] }) {
 
       for (const l of leads) {
         const color = STAGE_COLOR[l.stage] ?? "#8B5CF6";
+        // v3.3.23 — bigger marker (28px) with the industry icon
+        // centered inside the stage-colored circle. Hover lifts it
+        // slightly so it's clear it's clickable.
         const el = document.createElement("div");
         el.style.cssText = `
-          width: 16px; height: 16px; border-radius: 50%;
+          width: 28px; height: 28px; border-radius: 50%;
           background: ${color}; border: 2px solid white;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.3); cursor: pointer;
+          box-shadow: 0 2px 6px rgba(0,0,0,0.35); cursor: pointer;
+          display: flex; align-items: center; justify-content: center;
+          transition: transform 120ms ease-out;
         `;
+        el.innerHTML = iconSvg(l.industry, "#ffffff");
+        el.addEventListener("mouseenter", () => { el.style.transform = "scale(1.18)"; });
+        el.addEventListener("mouseleave", () => { el.style.transform = "scale(1)"; });
+        // Small DQ chip overlaid at the bottom-right corner of the marker.
+        if (l.dq > 0) {
+          const dqBadge = document.createElement("div");
+          dqBadge.textContent = String(l.dq);
+          dqBadge.style.cssText = `
+            position: absolute; bottom: -4px; right: -6px;
+            background: #111827; color: white; font: 600 9px system-ui;
+            border-radius: 9px; padding: 1px 4px; min-width: 12px;
+            text-align: center; box-shadow: 0 1px 2px rgba(0,0,0,0.4);
+          `;
+          el.style.position = "relative";
+          el.appendChild(dqBadge);
+        }
 
+        const industryLabel = l.industry.replace(/_/g, " ").toLowerCase();
         const popupHtml = `
-          <div style="font-family: system-ui, sans-serif; min-width: 180px;">
-            <p style="font-weight: 600; margin: 0 0 4px;">${escapeHtml(l.name)}</p>
+          <div style="font-family: system-ui, sans-serif; min-width: 200px;">
+            <p style="font-weight: 600; margin: 0 0 4px; color: #111827;">${escapeHtml(l.name)}</p>
             <p style="margin: 0 0 2px; font-size: 11px; color: #6B7280;">
-              ${l.stage.replace(/_/g, " ")} · DQ ${l.dq}
-              ${l.teamName ? ` · ${escapeHtml(l.teamName)}` : ""}
+              <span style="text-transform: capitalize;">${escapeHtml(industryLabel)}</span> · ${l.stage.replace(/_/g, " ").toLowerCase()}
             </p>
-            <p style="margin: 0 0 6px; font-size: 11px; color: #6B7280;">
+            <p style="margin: 0 0 2px; font-size: 11px; color: #6B7280;">
+              DQ ${l.dq}${l.teamName ? ` · ${escapeHtml(l.teamName)}` : ""}
+            </p>
+            <p style="margin: 0 0 8px; font-size: 11px; color: #6B7280;">
               ${[l.city, l.state].filter((s): s is string => Boolean(s)).map(escapeHtml).join(", ")}
             </p>
-            <a href="/leads/${l.id}" style="color: #7C3AED; font-size: 12px; text-decoration: underline;">Open lead →</a>
+            <a href="/leads/${l.id}" style="color: #7C3AED; font-size: 12px; text-decoration: underline; font-weight: 500;">Open lead →</a>
           </div>
         `;
 
         new mapboxgl.Marker({ element: el })
           .setLngLat([l.lng, l.lat])
-          .setPopup(new mapboxgl.Popup({ offset: 12 }).setHTML(popupHtml))
+          .setPopup(new mapboxgl.Popup({ offset: 16 }).setHTML(popupHtml))
           .addTo(map);
       }
     });
