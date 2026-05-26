@@ -111,7 +111,10 @@ export async function personalizeOutreach(
 
   // v2.21 — assemble system prompt from MSP profile + task instructions.
   const profile = await loadProfile();
-  const systemPrompt = `${renderMspProfileBlock(profile)}\n\n${TASK_INSTRUCTIONS}`;
+  // v3.3.14 — catalog grounding (don't mention services we don't sell).
+  const { loadCatalogBlock } = await import("@/lib/ai/catalog-grounding");
+  const catalogBlock = await loadCatalogBlock();
+  const systemPrompt = `${renderMspProfileBlock(profile)}\n\n${catalogBlock}\n\n${TASK_INSTRUCTIONS}`;
 
   const { text } = await claudeCompletion({
     system: systemPrompt,

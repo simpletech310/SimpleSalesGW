@@ -148,6 +148,9 @@ export default async function AdminHomePage() {
           {can(role, "audit:view") && (
             <AdminTile icon={Sparkles} href="/admin/ai-usage" title="AI usage" desc="Month-to-date Gateway AI spend by feature, lead, and user." />
           )}
+          {can(role, "audit:view") && (
+            <AdminTile icon={Sparkles} href="/admin/ai-features" title="AI features" desc="Catalog of every Gateway AI engagement — what each does, what it reads, how it's grounded." />
+          )}
           {can(role, "msp:profile:edit") && (
             <AdminTile icon={Building2} href="/admin/msp-profile" title="MSP profile" desc="Mission, brand voice, services emphasis, win stories — feeds every Gateway AI prompt." />
           )}

@@ -95,8 +95,12 @@ export async function presaleNarrative(
   const responseHint = `Return ONLY the JSON object — no markdown, no commentary.`;
 
   // v2.21 — assemble system prompt from MSP profile + task instructions.
+  // v3.3.14 — also inject the live service catalog so the narrative
+  // only references services we actually sell.
   const profile = await loadProfile();
-  const systemPrompt = `${renderMspProfileBlock(profile)}\n\n${TASK_INSTRUCTIONS}`;
+  const { loadCatalogBlock } = await import("@/lib/ai/catalog-grounding");
+  const catalogBlock = await loadCatalogBlock();
+  const systemPrompt = `${renderMspProfileBlock(profile)}\n\n${catalogBlock}\n\n${TASK_INSTRUCTIONS}`;
 
   const { text } = await claudeCompletion({
     system: systemPrompt,

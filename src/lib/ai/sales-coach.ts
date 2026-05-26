@@ -15,6 +15,7 @@ import { AiFeatureKind } from "@prisma/client";
 import { claudeCompletion } from "@/lib/ai/anthropic";
 import { loadProfile } from "@/lib/msp/loader";
 import { renderMspProfileBlock } from "@/lib/msp/promptBlock";
+import { loadCatalogBlock } from "@/lib/ai/catalog-grounding";
 
 const TASK_INSTRUCTIONS = `## Your job
 You are an in-the-moment sales coach for the company described above.
@@ -61,6 +62,22 @@ export type SalesCoachLeadInput = {
   customerScore: number;
   dealQualityScore: number;
   expectedCloseDate: string | null;
+  // v3.3.14 — multi-service intake passes through so coach can suggest
+  // angles other than IT/cyber when the rep has captured signals.
+  interestedServices?: string[];
+  currentPhoneSystem?: string | null;
+  currentPhonePainPoint?: string | null;
+  currentAccessControl?: string | null;
+  currentAccessDoorCount?: number | null;
+  currentVideoSurveillance?: string | null;
+  currentVideoCameraCount?: number | null;
+  cablingStatus?: string | null;
+  expansionPlans?: string | null;
+  aiAdvisoryInterest?: string | null;
+  // v3.3.10 — research-tab cards as additional context
+  researchFitSignals?: string[];
+  researchSuggestedQuestions?: string[];
+  researchRisks?: string[];
 };
 
 export type SalesCoachActivity = {
@@ -104,6 +121,28 @@ export async function coachSale(
     `Scorecard: services=${lead.servicesScore} / customer=${lead.customerScore} / deal-quality=${lead.dealQualityScore}`,
     lead.expectedCloseDate ? `Expected close: ${lead.expectedCloseDate}` : null,
     lead.researchSummary ? `\nResearch notes:\n${lead.researchSummary}` : null,
+    // v3.3.14 — multi-service intake. AI uses this to suggest angles
+    // beyond IT/cyber when the rep has already captured signals.
+    lead.interestedServices && lead.interestedServices.length > 0
+      ? `Services they showed interest in: ${lead.interestedServices.join(", ")}`
+      : null,
+    lead.currentPhoneSystem ? `Phone system: ${lead.currentPhoneSystem}${lead.currentPhonePainPoint ? ` — pain: ${lead.currentPhonePainPoint}` : ""}` : null,
+    lead.currentAccessControl
+      ? `Access control: ${lead.currentAccessControl}${lead.currentAccessDoorCount ? ` (${lead.currentAccessDoorCount} doors)` : ""}`
+      : null,
+    lead.currentVideoSurveillance
+      ? `Video surveillance: ${lead.currentVideoSurveillance}${lead.currentVideoCameraCount ? ` (${lead.currentVideoCameraCount} cameras)` : ""}`
+      : null,
+    lead.cablingStatus ? `Cabling: ${lead.cablingStatus}` : null,
+    lead.expansionPlans ? `Expansion: ${lead.expansionPlans}` : null,
+    lead.aiAdvisoryInterest ? `AI advisory interest: ${lead.aiAdvisoryInterest}` : null,
+    // v3.3.10 — research cards
+    lead.researchFitSignals && lead.researchFitSignals.length > 0
+      ? `Fit signals: ${lead.researchFitSignals.join(" · ")}`
+      : null,
+    lead.researchRisks && lead.researchRisks.length > 0
+      ? `Risks: ${lead.researchRisks.join(" · ")}`
+      : null,
   ].filter(Boolean).join("\n");
 
   const activityBlock = input.activities.length === 0
@@ -126,7 +165,9 @@ export async function coachSale(
   const responseHint = `Return ONLY the JSON object — no markdown, no commentary.`;
 
   const profile = await loadProfile();
-  const systemPrompt = `${renderMspProfileBlock(profile)}\n\n${TASK_INSTRUCTIONS}`;
+  // v3.3.14 — catalog grounding so coach can only recommend services we sell.
+  const catalogBlock = await loadCatalogBlock();
+  const systemPrompt = `${renderMspProfileBlock(profile)}\n\n${catalogBlock}\n\n${TASK_INSTRUCTIONS}`;
 
   const { text } = await claudeCompletion({
     system: systemPrompt,

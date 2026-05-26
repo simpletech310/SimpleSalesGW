@@ -10,6 +10,7 @@ import { AiFeatureKind } from "@prisma/client";
 import { claudeCompletion } from "@/lib/ai/anthropic";
 import { loadProfile } from "@/lib/msp/loader";
 import { renderMspProfileBlock } from "@/lib/msp/promptBlock";
+import { loadCatalogBlock } from "@/lib/ai/catalog-grounding";
 
 // v2.21 — system prompt is now assembled at call time from the MSP
 // profile (companyName, mission, voice, services emphasis, win
@@ -156,8 +157,11 @@ export async function summarizeResearch(
 
   // v2.21 — load MSP profile + assemble system prompt with company
   // identity + voice + services emphasis up front.
+  // v3.3.14 — also inject the live service catalog so fitSignals /
+  // suggestedQuestions / risks reference services we actually sell.
   const profile = await loadProfile();
-  const systemPrompt = `${renderMspProfileBlock(profile)}\n\n${TASK_INSTRUCTIONS}`;
+  const catalogBlock = await loadCatalogBlock();
+  const systemPrompt = `${renderMspProfileBlock(profile)}\n\n${catalogBlock}\n\n${TASK_INSTRUCTIONS}`;
 
   const { text } = await claudeCompletion({
     system: systemPrompt,

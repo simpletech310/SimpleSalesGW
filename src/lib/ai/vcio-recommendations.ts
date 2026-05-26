@@ -16,6 +16,7 @@ import { AiFeatureKind, OnboardingPhase, Role, ServiceLine } from "@prisma/clien
 import { claudeCompletion } from "@/lib/ai/anthropic";
 import { loadProfile } from "@/lib/msp/loader";
 import { renderMspProfileBlock } from "@/lib/msp/promptBlock";
+import { loadCatalogBlock } from "@/lib/ai/catalog-grounding";
 
 const TASK_INSTRUCTIONS = `## Your job
 You are a vCIO / Sales Engineer recommendation assistant for the
@@ -329,7 +330,12 @@ export async function generateVcioPlan(
   const responseHint = `Return ONLY the JSON object — no markdown, no commentary.`;
 
   const profile = await loadProfile();
-  const systemPrompt = `${renderMspProfileBlock(profile)}\n\n${TASK_INSTRUCTIONS}`;
+  // v3.3.14 — Inject the live service catalog + sizing heuristics so
+  // recommendations can only come from what we actually sell, at
+  // quantities grounded in real-world rules of thumb (4-camera retail,
+  // 24-camera bank, etc.).
+  const catalogBlock = await loadCatalogBlock();
+  const systemPrompt = `${renderMspProfileBlock(profile)}\n\n${catalogBlock}\n\n${TASK_INSTRUCTIONS}`;
 
   // v3.3.8 — bumped to 6000. The plan schema added confidence +
   // limitations + strengthen on top of 8-15 tasks each with 6 fields;

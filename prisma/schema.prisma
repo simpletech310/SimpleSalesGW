@@ -758,6 +758,11 @@ model Attachment {
   byteSize         Int      @map("byte_size")
   storagePath      String   @map("storage_path")
   publicUrl        String   @map("public_url")
+  // v3.3.13 — optional rep-set category so SE/vCIO can scan
+  // attachments at a glance (site_photo, business_card, floor_plan, etc.).
+  // String not enum so growing the taxonomy doesn't require a migration.
+  category         String?
+  caption          String?
   createdAt        DateTime @default(now()) @map("created_at")
 
   lead       Lead? @relation(fields: [leadId], references: [id], onDelete: Cascade)
