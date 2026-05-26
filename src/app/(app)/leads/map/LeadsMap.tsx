@@ -104,21 +104,32 @@ export function LeadsMap({ leads }: { leads: MapLead[] }) {
 
       for (const l of leads) {
         const color = STAGE_COLOR[l.stage] ?? "#8B5CF6";
-        // v3.3.23 — bigger marker (28px) with the industry icon
-        // centered inside the stage-colored circle. Hover lifts it
-        // slightly so it's clear it's clickable.
+        // v3.3.24 — Mapbox positions the marker root via `transform:
+        // translate(...)`. If we set transform on the same element for
+        // hover (scale), it clobbers the translate and the marker snaps
+        // to the top-left of the map. Solution: a 2-layer marker.
+        // - Outer wrapper: zero size, Mapbox owns its transform
+        // - Inner pin: holds the visuals, can be transformed freely on hover
         const el = document.createElement("div");
-        el.style.cssText = `
+        el.style.cssText = `width: 0; height: 0; position: relative;`;
+
+        const pin = document.createElement("div");
+        pin.style.cssText = `
+          position: absolute; left: -14px; top: -14px;
           width: 28px; height: 28px; border-radius: 50%;
           background: ${color}; border: 2px solid white;
           box-shadow: 0 2px 6px rgba(0,0,0,0.35); cursor: pointer;
           display: flex; align-items: center; justify-content: center;
           transition: transform 120ms ease-out;
+          transform-origin: center;
         `;
-        el.innerHTML = iconSvg(l.industry, "#ffffff");
-        el.addEventListener("mouseenter", () => { el.style.transform = "scale(1.18)"; });
-        el.addEventListener("mouseleave", () => { el.style.transform = "scale(1)"; });
-        // Small DQ chip overlaid at the bottom-right corner of the marker.
+        pin.innerHTML = iconSvg(l.industry, "#ffffff");
+        // Scale the pin (NOT the marker root) so Mapbox's positioning
+        // transform on `el` is preserved.
+        pin.addEventListener("mouseenter", () => { pin.style.transform = "scale(1.18)"; });
+        pin.addEventListener("mouseleave", () => { pin.style.transform = "scale(1)"; });
+        el.appendChild(pin);
+
         if (l.dq > 0) {
           const dqBadge = document.createElement("div");
           dqBadge.textContent = String(l.dq);
@@ -128,8 +139,7 @@ export function LeadsMap({ leads }: { leads: MapLead[] }) {
             border-radius: 9px; padding: 1px 4px; min-width: 12px;
             text-align: center; box-shadow: 0 1px 2px rgba(0,0,0,0.4);
           `;
-          el.style.position = "relative";
-          el.appendChild(dqBadge);
+          pin.appendChild(dqBadge);
         }
 
         const industryLabel = l.industry.replace(/_/g, " ").toLowerCase();
