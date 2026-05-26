@@ -47,6 +47,38 @@ if (!process.env.NEXT_PUBLIC_APP_URL && process.env.VERCEL_URL) {
 run("npx", ["prisma", "generate"]);
 
 if (process.env.DATABASE_URL) {
+  // v3.3.19 — Neon's pooled endpoint (`-pooler` in the hostname) is
+  // pgbouncer in transaction mode and can't hold the session-scoped
+  // advisory locks Prisma uses to serialize migrations. Migration
+  // deploys against the pooler fail with P1002 "timed out trying to
+  // acquire a postgres advisory lock". Schema's datasource now reads
+  // `directUrl = env("DIRECT_URL")`, but only if DIRECT_URL is set.
+  // Resolve it here from common provider env names, or derive one by
+  // stripping `-pooler` from the pooled hostname.
+  if (!process.env.DIRECT_URL) {
+    const candidates = [
+      process.env.DATABASE_URL_UNPOOLED,
+      process.env.POSTGRES_URL_NON_POOLING,
+      process.env.DIRECT_DATABASE_URL,
+    ].filter(Boolean);
+    let resolved = candidates[0];
+    if (!resolved && /-pooler\b/.test(process.env.DATABASE_URL)) {
+      resolved = process.env.DATABASE_URL.replace(/-pooler\b/, "");
+      log("⚠ DIRECT_URL not set — derived by stripping `-pooler` from DATABASE_URL.");
+      log("  For best reliability set DIRECT_URL explicitly in Vercel env.");
+    }
+    if (resolved) {
+      process.env.DIRECT_URL = resolved;
+      try {
+        const h = new URL(resolved).hostname;
+        log(`Resolved DIRECT_URL for migrate deploy (host = ${h}).`);
+      } catch {
+        log("Resolved DIRECT_URL for migrate deploy.");
+      }
+    } else {
+      log("DIRECT_URL not set + couldn't derive one — using DATABASE_URL for migrations (may fail on Neon pooler with P1002).");
+    }
+  }
   log("DATABASE_URL present — running migrations and seed.");
   run("npx", ["prisma", "migrate", "deploy"]);
   // Seeding is idempotent (upserts) — safe to run on every deploy.
