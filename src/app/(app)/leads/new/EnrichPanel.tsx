@@ -53,6 +53,15 @@ const FIELD_LABELS: Record<string, string> = {
   executiveSponsorName: "Sponsor name",
   executiveSponsorTitle: "Sponsor title",
   currentMspName: "Current MSP",
+  // v3.3.17 — multi-service intake proposals
+  interestedServices: "Service interests",
+  currentPhoneSystem: "Phone system",
+  currentPhonePainPoint: "Phone pain",
+  currentAccessControl: "Access control",
+  currentVideoSurveillance: "Video surveillance",
+  cablingStatus: "Cabling status",
+  expansionPlans: "Expansion plans",
+  aiAdvisoryInterest: "AI advisory interest",
 };
 
 const SOURCE_BADGE: Record<string, string> = {
@@ -60,17 +69,27 @@ const SOURCE_BADGE: Record<string, string> = {
   claude: "bg-amber-100 text-amber-800",
   regex: "bg-gtn-green-bg text-gtn-green",
   seed: "bg-gtn-lavender text-gtn-grey-2",
+  // v3.3.17
+  jsonld: "bg-gtn-green-bg text-gtn-green",
+  ddg: "bg-brand-soft text-gtn-purple",
 };
 
-// v3.3.12 — whitelabel the on-screen label for the underlying source.
-// The API still returns "claude" as the source value (so existing
-// snapshots and code paths don't break) but reps see "Gateway AI".
 const SOURCE_LABEL: Record<string, string> = {
   website: "website",
   claude: "Gateway AI",
   regex: "regex",
   seed: "rep",
+  // v3.3.17 — JSON-LD is the company's own schema.org markup (highest
+  // signal); DDG is "found via search" when the rep didn't give a URL.
+  jsonld: "schema.org",
+  ddg: "web search",
 };
+
+function displayValue(value: unknown): string {
+  if (Array.isArray(value)) return value.join(", ");
+  if (typeof value === "object" && value !== null) return JSON.stringify(value);
+  return typeof value === "string" ? value : String(value);
+}
 
 export function EnrichPanel({ formId }: { formId: string }) {
   const [loading, setLoading] = useState(false);
@@ -149,10 +168,28 @@ export function EnrichPanel({ formId }: { formId: string }) {
     let applied = 0;
     for (const [key, prop] of Object.entries(result.fields)) {
       if (!chosen[key]) continue;
+
+      // v3.3.17 — interestedServices is a multi-checkbox group, not a
+      // single input. Find every input named interestedServices and
+      // check the ones whose value is in the proposal.
+      if (key === "interestedServices" && Array.isArray(prop.value)) {
+        const checkboxes = f.querySelectorAll<HTMLInputElement>('input[name="interestedServices"]');
+        const wanted = new Set((prop.value as string[]).map(String));
+        checkboxes.forEach((cb) => {
+          const shouldCheck = wanted.has(cb.value);
+          if (cb.checked !== shouldCheck) {
+            cb.checked = shouldCheck;
+            cb.dispatchEvent(new Event("change", { bubbles: true }));
+          }
+        });
+        applied++;
+        continue;
+      }
+
       const el = f.elements.namedItem(key) as HTMLInputElement | HTMLSelectElement | null;
       if (!el) continue;
       const val = prop.value;
-      el.value = typeof val === "string" ? val : String(val);
+      el.value = typeof val === "string" ? val : Array.isArray(val) ? val.join(", ") : String(val);
       // Notify React + native listeners
       el.dispatchEvent(new Event("input", { bubbles: true }));
       el.dispatchEvent(new Event("change", { bubbles: true }));
@@ -231,7 +268,7 @@ export function EnrichPanel({ formId }: { formId: string }) {
                 {fieldEntries.map(([key, prop]) => {
                   const label = FIELD_LABELS[key] ?? key;
                   const v = prop.value;
-                  const display = typeof v === "string" ? v : String(v);
+                  const display = displayValue(v);
                   const isChecked = chosen[key] !== false;
                   return (
                     <li key={key} className="px-3 py-2 flex items-start gap-2.5">
