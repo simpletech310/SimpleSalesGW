@@ -171,7 +171,12 @@ export function VcioPlanPanel({
         toast.error(data?.error ?? "Acceptance failed");
         return;
       }
-      toast.success(`Plan accepted — ${data.tasksCreated} task${data.tasksCreated === 1 ? "" : "s"} added to onboarding.`);
+      const total = data.tasksCreated as number;
+      const mine = (data.tasksOnAccepter as number | undefined) ?? 0;
+      const tail = mine > 0
+        ? ` · ${mine} now on your /my-tasks`
+        : "";
+      toast.success(`Plan accepted — ${total} task${total === 1 ? "" : "s"} added to onboarding${tail}.`);
       router.refresh();
     } finally {
       setAccepting(false);

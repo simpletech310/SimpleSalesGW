@@ -45,8 +45,14 @@ export async function POST(
       where: { id: customerId },
       select: {
         id: true,
+        leadId: true,
         onboardingStartedAt: true,
         currentPhase: true,
+        // v3.3.7 — accountManager owns the customer relationship. We
+        // route plan-task ownership to them when their role can take it,
+        // otherwise fall back to the user who clicked Accept.
+        accountManagerId: true,
+        accountManager: { select: { id: true, role: true } },
       },
     });
     if (!customer) throw new ApiError(404, "Customer not found");
@@ -73,9 +79,41 @@ export async function POST(
     const snapshot = assessment.aiPlanSnapshot as Record<string, unknown>;
     const tasksRaw = Array.isArray(snapshot.recommendedTasks) ? snapshot.recommendedTasks : [];
     const tasks = z.array(TaskShape).parse(tasksRaw);
+    // v3.3.7 — customerNextStep is a real action item ("send the SOW",
+    // "schedule kickoff", etc.). Materialize it as a PRE_ENGAGEMENT task
+    // so it shows up on the onboarding board alongside the plan tasks.
+    const customerNextStep = typeof snapshot.customerNextStep === "string"
+      ? snapshot.customerNextStep.trim()
+      : "";
 
     const kickoff = customer.onboardingStartedAt ?? new Date();
     const templateKeyPrefix = `vcio-plan-${assessmentId}-`;
+
+    // v3.3.7 — Resolve the owner for each task. Per-role mapping so a
+    // task with ownerRole=SALESPERSON ends up with the lead's owner,
+    // ownerRole=VCIO with the customer's accountManager (when they're
+    // a VCIO), and ownerRole=COO unassigned (typically singular).
+    const accountManager = customer.accountManager;
+    const leadOwner = await prisma.lead.findUnique({
+      where: { id: customer.leadId },
+      select: { ownerUserId: true },
+    });
+    function ownerFor(role: Role | null): string | null {
+      if (role === Role.SALESPERSON) return leadOwner?.ownerUserId ?? null;
+      if (role === Role.VCIO) {
+        if (accountManager?.role === Role.VCIO) return accountManager.id;
+        // Fall back to the accepting user if THEY are vCIO
+        return user.role === Role.VCIO ? user.id : null;
+      }
+      if (role === Role.COO) {
+        return accountManager?.role === Role.COO
+          ? accountManager.id
+          : user.role === Role.COO
+          ? user.id
+          : null;
+      }
+      return null;
+    }
 
     // If replacing, drop the prior vcio-plan-<assessmentId>-* tasks first.
     // We DON'T touch tasks created by other sources (template-driven, ad-hoc).
@@ -110,7 +148,8 @@ export async function POST(
         phase: t.phase,
         title: t.title,
         description: t.description || (t.sourceFinding ? `From assessment: ${t.sourceFinding}` : null),
-        ownerUserId: null,
+        // v3.3.7 — assign to the right owner per role so /my-tasks lights up.
+        ownerUserId: ownerFor(t.ownerRole),
         ownerRole: t.ownerRole,
         status: OnboardingTaskStatus.PENDING,
         dueAt,
@@ -118,6 +157,32 @@ export async function POST(
         templateKey: `${templateKeyPrefix}${idx}`,
       };
     });
+
+    // v3.3.7 — Append the customerNextStep as the first PRE_ENGAGEMENT
+    // action item. Owned by the lead's salesperson when the next step
+    // reads as a sales action ("send the SOW", "schedule signing call");
+    // otherwise routed to the vCIO accountManager. Heuristic: anything
+    // that mentions SOW / contract / sign / quote → SALESPERSON.
+    if (customerNextStep) {
+      const looksLikeSales = /\b(sow|contract|sign|signing|quote|proposal|kickoff call|kick off call|kick-off call)\b/i.test(customerNextStep);
+      const nextStepRole = looksLikeSales ? Role.SALESPERSON : Role.VCIO;
+      const nextStepOwner = ownerFor(nextStepRole);
+      const nextStepDue = new Date(kickoff.getTime() + 3 * 24 * 60 * 60 * 1000);
+      const phasePos = positionPerPhase.get(OnboardingPhase.PRE_ENGAGEMENT) ?? 0;
+      positionPerPhase.set(OnboardingPhase.PRE_ENGAGEMENT, phasePos + 1);
+      rows.push({
+        customerId,
+        phase: OnboardingPhase.PRE_ENGAGEMENT,
+        title: `Customer next step: ${customerNextStep.slice(0, 240)}`,
+        description: "Auto-created from the accepted vCIO plan. This is the customer-facing CTA — track it through to confirmation.",
+        ownerUserId: nextStepOwner,
+        ownerRole: nextStepRole,
+        status: OnboardingTaskStatus.PENDING,
+        dueAt: nextStepDue,
+        position: phasePos,
+        templateKey: `${templateKeyPrefix}next-step`,
+      });
+    }
 
     await prisma.$transaction([
       prisma.onboardingTask.createMany({ data: rows }),
@@ -132,10 +197,7 @@ export async function POST(
       // Activity on the underlying lead for the timeline.
       prisma.activity.create({
         data: {
-          leadId: (await prisma.customer.findUnique({
-            where: { id: customerId },
-            select: { leadId: true },
-          }))!.leadId,
+          leadId: customer.leadId,
           actorUserId: user.id,
           type: ActivityType.NOTE,
           subject: `vCIO plan accepted — ${rows.length} task${rows.length === 1 ? "" : "s"} added to onboarding`,
@@ -143,6 +205,15 @@ export async function POST(
         },
       }),
     ]);
+
+    // v3.3.7 — Count how many tasks landed on which user so the UI can
+    // tell the accepter "5 of these are now on your /my-tasks" instead of
+    // a generic "tasks added".
+    const ownerCounts: Record<string, number> = {};
+    for (const r of rows) {
+      if (r.ownerUserId) ownerCounts[r.ownerUserId] = (ownerCounts[r.ownerUserId] ?? 0) + 1;
+    }
+    const tasksOnAccepter = ownerCounts[user.id] ?? 0;
 
     await writeAudit({
       actorUserId: user.id,
@@ -160,6 +231,8 @@ export async function POST(
     return NextResponse.json({
       ok: true,
       tasksCreated: rows.length,
+      tasksOnAccepter,
+      ownerCounts,
       acceptedAt: new Date().toISOString(),
     });
   } catch (err) {
