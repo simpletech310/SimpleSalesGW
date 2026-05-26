@@ -172,7 +172,85 @@ async function main() {
   // eslint-disable-next-line no-console
   console.log("    coo@gatewaytelnet.com         (COO)");
 
+  // v3.3 — seed 5 starter SOW templates (one per bundle). Idempotent.
+  await seedSowTemplates(admin.id);
+
   void admin;
+}
+
+async function seedSowTemplates(createdByUserId: string) {
+  const starters: Array<{
+    name: string;
+    bundle: import("@prisma/client").ServiceBundle;
+    description: string;
+    scopeMarkdown: string;
+    deliverablesMarkdown: string;
+    timelineMarkdown: string;
+  }> = [
+    {
+      name: "Essential — Managed IT starter",
+      bundle: "ESSENTIAL",
+      description: "Per-seat MSP coverage for smaller orgs without compliance overlay.",
+      scopeMarkdown: "## Scope\n\nWe will provide Essential managed IT for **{{customer.name}}** ({{customer.seats}} seats) across {{customer.industry}}. Coverage includes:\n\n- 24/7 monitoring + remediation of endpoints, identity, and network\n- Patch management with weekly maintenance windows\n- Help-desk during business hours\n- Quarterly business reviews",
+      deliverablesMarkdown: "## Deliverables\n\n- RMM agent deployment within 14 days of kickoff\n- Documented onboarding runbook by Day 21\n- Day-30 health summary delivered at first QBR\n- Monthly tickets + SLA report",
+      timelineMarkdown: "## Timeline\n\n- Week 0: Kickoff + Day-1 narrative\n- Weeks 1–3: Discovery + agent rollout\n- Weeks 4–8: Onboard\n- Weeks 8+: Steady state + first QBR at Week 12",
+    },
+    {
+      name: "Professional — Managed IT + Security stack",
+      bundle: "PROFESSIONAL",
+      description: "Bundle for mid-size customers with light compliance + security layering.",
+      scopeMarkdown: "## Scope\n\nProfessional Managed IT + Security for **{{customer.name}}** ({{customer.seats}} seats, {{customer.industry}}). Stated pain: {{lead.statedPain}}. Includes everything in Essential plus:\n\n- Managed EDR + MDR\n- Email security gateway\n- DNS filtering\n- Annual security awareness training",
+      deliverablesMarkdown: "## Deliverables\n\n- Essential deliverables\n- EDR + MDR coverage live by Day 30\n- Security awareness Year-1 campaign launched by Day 60\n- Cyber-insurance attestation letter on request",
+      timelineMarkdown: "## Timeline\n\nSame as Essential, plus:\n- Weeks 2–4: Security stack rollout\n- Day 30: First risk posture summary",
+    },
+    {
+      name: "Compliance Plus — NIST / HIPAA / CMMC",
+      bundle: "COMPLIANCE_PLUS",
+      description: "For customers in regulated verticals: medical, federal contracting, financial services.",
+      scopeMarkdown: "## Scope\n\nCompliance Plus for **{{customer.name}}** — managed IT + security + ongoing compliance program. Compliance drivers: {{customer.complianceDrivers}}. Includes:\n\n- All Professional services\n- Annual NIST CSF or NIST 800-171 assessment\n- POAM tracking + quarterly remediation reviews\n- Cyber-insurance + audit-readiness support",
+      deliverablesMarkdown: "## Deliverables\n\n- Professional deliverables\n- Year-1 NIST baseline assessment with executive summary by Day 90\n- POAM register live by Day 60 with assigned owners\n- Quarterly compliance scorecard at each QBR",
+      timelineMarkdown: "## Timeline\n\n- Weeks 0–4: Standard onboard\n- Weeks 4–8: NIST baseline assessment\n- Week 12: First quarterly compliance review",
+    },
+    {
+      name: "Enterprise — Strategic vCIO partnership",
+      bundle: "ENTERPRISE",
+      description: "For customers with > 100 seats or multi-site complexity that need strategic IT leadership.",
+      scopeMarkdown: "## Scope\n\nEnterprise vCIO partnership for **{{customer.name}}** ({{customer.seats}} seats, multi-site). Includes all Compliance Plus services plus:\n\n- Dedicated vCIO with monthly strategy sessions\n- Annual technology roadmap + budget planning\n- Vendor management oversight\n- Strategic risk + capacity reviews",
+      deliverablesMarkdown: "## Deliverables\n\n- Compliance Plus deliverables\n- Year-1 strategic roadmap document by Day 60\n- Vendor consolidation analysis at Q1 QBR\n- Annual board-ready risk + posture report",
+      timelineMarkdown: "## Timeline\n\n- Week 0–8: Standard onboard\n- Week 8: First strategic roadmap draft\n- Monthly vCIO 1:1s starting Week 4",
+    },
+    {
+      name: "Custom — Scope-per-engagement",
+      bundle: "CUSTOM",
+      description: "Use when none of the four bundles fit cleanly. Salesperson + vCIO co-author the scope.",
+      scopeMarkdown: "## Scope\n\nCustom engagement for **{{customer.name}}**. Specific scope:\n\n[describe what we're committing to — co-authored with vCIO]\n\nDeal kind: {{deal.bundle}}",
+      deliverablesMarkdown: "## Deliverables\n\n[list specific deliverables agreed during pre-sale discovery]",
+      timelineMarkdown: "## Timeline\n\n[specific milestones — kickoff, midpoint check-in, completion]",
+    },
+  ];
+
+  for (const t of starters) {
+    const existing = await prisma.sowTemplate.findFirst({ where: { name: t.name } });
+    if (existing) continue;
+    await prisma.sowTemplate.create({
+      data: {
+        name: t.name,
+        description: t.description,
+        bundle: t.bundle,
+        scopeMarkdown: t.scopeMarkdown,
+        deliverablesMarkdown: t.deliverablesMarkdown,
+        timelineMarkdown: t.timelineMarkdown,
+        exclusionsMarkdown:
+          "## Exclusions\n\n- Hardware not specified in deliverables\n- Third-party SaaS licensing\n- Custom development\n- Onsite work beyond initial deployment\n- Recovery from incidents pre-dating engagement",
+        termsMarkdown:
+          "## Terms\n\n- Billing: monthly in advance via ACH\n- Initial term: 12 months\n- Auto-renewal: month-to-month after initial term\n- Cancellation: 60 days written notice\n- Rate review: annual",
+        createdByUserId,
+      },
+    });
+  }
+
+  // eslint-disable-next-line no-console
+  console.log("[seed] SOW starter templates ensured.");
 }
 
 main()

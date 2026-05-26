@@ -13,6 +13,7 @@ import {
   Zap,
   CheckCircle2,
   AlertTriangle,
+  FileText,
   type LucideIcon,
 } from "lucide-react";
 import { auth } from "@/auth";
@@ -134,6 +135,9 @@ export default async function AdminHomePage() {
           )}
           {can(role, "pricing:catalog:edit") && (
             <AdminTile icon={DollarSign} href="/admin/pricing" title="Pricing catalog" desc="Edit bundle prices, floors, and onboarding fees." />
+          )}
+          {can(role, "sow:template:edit") && (
+            <AdminTile icon={FileText} href="/admin/sow-templates" title="SOW templates" desc="Library of Statement-of-Work skeletons salespeople pick from when drafting proposals." />
           )}
           {can(role, "system:config") && (
             <AdminTile icon={Mail} href="/admin/outreach" title="Outreach templates" desc="Manage the cold-outreach + follow-up library." />

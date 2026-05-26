@@ -92,6 +92,38 @@ export async function createCustomerFromHandoff(opts: {
       data: { customerId: created.id },
     });
 
+    // v3.3 — SOP Step 9: auto-create the Kickoff record + Day-30 quick-win
+    // onboarding task from the latest accepted handoff.
+    const handoff = await tx.handoff.findFirst({
+      where: { leadId: opts.leadId, status: "ACCEPTED" },
+      orderBy: { createdAt: "desc" },
+      select: { day30QuickWin: true, acceptedAt: true },
+    });
+
+    await tx.kickoff.create({
+      data: {
+        customerId: created.id,
+        // Default kickoff target = 14 days after handoff acceptance
+        scheduledAt: new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000),
+      },
+    });
+
+    if (handoff?.day30QuickWin) {
+      await tx.onboardingTask.create({
+        data: {
+          customerId: created.id,
+          phase: OnboardingPhase.ONBOARD,
+          title: `Day-30 quick win: ${handoff.day30QuickWin.slice(0, 180)}`,
+          description: handoff.day30QuickWin,
+          position: 999, // sentinel — appears at the end of ONBOARD phase
+          templateKey: "v3.3.day30_quick_win",
+          dueAt: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
+          status: OnboardingTaskStatus.PENDING,
+          ownerRole: "VCIO",
+        },
+      });
+    }
+
     return created;
   });
 
