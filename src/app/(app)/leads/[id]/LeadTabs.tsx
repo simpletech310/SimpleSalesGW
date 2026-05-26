@@ -11,6 +11,7 @@ import { Card } from "@/components/ui/Card";
 import { FilesTab } from "./FilesTab";
 import { ObjectionsTab } from "./ObjectionsTab";
 import { DocumentsPanel } from "@/app/(app)/accounts/[id]/DocumentsPanel";
+import { ProposalPanel } from "./ProposalPanel";
 
 type Lead = {
   id: string;
@@ -48,7 +49,7 @@ type AuditEntry = {
   actor: { name: string } | null;
 };
 
-const TABS = ["Overview", "Research", "Activity", "Assessment", "Objections", "Files", "Documents", "Audit"] as const;
+const TABS = ["Overview", "Research", "Activity", "Assessment", "Proposal", "Objections", "Files", "Signed Docs", "Audit"] as const;
 
 export function LeadTabs({
   lead,
@@ -86,9 +87,10 @@ export function LeadTabs({
         {tab === "Research" && <ResearchTab lead={lead} canEdit={canEdit} />}
         {tab === "Activity" && <ActivityTab lead={lead} canEdit={canEdit} />}
         {tab === "Assessment" && <AssessmentTab lead={lead} />}
+        {tab === "Proposal" && <ProposalPanel leadId={lead.id} canEdit={canEdit} />}
         {tab === "Objections" && <ObjectionsTab leadId={lead.id} canEdit={canEdit} />}
         {tab === "Files" && <FilesTab leadId={lead.id} />}
-        {tab === "Documents" && <DocumentsPanel scope="lead" parentId={lead.id} />}
+        {tab === "Signed Docs" && <DocumentsPanel scope="lead" parentId={lead.id} />}
         {tab === "Audit" && <AuditTab entries={auditLogs} />}
       </div>
     </div>
