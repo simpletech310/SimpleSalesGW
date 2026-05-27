@@ -90,6 +90,15 @@ if (process.env.DATABASE_URL) {
   process.env.PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK = "1";
   log("PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK=1 — Vercel serializes deploys, lock not needed.");
   log("DATABASE_URL present — running migrations and seed.");
+  // v3.4 — The first attempt of 20260527000100_v3_4_unified_pipeline_and_site_survey
+  // failed (missed an ALTER on deal_debriefs.outcome) and left a poison row in
+  // _prisma_migrations. Mark it rolled back before re-applying the corrected SQL.
+  // Once the row is gone / migration applied, this resolve call no-ops via
+  // maybeRun. Safe to remove after one successful production deploy.
+  maybeRun("npx", [
+    "prisma", "migrate", "resolve",
+    "--rolled-back", "20260527000100_v3_4_unified_pipeline_and_site_survey",
+  ]);
   run("npx", ["prisma", "migrate", "deploy"]);
   // Seeding is idempotent (upserts) — safe to run on every deploy.
   maybeRun("npx", ["tsx", "prisma/seed.ts"]);

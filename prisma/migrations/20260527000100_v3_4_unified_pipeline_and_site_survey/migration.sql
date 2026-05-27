@@ -41,6 +41,12 @@ ALTER TABLE "leads"
   ALTER COLUMN "pipeline_stage" TYPE "PipelineStage" USING "pipeline_stage"::text::"PipelineStage",
   ALTER COLUMN "pipeline_stage" SET DEFAULT 'LEAD';
 
+-- deal_debriefs.outcome also uses PipelineStage (restricted in app code to
+-- CLOSED_WON / CLOSED_LOST, so no backfill needed) — recast onto the new type
+-- before dropping the legacy enum.
+ALTER TABLE "deal_debriefs"
+  ALTER COLUMN "outcome" TYPE "PipelineStage" USING "outcome"::text::"PipelineStage";
+
 DROP TYPE "PipelineStage_old";
 
 -- (2) SiteSurvey enums + table
