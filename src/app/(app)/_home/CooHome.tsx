@@ -16,6 +16,7 @@ import { StatCard } from "@/components/ui/StatCard";
 import { Badge, ScoreBadge } from "@/components/ui/Badge";
 import { DataTable, type Column } from "@/components/ui/DataTable";
 import { EmptyState } from "@/components/help/EmptyState";
+import { PipelineStrip } from "@/components/pipeline/PipelineStrip";
 import { DashboardPage, DashboardSection } from "@/components/templates";
 import { DetailSplit } from "@/components/templates/DetailPage";
 import { loadNotifications } from "@/lib/notifications";
@@ -46,6 +47,7 @@ export async function CooHome({
     recentCustomers,
     recentDecidedHandoffs,
     thisWeekHandoffActivity,
+    pipelineCountsRows,
   ] = await Promise.all([
     loadNotifications({ id: user.id, role: user.role }),
     prisma.customer.count({
@@ -53,7 +55,7 @@ export async function CooHome({
     }),
     prisma.lead.findMany({
       where: {
-        pipelineStage: { in: [PipelineStage.PROPOSAL, PipelineStage.NEGOTIATION] },
+        pipelineStage: { in: [PipelineStage.QUOTE_SENT, PipelineStage.NEGOTIATION] },
       },
       orderBy: { updatedAt: "desc" },
       take: 6,
@@ -94,7 +96,12 @@ export async function CooHome({
       },
       select: { createdAt: true, updatedAt: true },
     }),
+    prisma.lead.groupBy({ by: ["pipelineStage"], _count: { _all: true } }),
   ]);
+
+  const pipelineCounts: Partial<Record<PipelineStage, number>> = Object.fromEntries(
+    pipelineCountsRows.map((r) => [r.pipelineStage, r._count._all]),
+  );
 
   const handoffs = notifications.handoffsAwaiting;
   const cooApprovals = notifications.pricingApprovalsPending.filter((p) => p.tier === "COO");
@@ -197,11 +204,13 @@ export async function CooHome({
             icon={TrendingUp}
             tone="neutral"
             href="/pipeline"
-            sub={lateStageLeads.length > 0 ? "Proposal + Negotiation" : "—"}
+            sub={lateStageLeads.length > 0 ? "Quote Sent + Negotiation" : "—"}
           />
         </>
       }
     >
+      <PipelineStrip counts={pipelineCounts} heading="Company pipeline" />
+
       <DashboardSection
         title="Handoffs awaiting your acceptance"
         subtitle="A salesperson handed a closed deal across — review and accept to spawn an Account."
@@ -222,7 +231,7 @@ export async function CooHome({
         main={
           <DashboardSection
             title="Late-stage deals"
-            subtitle="Proposal and negotiation — keep an eye on these."
+            subtitle="Quote sent and negotiation — keep an eye on these."
             actions={
               <Button asChild variant="ghost" size="sm">
                 <Link href="/pipeline">Open pipeline →</Link>

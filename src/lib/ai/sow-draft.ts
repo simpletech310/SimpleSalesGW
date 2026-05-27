@@ -116,3 +116,99 @@ ${input.template.termsMarkdown}`;
     maxTokens: 4000,
   });
 }
+
+// ---------- v3.4 — single-section regenerate ----------
+
+const SECTION_LABEL: Record<SowSection, string> = {
+  scope: "Scope",
+  deliverables: "Deliverables",
+  timeline: "Timeline",
+  exclusions: "Exclusions",
+  terms: "Terms",
+};
+
+export type SowSection = "scope" | "deliverables" | "timeline" | "exclusions" | "terms";
+
+const SectionRegenSchema = z.object({
+  markdown: z.string().min(1),
+  notes: z.string().default(""),
+});
+export type SowSectionRegenOutput = z.infer<typeof SectionRegenSchema>;
+
+export type SowSectionRegenInput = SowDraftInput & {
+  section: SowSection;
+  currentDraft: {
+    scopeMarkdown: string;
+    deliverablesMarkdown: string;
+    timelineMarkdown: string;
+    exclusionsMarkdown: string;
+    termsMarkdown: string;
+  };
+  instruction: string;
+};
+
+export async function regenerateSection(
+  input: SowSectionRegenInput,
+  budget?: { leadId: string; userId?: string },
+): Promise<BudgetedJsonResult<SowSectionRegenOutput>> {
+  const sectionLabel = SECTION_LABEL[input.section];
+  const sectionTask = `## Your job
+You are rewriting the **${sectionLabel}** section of an existing Statement of Work.
+Apply the user's refinement instruction below while preserving the rest of the
+SOW intact. Do not invent compliance commitments, dollar figures, or hardware
+counts that are not present in the discovery + pricing snapshot.
+
+User instruction: ${input.instruction}
+
+Output strictly as a single JSON object:
+{
+  "markdown": "rewritten markdown for the ${sectionLabel} section only",
+  "notes": "1 sentence on what you changed"
+}`;
+
+  const ctx = [
+    `LEAD: ${input.lead.businessName} (${input.lead.industry})`,
+    input.lead.seatCount ? `Seats: ${input.lead.seatCount} across ${input.lead.siteCount} site(s)` : null,
+    input.lead.complianceDrivers.length ? `Compliance: ${input.lead.complianceDrivers.join(", ")}` : null,
+    input.lead.statedPain ? `Stated pain: ${input.lead.statedPain}` : null,
+  ].filter(Boolean).join("\n");
+
+  const discoveryBlock = input.discovery.length === 0
+    ? "(no discovery yet)"
+    : input.discovery.map((d) => `- ${d.kind}: ${d.summary}`).join("\n");
+
+  const user = `${ctx}
+
+DISCOVERY
+${discoveryBlock}
+
+APPROVED PRICING SNAPSHOT
+${JSON.stringify(input.pricingSnapshot, null, 2)}
+
+CURRENT FULL DRAFT
+## scope
+${input.currentDraft.scopeMarkdown}
+
+## deliverables
+${input.currentDraft.deliverablesMarkdown}
+
+## timeline
+${input.currentDraft.timelineMarkdown}
+
+## exclusions
+${input.currentDraft.exclusionsMarkdown}
+
+## terms
+${input.currentDraft.termsMarkdown}
+
+Rewrite only the ${sectionLabel.toUpperCase()} section.`;
+
+  return withBudgetedJson({
+    systemTask: sectionTask,
+    user,
+    schema: SectionRegenSchema,
+    feature: AiFeatureKind.SOW_DRAFT,
+    budget,
+    maxTokens: 1500,
+  });
+}

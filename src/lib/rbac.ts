@@ -47,7 +47,11 @@ export type PermissionKey =
   | "proposal:manager-review"   // pricing review gate
   | "sow:template:edit"         // /admin/sow-templates CRUD
   | "kickoff:edit"              // edit kickoff record on customer (source-lead owner OR vCIO/COO)
-  | "debrief:submit";           // submit deal debrief on CLOSED_WON/LOST
+  | "debrief:submit"            // submit deal debrief on CLOSED_WON/LOST
+  // v3.4 — quote authoring is gated to manager + vCIO; reps request only
+  | "quote:create"
+  // v3.4 — vCIO accepts/rejects site surveys before discovery begins
+  | "site-survey:accept";
 
 const matrix: Record<Role, ReadonlyArray<PermissionKey>> = {
   SALESPERSON: [
@@ -58,8 +62,8 @@ const matrix: Record<Role, ReadonlyArray<PermissionKey>> = {
     "handoff:initiate",
     "pricing:view:sticker",
     "customer:view:own",
-    // v3.3
-    "proposal:draft",
+    // v3.4 — reps no longer draft proposals; they request a quote from
+    // manager/vCIO. proposal:draft removed.
     "kickoff:edit",
     "debrief:submit",
   ],
@@ -93,6 +97,8 @@ const matrix: Record<Role, ReadonlyArray<PermissionKey>> = {
     "sow:template:edit",
     "kickoff:edit",
     "debrief:submit",
+    // v3.4
+    "quote:create",
   ],
   VCIO: [
     "lead:view:own",
@@ -108,6 +114,10 @@ const matrix: Record<Role, ReadonlyArray<PermissionKey>> = {
     // v3.3
     "proposal:vcio-review",
     "kickoff:edit",
+    // v3.4 — vCIO authors quotes after their assessment + accepts site surveys
+    "proposal:draft",
+    "quote:create",
+    "site-survey:accept",
   ],
   COO: [
     "lead:view:own",
@@ -125,6 +135,10 @@ const matrix: Record<Role, ReadonlyArray<PermissionKey>> = {
     "customer:archive",
     // v3.3
     "kickoff:edit",
+    // v3.4 — COO can also accept site surveys + author quotes if needed
+    "quote:create",
+    "site-survey:accept",
+    "proposal:draft",
   ],
   SUPERADMIN: [
     "lead:view:own",
@@ -167,6 +181,9 @@ const matrix: Record<Role, ReadonlyArray<PermissionKey>> = {
     "sow:template:edit",
     "kickoff:edit",
     "debrief:submit",
+    // v3.4
+    "quote:create",
+    "site-survey:accept",
   ],
 };
 
@@ -190,15 +207,11 @@ export class RbacError extends Error {
 
 /** Pipeline stages that vCIO is allowed to see. */
 export const VCIO_VISIBLE_STAGES: PipelineStage[] = [
-  // v3.3.22 — vCIO gets pulled in from "Site survey scheduled" onward
-  // on the new MSP-friendly flow. Legacy PRE_SALES + PROPOSAL still
-  // visible so existing leads don't disappear.
+  // vCIO is pulled in once the sales rep schedules the site survey.
   PipelineStage.SITE_SURVEY_SCHEDULED,
   PipelineStage.DISCOVERY,
   PipelineStage.QUOTE_IN_PROGRESS,
   PipelineStage.QUOTE_SENT,
-  PipelineStage.PRE_SALES,
-  PipelineStage.PROPOSAL,
   PipelineStage.NEGOTIATION,
   PipelineStage.CLOSED_WON,
   PipelineStage.CLOSED_LOST,

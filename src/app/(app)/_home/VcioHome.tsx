@@ -16,15 +16,17 @@ import { Button } from "@/components/ui/Button";
 import { StatCard } from "@/components/ui/StatCard";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/help/EmptyState";
+import { PipelineStrip } from "@/components/pipeline/PipelineStrip";
 import { DashboardPage, DashboardSection } from "@/components/templates";
 import { DetailSplit } from "@/components/templates/DetailPage";
-import { customerVisibilityFilter } from "@/lib/rbac";
+import { customerVisibilityFilter, leadVisibilityFilter, VCIO_VISIBLE_STAGES } from "@/lib/rbac";
 import { loadNotifications } from "@/lib/notifications";
 import {
   CustomerStatus,
   DiscoveryStatus,
   OnboardingPhase,
   OnboardingTaskStatus,
+  PipelineStage,
   type Role,
 } from "@prisma/client";
 
@@ -50,6 +52,18 @@ export async function VcioHome({
   const thirtyDaysAgo = new Date(now - 30 * 24 * 60 * 60 * 1000);
   const ninetyDaysAgo = new Date(now - 90 * 24 * 60 * 60 * 1000);
   const visibility = customerVisibilityFilter(user.role, user.id);
+  const leadVisibility = leadVisibilityFilter(user.role, user.id);
+  const [pipelineCountsRows, siteSurveysAwaiting] = await Promise.all([
+    prisma.lead.groupBy({
+      by: ["pipelineStage"],
+      where: leadVisibility,
+      _count: { _all: true },
+    }),
+    prisma.siteSurvey.count({ where: { status: "AWAITING_VCIO_ACCEPT" } }),
+  ]);
+  const pipelineCounts: Partial<Record<PipelineStage, number>> = Object.fromEntries(
+    pipelineCountsRows.map((r) => [r.pipelineStage, r._count._all]),
+  );
 
   const [
     customers,
@@ -239,6 +253,28 @@ export async function VcioHome({
       }
     >
       <AutoRefresh intervalMs={30000} />
+
+      <PipelineStrip counts={pipelineCounts} stages={VCIO_VISIBLE_STAGES} heading="Pipeline in your scope" />
+
+      {siteSurveysAwaiting > 0 && (
+        <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 flex items-start gap-3">
+          <ClipboardList className="h-5 w-5 text-amber-700 mt-0.5 flex-shrink-0" />
+          <div className="text-sm flex-1">
+            <p className="font-semibold text-amber-900">
+              {siteSurveysAwaiting} site survey{siteSurveysAwaiting === 1 ? "" : "s"} awaiting your acceptance
+            </p>
+            <p className="text-amber-900/80">
+              Reps have queued assessments for you. Review the POC, scope, and date — accept or reject with a reason.
+            </p>
+          </div>
+          <Link
+            href="/vcio/site-surveys"
+            className="self-center px-3 py-1.5 rounded bg-amber-700 text-white text-xs font-semibold hover:bg-amber-800"
+          >
+            Open queue
+          </Link>
+        </div>
+      )}
 
       {notifications.preSaleAssessments.length > 0 && (
         <div className="rounded-xl border border-brand/40 bg-brand-soft px-4 py-3 flex items-start gap-3">

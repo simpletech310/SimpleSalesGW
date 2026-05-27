@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/Button";
 import { StatCard } from "@/components/ui/StatCard";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/help/EmptyState";
+import { PipelineStrip } from "@/components/pipeline/PipelineStrip";
 import { DashboardPage, DashboardSection } from "@/components/templates";
 import { DetailSplit } from "@/components/templates/DetailPage";
 import { loadNotifications } from "@/lib/notifications";
@@ -156,40 +157,10 @@ export async function SalesManagerHome({
         </>
       }
     >
-      {/* Pipeline shape — one row of stage counts */}
-      <DashboardSection
-        title="Team pipeline"
-        subtitle="Lead count per stage across everyone you can see."
-        actions={
-          <Button asChild variant="ghost" size="sm">
-            <Link href="/pipeline">Full board →</Link>
-          </Button>
-        }
-        flush
-      >
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 divide-x divide-line-subtle border-t border-line-subtle">
-          {stageOrder.map((stage) => {
-            const count = stageCountMap.get(stage) ?? 0;
-            const isWon = stage === PipelineStage.CLOSED_WON;
-            return (
-              <Link
-                key={stage}
-                href="/pipeline"
-                className="px-3 py-4 hover:bg-surface-3/50 transition-colors group"
-              >
-                <p className="ui-label">{stage.replace(/_/g, " ")}</p>
-                <p
-                  className={`ui-stat text-2xl mt-1.5 ${
-                    isWon ? "text-gtn-green" : count === 0 ? "text-ink-faint" : "text-ink-strong"
-                  }`}
-                >
-                  {count}
-                </p>
-              </Link>
-            );
-          })}
-        </div>
-      </DashboardSection>
+      <PipelineStrip
+        counts={Object.fromEntries(stageCountMap) as Partial<Record<PipelineStage, number>>}
+        heading="Team pipeline"
+      />
 
       <DetailSplit
         asideWidth="340px"

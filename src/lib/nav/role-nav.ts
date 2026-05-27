@@ -11,6 +11,7 @@ import {
   DollarSign,
   Shield,
   UsersRound,
+  ClipboardCheck,
   type LucideIcon,
 } from "lucide-react";
 import { Role } from "@prisma/client";
@@ -56,6 +57,7 @@ const NAV = {
 
   sales:         { href: "/sales",         label: "Sales hub",               icon: UsersRound },
   admin:         { href: "/admin",         label: STRINGS.nav.admin,         icon: Shield },
+  siteSurveys:   { href: "/vcio/site-surveys", label: "Site surveys",        icon: ClipboardCheck },
 
   me:            { href: "/me",            label: STRINGS.nav.me,            icon: User },
   help:          { href: "/help",          label: STRINGS.nav.help,          icon: HelpCircle },
@@ -116,10 +118,11 @@ export function navForRole(role: Role): RoleNav {
       return {
         desktop: [
           { label: null,       items: [NAV.home, NAV.myTasks, NAV.notifications] },
+          { label: "Pipeline",  items: [NAV.pipeline, NAV.siteSurveys, NAV.leads] },
           { label: "Portfolio", items: [NAV.accounts, NAV.pricing] },
           { label: "Account",  items: [NAV.me, NAV.help] },
         ],
-        mobile: [NAV.home, NAV.myTasks, NAV_ALT.accountsPrimary, NAV.notifications, NAV.me],
+        mobile: [NAV.home, NAV.siteSurveys, NAV_ALT.accountsPrimary, NAV.notifications, NAV.me],
       };
     }
 
@@ -127,7 +130,7 @@ export function navForRole(role: Role): RoleNav {
       return {
         desktop: [
           { label: null,       items: [NAV.home, NAV.myTasks, NAV.notifications] },
-          { label: "Pipeline", items: [NAV.accounts, NAV.pipeline, NAV.leads, NAV.pricing] },
+          { label: "Pipeline", items: [NAV.accounts, NAV.pipeline, NAV.leads, NAV.siteSurveys, NAV.pricing] },
           { label: "Manage",   items: [...admin] },
           { label: "Account",  items: [NAV.me, NAV.help] },
         ],
@@ -139,7 +142,7 @@ export function navForRole(role: Role): RoleNav {
       return {
         desktop: [
           { label: null,       items: [NAV.home, NAV.myTasks, NAV.notifications] },
-          { label: "Pipeline", items: [NAV.leads, NAV.newLead, NAV.pipeline, NAV.accounts, NAV.pricing] },
+          { label: "Pipeline", items: [NAV.leads, NAV.newLead, NAV.pipeline, NAV.siteSurveys, NAV.accounts, NAV.pricing] },
           { label: "Manage",   items: [NAV.sales, NAV.admin] },
           { label: "Account",  items: [NAV.me, NAV.help] },
         ],

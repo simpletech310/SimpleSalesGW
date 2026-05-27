@@ -39,9 +39,9 @@ describe("leadIsVisible — team membership", () => {
     expect(leadIsVisible(Role.SALES_MANAGER, USER, OWNER, PipelineStage.LEAD)).toBe(true);
   });
 
-  it("VCIO stage restriction unchanged: sees PRE_SALES+ only", () => {
+  it("VCIO stage restriction: sees Site Survey Scheduled+ only", () => {
     expect(leadIsVisible(Role.VCIO, USER, OWNER, PipelineStage.LEAD)).toBe(false);
-    expect(leadIsVisible(Role.VCIO, USER, OWNER, PipelineStage.PRE_SALES)).toBe(true);
+    expect(leadIsVisible(Role.VCIO, USER, OWNER, PipelineStage.SITE_SURVEY_SCHEDULED)).toBe(true);
   });
 
   it("SUPERADMIN sees everything", () => {
@@ -73,9 +73,9 @@ describe("leadVisibilityFilter — team membership", () => {
     expect(leadVisibilityFilter(Role.SALES_MANAGER, USER, [])).toEqual({});
   });
 
-  it("VCIO = stage filter unchanged", () => {
+  it("VCIO = stage filter is Site Survey Scheduled onward", () => {
     expect(leadVisibilityFilter(Role.VCIO, USER, [])).toEqual({
-      pipelineStage: { in: expect.arrayContaining([PipelineStage.PRE_SALES]) },
+      pipelineStage: { in: expect.arrayContaining([PipelineStage.SITE_SURVEY_SCHEDULED]) },
     });
   });
 });

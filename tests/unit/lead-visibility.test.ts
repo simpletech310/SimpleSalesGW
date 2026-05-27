@@ -26,15 +26,17 @@ describe("leadVisibilityFilter", () => {
     expect(f).toEqual({});
   });
 
-  it("VCIO sees only PRE_SALES+ leads", () => {
+  it("VCIO sees only Site Survey Scheduled+ leads", () => {
     const f = leadVisibilityFilter(Role.VCIO, ME);
     expect(f).toEqual({ pipelineStage: { in: VCIO_VISIBLE_STAGES } });
   });
 
-  it("VCIO_VISIBLE_STAGES is exactly PRE_SALES → CLOSED_LOST", () => {
+  it("VCIO_VISIBLE_STAGES is exactly SITE_SURVEY_SCHEDULED → CLOSED_LOST", () => {
     expect(VCIO_VISIBLE_STAGES).toEqual([
-      PipelineStage.PRE_SALES,
-      PipelineStage.PROPOSAL,
+      PipelineStage.SITE_SURVEY_SCHEDULED,
+      PipelineStage.DISCOVERY,
+      PipelineStage.QUOTE_IN_PROGRESS,
+      PipelineStage.QUOTE_SENT,
       PipelineStage.NEGOTIATION,
       PipelineStage.CLOSED_WON,
       PipelineStage.CLOSED_LOST,
@@ -53,8 +55,8 @@ describe("leadIsVisible", () => {
     expect(leadIsVisible(Role.SALESPERSON, ME, SOMEONE_ELSE, PipelineStage.LEAD)).toBe(false);
   });
 
-  it("VCIO can see PRE_SALES+ leads regardless of owner", () => {
-    expect(leadIsVisible(Role.VCIO, ME, SOMEONE_ELSE, PipelineStage.PRE_SALES)).toBe(true);
+  it("VCIO can see Site Survey Scheduled+ leads regardless of owner", () => {
+    expect(leadIsVisible(Role.VCIO, ME, SOMEONE_ELSE, PipelineStage.SITE_SURVEY_SCHEDULED)).toBe(true);
     expect(leadIsVisible(Role.VCIO, ME, SOMEONE_ELSE, PipelineStage.NEGOTIATION)).toBe(true);
     expect(leadIsVisible(Role.VCIO, ME, SOMEONE_ELSE, PipelineStage.CLOSED_WON)).toBe(true);
   });
@@ -62,8 +64,7 @@ describe("leadIsVisible", () => {
   it("VCIO blocked from early-stage leads", () => {
     expect(leadIsVisible(Role.VCIO, ME, SOMEONE_ELSE, PipelineStage.LEAD)).toBe(false);
     expect(leadIsVisible(Role.VCIO, ME, SOMEONE_ELSE, PipelineStage.QUALIFIED)).toBe(false);
-    expect(leadIsVisible(Role.VCIO, ME, SOMEONE_ELSE, PipelineStage.DISCOVERY)).toBe(false);
-    expect(leadIsVisible(Role.VCIO, ME, SOMEONE_ELSE, PipelineStage.NURTURE)).toBe(false);
+    expect(leadIsVisible(Role.VCIO, ME, SOMEONE_ELSE, PipelineStage.FIRST_INTERACTION)).toBe(false);
   });
 
   it("COO can see all leads at any stage (RO is API-level)", () => {

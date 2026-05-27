@@ -30,24 +30,6 @@ export function CloseDealButtons({ leadId, currentStage }: { leadId: string; cur
     );
   }
 
-  async function moveNurture() {
-    setBusy(true);
-    try {
-      const res = await fetch(`/api/leads/${leadId}/stage`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ stage: PipelineStage.NURTURE }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        toast.error(data?.error ?? "Failed");
-        return;
-      }
-      toast.success("Moved to Nurture");
-      router.refresh();
-    } finally { setBusy(false); }
-  }
-
   return (
     <>
       <div className="flex flex-wrap gap-2">
@@ -70,16 +52,6 @@ export function CloseDealButtons({ leadId, currentStage }: { leadId: string; cur
         >
           <X className="h-3.5 w-3.5 mr-1.5" />
           Closed Lost
-        </Button>
-        <Button
-          variant="secondary"
-          size="sm"
-          disabled={busy}
-          onClick={moveNurture}
-          className="border-gtn-purple/40 text-gtn-purple hover:bg-gtn-purple hover:text-white hover:border-gtn-purple focus-visible:bg-gtn-purple focus-visible:text-white"
-        >
-          <Sparkles className="h-3.5 w-3.5 mr-1.5" />
-          Move to Nurture
         </Button>
       </div>
 

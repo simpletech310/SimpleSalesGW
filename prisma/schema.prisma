@@ -44,23 +44,29 @@ enum Industry {
 enum PipelineStage {
   LEAD
   QUALIFIED
-  // v3.3.22 — MSP-friendly canonical flow:
-  // LEAD → QUALIFIED → FIRST_INTERACTION → SITE_SURVEY_SCHEDULED →
-  // DISCOVERY ("Discovery / Engineering") → QUOTE_IN_PROGRESS →
-  // QUOTE_SENT → NEGOTIATION → CLOSED_WON / CLOSED_LOST.
-  // PRE_SALES + PROPOSAL stay as legacy values so existing leads
-  // don't break — new leads use the new flow.
   FIRST_INTERACTION
   SITE_SURVEY_SCHEDULED
   DISCOVERY
-  PRE_SALES
   QUOTE_IN_PROGRESS
   QUOTE_SENT
-  PROPOSAL
   NEGOTIATION
   CLOSED_WON
   CLOSED_LOST
-  NURTURE
+}
+
+enum SiteSurveyClientType {
+  IT
+  ACCESS_CONTROL
+  CCTV
+  MIXED
+}
+
+enum SiteSurveyStatus {
+  DRAFT
+  AWAITING_VCIO_ACCEPT
+  ACCEPTED
+  REJECTED
+  COMPLETED
 }
 
 enum LeadSource {
@@ -390,6 +396,9 @@ model User {
   callsInitiated           SalesCallSession[]       @relation("CallInitiator")
   objectionsRaised         ObjectionLog[]           @relation("ObjectionRaiser")
   preferences              UserPreference?
+  // v3.4 — site surveys assigned to this vCIO + created by this user
+  vcioSiteSurveys          SiteSurvey[]             @relation("VcioSiteSurveys")
+  siteSurveysCreated       SiteSurvey[]             @relation("SiteSurveyCreator")
 
   @@map("users")
 }
@@ -542,6 +551,7 @@ model Lead {
   objectionLogs        ObjectionLog[]
   // v2.17 — pre-sale technical scoping (voice / CCTV / access / IT)
   preSaleAssessments   DiscoveryAssessment[]
+  siteSurvey           SiteSurvey?
   // v2.20 — AI usage rows scoped to this lead (for per-lead budget cap)
   aiUsageLogs          AiUsageLog[]
   // v2.22 — sales team + territory + Daily.co call sessions
@@ -559,6 +569,46 @@ model Lead {
   @@index([territoryId])
   @@index([triggerEvent])
   @@map("leads")
+}
+
+// v3.4 — SOP Step 3.5: structured site survey handoff from sales rep to vCIO.
+// Rep must capture POC + decision-maker, scheduled date/time, and client type
+// before lead can leave SITE_SURVEY_SCHEDULED; vCIO must accept before
+// the lead can advance to DISCOVERY.
+model SiteSurvey {
+  id                  String                @id @default(uuid()) @db.Uuid
+  leadId              String                @unique @map("lead_id") @db.Uuid
+  lead                Lead                  @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  scheduledDate       DateTime              @map("scheduled_date")
+  scheduledStart      String                @map("scheduled_start")
+  scheduledEnd        String                @map("scheduled_end")
+  timezone            String                @default("America/New_York")
+  pocName             String                @map("poc_name")
+  pocTitle            String                @map("poc_title")
+  pocEmail            String                @map("poc_email")
+  pocPhone            String                @map("poc_phone")
+  pocCanAuthorize     Boolean               @default(false) @map("poc_can_authorize")
+  clientType          SiteSurveyClientType  @map("client_type")
+  status              SiteSurveyStatus      @default(AWAITING_VCIO_ACCEPT)
+  notesForVcio        String?               @map("notes_for_vcio") @db.Text
+  vcioUserId          String?               @map("vcio_user_id") @db.Uuid
+  vcio                User?                 @relation("VcioSiteSurveys", fields: [vcioUserId], references: [id], onDelete: SetNull)
+  vcioAcceptedAt      DateTime?             @map("vcio_accepted_at")
+  vcioRejectedAt      DateTime?             @map("vcio_rejected_at")
+  vcioRejectReason    String?               @map("vcio_reject_reason") @db.Text
+  completedAt         DateTime?             @map("completed_at")
+  discoveryVerifiedAt DateTime?             @map("discovery_verified_at")
+  verifiedSeatCount   Int?                  @map("verified_seat_count")
+  verifiedSiteCount   Int?                  @map("verified_site_count")
+  createdById         String                @map("created_by_id") @db.Uuid
+  createdBy           User                  @relation("SiteSurveyCreator", fields: [createdById], references: [id])
+  createdAt           DateTime              @default(now()) @map("created_at")
+  updatedAt           DateTime              @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@index([vcioUserId])
+  @@index([scheduledDate])
+  @@map("site_surveys")
 }
 
 model Activity {

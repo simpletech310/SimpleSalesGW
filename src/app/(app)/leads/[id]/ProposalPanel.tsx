@@ -21,6 +21,7 @@ import { Input, Label, Textarea } from "@/components/ui/Input";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/help/EmptyState";
 import { cn } from "@/lib/utils";
+import { ProposalPreview } from "./proposal/ProposalPreview";
 
 type SowTemplate = {
   id: string;
@@ -78,14 +79,25 @@ const STATUS_TONE: Record<string, "neutral" | "brand" | "warn" | "success" | "da
 };
 
 /**
- * v3.3 — Proposal/SOW panel. The salesperson's home for Step 6 of the SOP.
+ * v3.4 — Proposal/SOW panel.
+ * Sales reps cannot author quotes (RBAC `quote:create` is manager + vCIO + COO only).
+ * Reps see a "Request quote" button that pings the lead's manager + vCIO instead.
  */
-export function ProposalPanel({ leadId, canEdit }: { leadId: string; canEdit: boolean }) {
+export function ProposalPanel({
+  leadId,
+  canEdit,
+  canCreateQuote = false,
+}: {
+  leadId: string;
+  canEdit: boolean;
+  canCreateQuote?: boolean;
+}) {
   const router = useRouter();
   const [proposals, setProposals] = useState<Proposal[] | null>(null);
   const [templates, setTemplates] = useState<SowTemplate[]>([]);
   const [busy, setBusy] = useState(false);
   const [picker, setPicker] = useState(false);
+  const [requested, setRequested] = useState(false);
 
   const refresh = useCallback(async () => {
     const res = await fetch(`/api/leads/${leadId}/proposals`);
@@ -151,16 +163,45 @@ export function ProposalPanel({ leadId, canEdit }: { leadId: string; canEdit: bo
           {proposals.some((p) => p.status === "ACCEPTED") && <> · <span className="text-gtn-green font-semibold">accepted</span></>}
           {proposals.some((p) => p.status === "SENT") && <> · awaiting customer</>}
         </p>
-        {canEdit && (
+        {canCreateQuote ? (
           <Button size="sm" onClick={() => setPicker((p) => !p)}>
             {picker ? <X className="h-3.5 w-3.5 mr-1.5" /> : <Plus className="h-3.5 w-3.5 mr-1.5" />}
             {picker ? "Cancel" : "New proposal"}
           </Button>
-        )}
+        ) : canEdit ? (
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={busy || requested}
+            onClick={async () => {
+              setBusy(true);
+              try {
+                const res = await fetch(`/api/leads/${leadId}/proposals/request-quote`, { method: "POST" });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data?.error ?? "Couldn't request quote");
+                toast.success("Quote requested — manager + vCIO notified.");
+                setRequested(true);
+              } catch (err) {
+                toast.error(err instanceof Error ? err.message : "Failed");
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            {requested ? <Check className="h-3.5 w-3.5 mr-1.5" /> : <Send className="h-3.5 w-3.5 mr-1.5" />}
+            {requested ? "Quote requested" : "Request quote"}
+          </Button>
+        ) : null}
       </div>
 
+      {!canCreateQuote && (
+        <p className="text-[11px] text-ink-muted px-1">
+          Sales reps don&apos;t draft quotes. Once your site survey is verified, request a quote — your Sales Manager and vCIO will pick up the SOW.
+        </p>
+      )}
+
       {/* Template picker */}
-      {picker && (
+      {picker && canCreateQuote && (
         <div className="rounded-xl bg-surface border border-line-subtle p-4 md:p-5 space-y-3">
           <h3 className="text-sm font-semibold text-ink-strong">Pick a starting point</h3>
           <p className="text-xs text-ink-muted">
@@ -319,21 +360,39 @@ function ProposalCard({
             <ScopeQcAdvisory qc={proposal.aiScopeQcJson} />
           )}
 
-          {/* Five section editors */}
-          {(["scopeMarkdown", "deliverablesMarkdown", "timelineMarkdown", "exclusionsMarkdown", "termsMarkdown"] as const).map((field) => (
-            <SectionEditor
-              key={field}
-              label={field.replace("Markdown", "").replace(/^./, (c) => c.toUpperCase())}
-              value={draft[field] ?? proposal[field]}
-              editing={editing === field}
-              canEdit={canEdit && (status === "DRAFT" || status === "VCIO_REVIEW" || status === "MANAGER_REVIEW")}
-              busy={busy}
-              onStartEdit={() => { setDraft({ [field]: proposal[field] }); setEditing(field); }}
-              onChange={(v) => setDraft({ [field]: v })}
-              onSave={() => save(field, draft[field] ?? "")}
-              onCancel={() => { setEditing(null); setDraft({}); }}
+          {/* Side-by-side: editors on the left, live document preview on the right (lg+). */}
+          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-4 items-start">
+            <div className="space-y-3">
+              {(["scopeMarkdown", "deliverablesMarkdown", "timelineMarkdown", "exclusionsMarkdown", "termsMarkdown"] as const).map((field) => (
+                <SectionEditor
+                  key={field}
+                  leadId={leadId}
+                  proposalId={proposal.id}
+                  sectionKey={field.replace("Markdown", "") as "scope" | "deliverables" | "timeline" | "exclusions" | "terms"}
+                  label={field.replace("Markdown", "").replace(/^./, (c) => c.toUpperCase())}
+                  value={draft[field] ?? proposal[field]}
+                  editing={editing === field}
+                  canEdit={canEdit && (status === "DRAFT" || status === "VCIO_REVIEW" || status === "MANAGER_REVIEW")}
+                  busy={busy}
+                  onStartEdit={() => { setDraft({ [field]: proposal[field] }); setEditing(field); }}
+                  onChange={(v) => setDraft({ [field]: v })}
+                  onSave={() => save(field, draft[field] ?? "")}
+                  onCancel={() => { setEditing(null); setDraft({}); }}
+                  onAfterRegenerate={() => onChange()}
+                />
+              ))}
+            </div>
+            <ProposalPreview
+              leadId={leadId}
+              sections={{
+                scopeMarkdown:        draft.scopeMarkdown        ?? proposal.scopeMarkdown,
+                deliverablesMarkdown: draft.deliverablesMarkdown ?? proposal.deliverablesMarkdown,
+                timelineMarkdown:     draft.timelineMarkdown     ?? proposal.timelineMarkdown,
+                exclusionsMarkdown:   draft.exclusionsMarkdown   ?? proposal.exclusionsMarkdown,
+                termsMarkdown:        draft.termsMarkdown        ?? proposal.termsMarkdown,
+              }}
             />
-          ))}
+          </div>
 
           {/* Reviewer notes */}
           {(proposal.vcioReviewNotes || proposal.managerReviewNotes) && (
@@ -435,8 +494,14 @@ function GatePill({ label, verdict }: { label: string; verdict: string | null })
 }
 
 function SectionEditor({
-  label, value, editing, canEdit, busy, onStartEdit, onChange, onSave, onCancel,
+  leadId,
+  proposalId,
+  sectionKey,
+  label, value, editing, canEdit, busy, onStartEdit, onChange, onSave, onCancel, onAfterRegenerate,
 }: {
+  leadId: string;
+  proposalId: string;
+  sectionKey: "scope" | "deliverables" | "timeline" | "exclusions" | "terms";
   label: string;
   value: string;
   editing: boolean;
@@ -446,15 +511,80 @@ function SectionEditor({
   onChange: (v: string) => void;
   onSave: () => void;
   onCancel: () => void;
+  onAfterRegenerate: () => void;
 }) {
+  const [refineOpen, setRefineOpen] = useState(false);
+  const [instruction, setInstruction] = useState("");
+  const [aiBusy, setAiBusy] = useState(false);
+
+  async function regenerate() {
+    if (instruction.trim().length < 3) {
+      toast.error("Tell the AI what to change.");
+      return;
+    }
+    setAiBusy(true);
+    try {
+      const res = await fetch(`/api/leads/${leadId}/proposals/${proposalId}/regenerate-section`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ section: sectionKey, instruction }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Regenerate failed");
+      toast.success(`${label} updated${data.notes ? ` — ${data.notes}` : ""}`);
+      setRefineOpen(false);
+      setInstruction("");
+      onAfterRegenerate();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed");
+    } finally {
+      setAiBusy(false);
+    }
+  }
+
   return (
     <div className="rounded-md bg-surface border border-line-subtle">
-      <div className="px-3 py-2 flex items-center justify-between border-b border-line-subtle">
+      <div className="px-3 py-2 flex items-center justify-between gap-2 border-b border-line-subtle">
         <p className="text-xs font-semibold text-ink-strong uppercase tracking-wide">{label}</p>
-        {canEdit && !editing && (
-          <button onClick={onStartEdit} className="text-xs text-gtn-purple hover:underline">edit</button>
-        )}
+        <div className="flex items-center gap-2">
+          {canEdit && !editing && (
+            <button
+              onClick={() => setRefineOpen((o) => !o)}
+              className="inline-flex items-center gap-1 text-xs text-gtn-purple hover:underline"
+              title="Refine this section with AI"
+            >
+              <Sparkles className="h-3 w-3" />
+              {refineOpen ? "Close" : "Refine"}
+            </button>
+          )}
+          {canEdit && !editing && (
+            <button onClick={onStartEdit} className="text-xs text-gtn-purple hover:underline">edit</button>
+          )}
+        </div>
       </div>
+      {refineOpen && (
+        <div className="px-3 py-2.5 border-b border-line-subtle bg-brand-soft/30 space-y-2">
+          <p className="text-[11px] text-ink-muted">
+            Tell the AI how to rewrite this section. Examples: &quot;tighten to 6 weeks&quot;, &quot;remove the on-site staging language&quot;, &quot;mention HIPAA training cadence&quot;.
+          </p>
+          <Textarea
+            rows={2}
+            value={instruction}
+            onChange={(e) => setInstruction(e.target.value)}
+            placeholder="Your instruction…"
+            className="text-xs"
+          />
+          <div className="flex justify-end gap-2">
+            <Button size="sm" variant="ghost" disabled={aiBusy} onClick={() => { setRefineOpen(false); setInstruction(""); }}>
+              Cancel
+            </Button>
+            <Button size="sm" disabled={aiBusy} onClick={regenerate}>
+              {aiBusy ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 mr-1.5" />}
+              Regenerate
+            </Button>
+          </div>
+        </div>
+      )}
       <div className="px-3 py-2.5">
         {editing ? (
           <div className="space-y-2">

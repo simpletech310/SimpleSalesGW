@@ -16,7 +16,6 @@ import { writeAudit } from "@/lib/audit";
  */
 const schema = z.object({
   toUserId: z.string().min(1),
-  includeNurture: z.boolean().optional(),
 });
 
 const CLOSED_STAGES: PipelineStage[] = [PipelineStage.CLOSED_WON, PipelineStage.CLOSED_LOST];
@@ -28,7 +27,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       throw new ApiError(403, "Forbidden");
     }
     const { id: fromUserId } = await params;
-    const { toUserId, includeNurture } = schema.parse(await req.json());
+    const { toUserId } = schema.parse(await req.json());
 
     if (fromUserId === toUserId) {
       throw new ApiError(400, "Source and destination rep must differ");
@@ -44,12 +43,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       throw new ApiError(400, "Destination must be a salesperson");
     }
 
-    const excludedStages: PipelineStage[] = includeNurture
-      ? CLOSED_STAGES
-      : [...CLOSED_STAGES, PipelineStage.NURTURE];
-
     const leads = await prisma.lead.findMany({
-      where: { ownerUserId: fromUserId, pipelineStage: { notIn: excludedStages } },
+      where: { ownerUserId: fromUserId, pipelineStage: { notIn: CLOSED_STAGES } },
       select: { id: true, businessName: true },
     });
 

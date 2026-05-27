@@ -12,6 +12,7 @@ import { FilesTab } from "./FilesTab";
 import { ObjectionsTab } from "./ObjectionsTab";
 import { DocumentsPanel } from "@/app/(app)/accounts/[id]/DocumentsPanel";
 import { ProposalPanel } from "./ProposalPanel";
+import { SiteSurveyPanel } from "./SiteSurveyPanel";
 // v3.3.16 — per-service fit derivation for the Overview ribbon
 import { computeAllServiceFits } from "@/lib/scoring/service-fit";
 
@@ -109,15 +110,19 @@ type AuditEntry = {
   actor: { name: string } | null;
 };
 
-const TABS = ["Overview", "Research", "Activity", "Assessment", "Proposal", "Objections", "Files", "Signed Docs", "Audit"] as const;
+const TABS = ["Overview", "Research", "Activity", "Assessment", "Site Survey", "Proposal", "Objections", "Files", "Signed Docs", "Audit"] as const;
 
 export function LeadTabs({
   lead,
   canEdit,
+  canAcceptSiteSurvey = false,
+  canCreateQuote = false,
   auditLogs,
 }: {
   lead: Lead;
   canEdit: boolean;
+  canAcceptSiteSurvey?: boolean;
+  canCreateQuote?: boolean;
   auditLogs: AuditEntry[];
 }) {
   const [tab, setTab] = useState<(typeof TABS)[number]>("Overview");
@@ -147,7 +152,16 @@ export function LeadTabs({
         {tab === "Research" && <ResearchTab lead={lead} canEdit={canEdit} />}
         {tab === "Activity" && <ActivityTab lead={lead} canEdit={canEdit} />}
         {tab === "Assessment" && <AssessmentTab lead={lead} />}
-        {tab === "Proposal" && <ProposalPanel leadId={lead.id} canEdit={canEdit} />}
+        {tab === "Site Survey" && (
+          <SiteSurveyPanel
+            leadId={lead.id}
+            canEdit={canEdit}
+            canAccept={canAcceptSiteSurvey}
+          />
+        )}
+        {tab === "Proposal" && (
+          <ProposalPanel leadId={lead.id} canEdit={canEdit} canCreateQuote={canCreateQuote} />
+        )}
         {tab === "Objections" && <ObjectionsTab leadId={lead.id} canEdit={canEdit} />}
         {tab === "Files" && <FilesTab leadId={lead.id} />}
         {tab === "Signed Docs" && <DocumentsPanel scope="lead" parentId={lead.id} />}

@@ -63,13 +63,9 @@ const STAGE_COLOR: Record<string, string> = {
   DISCOVERY: "#3B82F6",
   QUOTE_IN_PROGRESS: "#0891B2",
   QUOTE_SENT: "#0D9488",
-  // legacy
-  PRE_SALES: "#10B981",
-  PROPOSAL: "#F59E0B",
   NEGOTIATION: "#EF4444",
   CLOSED_WON: "#16A34A",
   CLOSED_LOST: "#9CA3AF",
-  NURTURE: "#A855F7",
 };
 
 export function LeadsMap({ leads }: { leads: MapLead[] }) {

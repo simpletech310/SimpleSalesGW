@@ -22,22 +22,34 @@ type LeadCardData = {
   updatedAt: Date;
 };
 
-const ALL_STAGES: PipelineStage[] = [
+export const ALL_STAGES: PipelineStage[] = [
   PipelineStage.LEAD,
   PipelineStage.QUALIFIED,
+  PipelineStage.FIRST_INTERACTION,
+  PipelineStage.SITE_SURVEY_SCHEDULED,
   PipelineStage.DISCOVERY,
-  PipelineStage.PRE_SALES,
-  PipelineStage.PROPOSAL,
+  PipelineStage.QUOTE_IN_PROGRESS,
+  PipelineStage.QUOTE_SENT,
   PipelineStage.NEGOTIATION,
   PipelineStage.CLOSED_WON,
   PipelineStage.CLOSED_LOST,
-  PipelineStage.NURTURE,
 ];
+
+// Indices 0..7 are the "active" linear progression; 8 + 9 are terminals
+// reached via explicit close controls on the lead detail page.
+const LAST_ACTIVE_INDEX = 7;
+
+type HardBlock = {
+  leadId: string;
+  toStage: PipelineStage;
+  reasons: string[];
+};
 
 export function PipelineBoard({ leads }: { leads: LeadCardData[] }) {
   const router = useRouter();
   const [optimistic, setOptimistic] = useState(leads);
   const [, startTransition] = useTransition();
+  const [hardBlock, setHardBlock] = useState<HardBlock | null>(null);
 
   async function moveLead(id: string, toStage: PipelineStage, acknowledgeWarnings = false) {
     const prev = optimistic.find((l) => l.id === id)?.pipelineStage;
@@ -49,8 +61,16 @@ export function PipelineBoard({ leads }: { leads: LeadCardData[] }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ stage: toStage, acknowledgeWarnings }),
       });
+      if (res.status === 422) {
+        // Hard block — required data missing or role not allowed.
+        const data = await res.json().catch(() => ({}));
+        const reasons: string[] = data.reasons ?? data.errors ?? [data.error ?? "Required data missing"];
+        setOptimistic((cur) => cur.map((l) => (l.id === id ? { ...l, pipelineStage: prev } : l)));
+        setHardBlock({ leadId: id, toStage, reasons });
+        return;
+      }
       if (res.status === 409) {
-        // Gate warnings — let the salesperson decide.
+        // Soft gate warning — let the salesperson decide.
         const data = await res.json();
         const warnings: string[] = data.warnings ?? [];
         const ok = window.confirm(
@@ -94,6 +114,62 @@ export function PipelineBoard({ leads }: { leads: LeadCardData[] }) {
             onDropMove={moveLead}
           />
         ))}
+      </div>
+      {hardBlock && (
+        <HardBlockModal
+          block={hardBlock}
+          onClose={() => setHardBlock(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function HardBlockModal({
+  block,
+  onClose,
+}: {
+  block: HardBlock;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 className="text-base font-semibold text-gtn-navy">
+          Can&apos;t move to {STRINGS.pipeline.stages[block.toStage]}
+        </h2>
+        <p className="mt-1 text-xs text-gtn-grey-2">
+          Required information is missing. Fix the issues below on the lead detail page, then try again.
+        </p>
+        <ul className="mt-3 space-y-1 text-sm text-gtn-navy">
+          {block.reasons.map((r, i) => (
+            <li key={i} className="flex gap-2">
+              <span className="text-gtn-red">•</span>
+              <span>{r}</span>
+            </li>
+          ))}
+        </ul>
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            className="px-3 py-1.5 text-sm rounded bg-gtn-lavender text-gtn-navy"
+            onClick={onClose}
+          >
+            Close
+          </button>
+          <Link
+            href={`/leads/${block.leadId}`}
+            className="px-3 py-1.5 text-sm rounded bg-gtn-navy text-white"
+          >
+            Open lead page
+          </Link>
+        </div>
       </div>
     </div>
   );
@@ -179,12 +255,12 @@ function StageQuickButtons({
   currentStage: PipelineStage;
   onPick: (s: PipelineStage) => void;
 }) {
-  // Linear progression only — active stages 0..5 (LEAD → NEGOTIATION).
-  // Terminal stages (CLOSED_WON / CLOSED_LOST / NURTURE) are reached via the
-  // explicit "Close deal" controls on the Lead detail page.
+  // Linear progression along the 8 active stages (LEAD → NEGOTIATION).
+  // CLOSED_WON / CLOSED_LOST are terminals reached via explicit close
+  // controls on the Lead detail page.
   const idx = ALL_STAGES.indexOf(currentStage);
-  const prev = idx > 0 && idx <= 5 ? ALL_STAGES[idx - 1] : null;
-  const next = idx < 5 ? ALL_STAGES[idx + 1] : null;
+  const prev = idx > 0 && idx <= LAST_ACTIVE_INDEX ? ALL_STAGES[idx - 1] : null;
+  const next = idx < LAST_ACTIVE_INDEX ? ALL_STAGES[idx + 1] : null;
   return (
     <>
       {prev && (

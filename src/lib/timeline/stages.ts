@@ -32,9 +32,6 @@ export type TimelineSegment = {
   gateNote?: string;
 };
 
-// v3.3.22 — MSP-friendly canonical flow. PRE_SALES + PROPOSAL stay in
-// the enum but are no longer on the default win path — they're skipped
-// here unless a legacy lead actually sits in one (handled below).
 const SALES_WON: PipelineStage[] = [
   PipelineStage.LEAD,
   PipelineStage.QUALIFIED,
@@ -47,10 +44,6 @@ const SALES_WON: PipelineStage[] = [
   PipelineStage.CLOSED_WON,
 ];
 
-// Legacy stages — only injected into the timeline when the lead is
-// currently in one of them (otherwise we skip).
-const LEGACY_STAGES: PipelineStage[] = [PipelineStage.PRE_SALES, PipelineStage.PROPOSAL];
-
 const ONBOARDING_ORDER: OnboardingPhase[] = [
   OnboardingPhase.PRE_ENGAGEMENT,
   OnboardingPhase.DISCOVERY,
@@ -62,19 +55,14 @@ const ONBOARDING_ORDER: OnboardingPhase[] = [
 const PIPELINE_LABEL: Record<PipelineStage, { full: string; short: string }> = {
   LEAD:                   { full: "Lead",                  short: "Lead" },
   QUALIFIED:              { full: "Qualified",             short: "Qual" },
-  // v3.3.22 — new MSP-friendly stages
-  FIRST_INTERACTION:      { full: "1st interaction",       short: "1st" },
-  SITE_SURVEY_SCHEDULED:  { full: "Site survey scheduled", short: "Site" },
-  DISCOVERY:              { full: "Discovery / Engineering", short: "Disco" },
-  QUOTE_IN_PROGRESS:      { full: "Quote in progress",     short: "Quote" },
-  QUOTE_SENT:             { full: "Quote sent",            short: "Sent" },
-  // legacy values — UI still labels them but new leads skip
-  PRE_SALES:              { full: "Pre-sales (legacy)",    short: "Pre" },
-  PROPOSAL:               { full: "Proposal (legacy)",     short: "Prop" },
+  FIRST_INTERACTION:      { full: "1st Interaction",       short: "1st" },
+  SITE_SURVEY_SCHEDULED:  { full: "Site Survey Scheduled", short: "Site" },
+  DISCOVERY:              { full: "Discovery",             short: "Disco" },
+  QUOTE_IN_PROGRESS:      { full: "Quote in Progress",     short: "Quote" },
+  QUOTE_SENT:             { full: "Quote Sent",            short: "Sent" },
   NEGOTIATION:            { full: "Negotiation",           short: "Neg" },
   CLOSED_WON:             { full: "Closed Won",            short: "Won" },
   CLOSED_LOST:            { full: "Closed Lost",           short: "Lost" },
-  NURTURE:                { full: "Nurture",               short: "Nurt" },
 };
 
 const PHASE_LABEL: Record<OnboardingPhase, { full: string; short: string }> = {
@@ -115,12 +103,11 @@ export function buildTimeline(input: TimelineInput): TimelineSegment[] {
   // --- Sales side ---
   const currentIdx = SALES_WON.indexOf(input.pipelineStage);
   const isLost = input.pipelineStage === PipelineStage.CLOSED_LOST;
-  const isNurture = input.pipelineStage === PipelineStage.NURTURE;
 
   SALES_WON.forEach((stage, idx) => {
     const key: StageKey = `pipeline:${stage}`;
     let state: TimelineSegment["state"];
-    if (isLost || isNurture) {
+    if (isLost) {
       // Off-path leads: only show LEAD through current stage as completed.
       state = "dormant";
     } else if (currentIdx === -1) {
@@ -158,21 +145,6 @@ export function buildTimeline(input: TimelineInput): TimelineSegment[] {
     segments.push(seg);
   });
 
-  // v3.3.22 — When a legacy lead sits in PRE_SALES or PROPOSAL, inject
-  // that stage as the current one so the timeline still tells the truth.
-  const isLegacy = LEGACY_STAGES.includes(input.pipelineStage);
-  if (isLegacy) {
-    segments.push({
-      key: `pipeline:${input.pipelineStage}`,
-      label: PIPELINE_LABEL[input.pipelineStage].full,
-      short: PIPELINE_LABEL[input.pipelineStage].short,
-      side: "sales",
-      state: "current",
-      enteredAt: (input.stageEnteredAt ?? input.leadCreatedAt).toISOString(),
-      daysInStage: daysBetween(input.stageEnteredAt ?? input.leadCreatedAt, now),
-    });
-  }
-
   // Inject terminal stages as dormant siblings so renderers can show them when relevant.
   if (isLost) {
     segments.push({
@@ -182,15 +154,6 @@ export function buildTimeline(input: TimelineInput): TimelineSegment[] {
       side: "sales",
       state: "current",
       enteredAt: (input.actualCloseDate ?? input.stageEnteredAt ?? input.leadCreatedAt).toISOString(),
-    });
-  } else if (isNurture) {
-    segments.push({
-      key: `pipeline:${PipelineStage.NURTURE}`,
-      label: PIPELINE_LABEL.NURTURE.full,
-      short: PIPELINE_LABEL.NURTURE.short,
-      side: "sales",
-      state: "current",
-      enteredAt: (input.stageEnteredAt ?? input.leadCreatedAt).toISOString(),
     });
   }
 

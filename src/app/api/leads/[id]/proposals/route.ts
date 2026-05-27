@@ -56,7 +56,12 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const actor = await requireSessionUser();
-    if (!can(actor.role, "proposal:draft")) throw new ApiError(403, "Forbidden");
+    if (!can(actor.role, "quote:create") || !can(actor.role, "proposal:draft")) {
+      throw new ApiError(
+        403,
+        "Sales reps can't author quotes. Use the 'Request quote' button so a manager or vCIO can draft it.",
+      );
+    }
     const { id: leadId } = await params;
     await getOwnedLead(leadId, actor.id, actor.role);
     const body = createSchema.parse(await req.json());

@@ -17,8 +17,6 @@ import { GeocodeAllButton } from "./GeocodeAllButton";
 
 export const dynamic = "force-dynamic";
 
-// v3.3.22 — MSP-friendly active-stage filter. Legacy PRE_SALES + PROPOSAL
-// stay so existing leads still surface on the list.
 const ACTIVE_STAGES: PipelineStage[] = [
   PipelineStage.LEAD,
   PipelineStage.QUALIFIED,
@@ -27,8 +25,6 @@ const ACTIVE_STAGES: PipelineStage[] = [
   PipelineStage.DISCOVERY,
   PipelineStage.QUOTE_IN_PROGRESS,
   PipelineStage.QUOTE_SENT,
-  PipelineStage.PRE_SALES,
-  PipelineStage.PROPOSAL,
   PipelineStage.NEGOTIATION,
 ];
 

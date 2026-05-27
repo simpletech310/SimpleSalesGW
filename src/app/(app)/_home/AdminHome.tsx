@@ -19,6 +19,7 @@ import { StatCard } from "@/components/ui/StatCard";
 import { Badge } from "@/components/ui/Badge";
 import { DashboardPage, DashboardSection } from "@/components/templates";
 import { DetailSplit } from "@/components/templates/DetailPage";
+import { PipelineStrip } from "@/components/pipeline/PipelineStrip";
 import { integrationHealth } from "@/lib/env";
 import { spendForOrg } from "@/lib/ai/budget";
 import { CustomerStatus, PipelineStage, Role, type Role as RoleType } from "@prisma/client";
@@ -79,6 +80,14 @@ export async function AdminHome({
     }),
   ]);
 
+  const pipelineCountsRows = await prisma.lead.groupBy({
+    by: ["pipelineStage"],
+    _count: { _all: true },
+  });
+  const pipelineCounts: Partial<Record<PipelineStage, number>> = Object.fromEntries(
+    pipelineCountsRows.map((r) => [r.pipelineStage, r._count._all]),
+  );
+
   const health = integrationHealth();
 
   // Pretty up the AI feature rollup (top 5 by spend).
@@ -117,6 +126,8 @@ export async function AdminHome({
         </>
       }
     >
+      <PipelineStrip counts={pipelineCounts} heading="Org pipeline" />
+
       <DetailSplit
         asideWidth="340px"
         main={

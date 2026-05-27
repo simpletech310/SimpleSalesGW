@@ -15,15 +15,15 @@ describe("timeline — sales-only path", () => {
     expect(current[0]!.key).toBe(`pipeline:${PipelineStage.LEAD}`);
   });
 
-  it("PROPOSAL stage → 4 completed (LEAD..PRE_SALES), 1 current, rest future", () => {
+  it("QUOTE_SENT stage → 6 completed (LEAD..QUOTE_IN_PROGRESS), 1 current, rest future", () => {
     const segs = buildTimeline({
-      pipelineStage: PipelineStage.PROPOSAL,
+      pipelineStage: PipelineStage.QUOTE_SENT,
       leadCreatedAt: REF_DATE,
     });
     const sales = segs.filter((s) => s.side === "sales");
     const completed = sales.filter((s) => s.state === "completed").length;
     const current = sales.filter((s) => s.state === "current").length;
-    expect(completed).toBe(4);
+    expect(completed).toBe(6);
     expect(current).toBe(1);
   });
 
@@ -39,13 +39,10 @@ describe("timeline — sales-only path", () => {
     expect(ops.every((s) => s.state === "future")).toBe(true);
   });
 
-  it("CLOSED_LOST and NURTURE render the sales-won lane as dormant and surface their own segment", () => {
+  it("CLOSED_LOST renders the sales-won lane as dormant and surfaces its own segment", () => {
     const lost = buildTimeline({ pipelineStage: PipelineStage.CLOSED_LOST, leadCreatedAt: REF_DATE });
     expect(lost.some((s) => s.key === `pipeline:${PipelineStage.CLOSED_LOST}`)).toBe(true);
     expect(lost.filter((s) => s.side === "sales" && s.state === "dormant").length).toBeGreaterThan(0);
-
-    const nurture = buildTimeline({ pipelineStage: PipelineStage.NURTURE, leadCreatedAt: REF_DATE });
-    expect(nurture.some((s) => s.key === `pipeline:${PipelineStage.NURTURE}`)).toBe(true);
   });
 });
 
@@ -85,13 +82,13 @@ describe("timeline — gate icons", () => {
       leadCreatedAt: REF_DATE,
       gates: {
         [`pipeline:${PipelineStage.LEAD}`]: { passed: false, note: "Qualification too low" },
-        [`pipeline:${PipelineStage.PROPOSAL}`]: { passed: true },
+        [`pipeline:${PipelineStage.QUOTE_SENT}`]: { passed: true },
       },
     });
     const leadSeg = segs.find((s) => s.key === `pipeline:${PipelineStage.LEAD}`)!;
     expect(leadSeg.gate).toBe("blocked");
     expect(leadSeg.gateNote).toMatch(/Qualification/);
-    const propSeg = segs.find((s) => s.key === `pipeline:${PipelineStage.PROPOSAL}`)!;
+    const propSeg = segs.find((s) => s.key === `pipeline:${PipelineStage.QUOTE_SENT}`)!;
     expect(propSeg.gate).toBe("passed");
   });
 });
@@ -110,8 +107,9 @@ describe("timeline — invariants", () => {
 
   it("exactly one current segment on the sales lane (non-terminal)", () => {
     for (const stage of [
-      PipelineStage.LEAD, PipelineStage.QUALIFIED, PipelineStage.DISCOVERY,
-      PipelineStage.PRE_SALES, PipelineStage.PROPOSAL, PipelineStage.NEGOTIATION,
+      PipelineStage.LEAD, PipelineStage.QUALIFIED, PipelineStage.FIRST_INTERACTION,
+      PipelineStage.SITE_SURVEY_SCHEDULED, PipelineStage.DISCOVERY,
+      PipelineStage.QUOTE_IN_PROGRESS, PipelineStage.QUOTE_SENT, PipelineStage.NEGOTIATION,
     ]) {
       const segs = buildTimeline({ pipelineStage: stage, leadCreatedAt: REF_DATE });
       const cur = segs.filter((s) => s.side === "sales" && s.state === "current");

@@ -26,22 +26,19 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       throw new ApiError(403, "Forbidden");
     }
 
-    // Non-strategic deals cannot advance past the quote-sent / proposal
-    // stage without manager approval. v3.3.22 — include the new
-    // MSP-friendly stages on the "early" side so the gate still fires.
+    // Non-strategic deals cannot advance past Quote Sent without manager
+    // approval.
     const advancedStages: PipelineStage[] = [PipelineStage.NEGOTIATION, PipelineStage.CLOSED_WON];
     const earlyStages: PipelineStage[] = [
       PipelineStage.LEAD, PipelineStage.QUALIFIED,
       PipelineStage.FIRST_INTERACTION, PipelineStage.SITE_SURVEY_SCHEDULED,
       PipelineStage.DISCOVERY,
       PipelineStage.QUOTE_IN_PROGRESS, PipelineStage.QUOTE_SENT,
-      // legacy
-      PipelineStage.PRE_SALES, PipelineStage.PROPOSAL,
     ];
     const advancing = advancedStages.includes(stage) && earlyStages.includes(lead.pipelineStage);
     if (lead.nonStrategicFlag && advancing && !lead.nonStrategicApprovalUserId) {
       if (!can(user.role, "deal:approve:non-strategic")) {
-        throw new ApiError(403, "Non-strategic deal requires Sales Manager approval to advance past Proposal.");
+        throw new ApiError(403, "Non-strategic deal requires Sales Manager approval to advance past Quote Sent.");
       }
       await prisma.lead.update({
         where: { id },
@@ -54,9 +51,28 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     const before = lead.pipelineStage;
 
-    // v2.3 — phase gate (warning style). Server reports unmet requirements
-    // but lets the client retry with acknowledgeWarnings=true.
-    const { warnings } = await evaluateGate(id, before, stage);
+    // v3.4 — Only managers + vCIO + COO can move a lead INTO Quote in Progress.
+    // Reps must request a quote from the manager/vCIO.
+    if (stage === PipelineStage.QUOTE_IN_PROGRESS && !can(user.role, "quote:create")) {
+      return NextResponse.json(
+        {
+          ok: false,
+          reasons: [
+            "Sales reps can't create quotes. Use the lead page to request a quote from your Sales Manager or vCIO.",
+          ],
+          stage,
+          before,
+        },
+        { status: 422 },
+      );
+    }
+
+    // Phase gates — hard blocks return 422 (no override); warnings return
+    // 409 and let the client retry with acknowledgeWarnings=true.
+    const { warnings, hardBlocks } = await evaluateGate(id, before, stage);
+    if (hardBlocks.length > 0) {
+      return NextResponse.json({ ok: false, reasons: hardBlocks, stage, before }, { status: 422 });
+    }
     if (warnings.length > 0 && !acknowledgeWarnings) {
       return NextResponse.json({ ok: false, warnings, stage, before }, { status: 409 });
     }

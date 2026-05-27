@@ -16,7 +16,7 @@ import { prisma } from "@/lib/prisma";
 import { Button } from "@/components/ui/Button";
 import { StatCard } from "@/components/ui/StatCard";
 import { Badge, ScoreBadge } from "@/components/ui/Badge";
-import { PipelineBoard } from "@/components/pipeline/PipelineBoard";
+import { PipelineStrip } from "@/components/pipeline/PipelineStrip";
 import { EmptyState } from "@/components/help/EmptyState";
 import { DashboardPage, DashboardSection } from "@/components/templates";
 import { DetailSplit } from "@/components/templates/DetailPage";
@@ -94,9 +94,6 @@ export async function SalespersonHome({
     }),
   ]);
 
-  // v3.3.22 — MSP-friendly stage list. PRE_SALES + PROPOSAL kept for
-  // legacy leads that haven't been migrated to QUOTE_IN_PROGRESS /
-  // QUOTE_SENT yet.
   const activeStages: PipelineStage[] = [
     PipelineStage.LEAD,
     PipelineStage.QUALIFIED,
@@ -105,17 +102,19 @@ export async function SalespersonHome({
     PipelineStage.DISCOVERY,
     PipelineStage.QUOTE_IN_PROGRESS,
     PipelineStage.QUOTE_SENT,
-    PipelineStage.PRE_SALES,
-    PipelineStage.PROPOSAL,
     PipelineStage.NEGOTIATION,
   ];
   const active = leads.filter((l) => activeStages.includes(l.pipelineStage));
   const lateStage = leads.filter(
     (l) =>
       l.pipelineStage === PipelineStage.QUOTE_SENT ||
-      l.pipelineStage === PipelineStage.PROPOSAL ||
       l.pipelineStage === PipelineStage.NEGOTIATION,
   );
+
+  const stageCounts: Partial<Record<PipelineStage, number>> = {};
+  for (const l of leads) {
+    stageCounts[l.pipelineStage] = (stageCounts[l.pipelineStage] ?? 0) + 1;
+  }
 
   // Top opportunities: highest deal-quality among active, capped at 5.
   const topOpps = [...active]
@@ -147,7 +146,7 @@ export async function SalespersonHome({
         <>
           <StatCard label="All leads"           value={leads.length}        icon={Users}      tone="brand"   href="/leads" />
           <StatCard label="Active in pipeline"  value={active.length}       icon={Target}     tone="brand"   href="/pipeline" />
-          <StatCard label="Late stage"          value={lateStage.length}    icon={TrendingUp} tone="warn"    href="/pipeline" sub={lateStage.length > 0 ? "Proposal + Negotiation" : "—"} />
+          <StatCard label="Late stage"          value={lateStage.length}    icon={TrendingUp} tone="warn"    href="/pipeline" sub={lateStage.length > 0 ? "Quote Sent + Negotiation" : "—"} />
           <StatCard label="Closed won this mo." value={closedWonThisMonth}  icon={Trophy}     tone="success" sub={closedWonThisMonth > 0 ? "🎉 Nice work" : "Let's get one"} />
         </>
       }
@@ -164,21 +163,8 @@ export async function SalespersonHome({
         </DashboardSection>
       ) : (
         <>
-          {/* Pipeline board */}
-          <DashboardSection
-            title="Pipeline"
-            subtitle="Drag a lead between stages or click into one to keep working."
-            actions={
-              <Button asChild variant="ghost" size="sm">
-                <Link href="/pipeline">Full board →</Link>
-              </Button>
-            }
-            flush
-          >
-            <div className="p-4 md:p-5">
-              <PipelineBoard leads={leads} />
-            </div>
-          </DashboardSection>
+          {/* Compact pipeline strip — full kanban lives at /pipeline */}
+          <PipelineStrip counts={stageCounts} heading="Your pipeline" />
 
           {/* Two-column split: top opps + recent activity (main); next-actions + stale (aside) */}
           <DetailSplit
