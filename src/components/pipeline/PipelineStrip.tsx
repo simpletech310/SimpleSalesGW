@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { PipelineStage } from "@prisma/client";
 import { STRINGS } from "@/lib/strings";
-import { ALL_STAGES } from "./PipelineBoard";
+import { ALL_STAGES } from "@/lib/pipeline/stages";
 
 /**
  * Compact pipeline-shape strip rendered on every role's home dashboard.

@@ -7,6 +7,9 @@ import { PipelineStage } from "@prisma/client";
 import { STRINGS } from "@/lib/strings";
 import { scoreBadgeClass, formatScore } from "@/lib/utils";
 import { toast } from "sonner";
+import { ALL_STAGES, LAST_ACTIVE_STAGE_INDEX } from "@/lib/pipeline/stages";
+
+export { ALL_STAGES };
 
 type LeadCardData = {
   id: string;
@@ -22,22 +25,7 @@ type LeadCardData = {
   updatedAt: Date;
 };
 
-export const ALL_STAGES: PipelineStage[] = [
-  PipelineStage.LEAD,
-  PipelineStage.QUALIFIED,
-  PipelineStage.FIRST_INTERACTION,
-  PipelineStage.SITE_SURVEY_SCHEDULED,
-  PipelineStage.DISCOVERY,
-  PipelineStage.QUOTE_IN_PROGRESS,
-  PipelineStage.QUOTE_SENT,
-  PipelineStage.NEGOTIATION,
-  PipelineStage.CLOSED_WON,
-  PipelineStage.CLOSED_LOST,
-];
-
-// Indices 0..7 are the "active" linear progression; 8 + 9 are terminals
-// reached via explicit close controls on the lead detail page.
-const LAST_ACTIVE_INDEX = 7;
+const LAST_ACTIVE_INDEX = LAST_ACTIVE_STAGE_INDEX;
 
 type HardBlock = {
   leadId: string;
