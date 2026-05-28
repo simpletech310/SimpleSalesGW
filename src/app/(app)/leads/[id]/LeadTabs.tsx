@@ -8,6 +8,7 @@ import { ActivityType, ActivityOutcome } from "@prisma/client";
 import { Button } from "@/components/ui/Button";
 import { Input, Label, Textarea } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
+import { Markdown, MarkdownInline } from "@/components/ui/Markdown";
 import { FilesTab } from "./FilesTab";
 import { ObjectionsTab } from "./ObjectionsTab";
 import { DocumentsPanel } from "@/app/(app)/accounts/[id]/DocumentsPanel";
@@ -351,9 +352,12 @@ function OverviewTab({ lead }: { lead: Lead }) {
               <p className="text-[10px] uppercase tracking-wide font-semibold text-gtn-green mb-1">
                 Fit signals ({lead.researchFitSignals.length})
               </p>
-              <ul className="space-y-0.5 text-xs">
+              <ul className="space-y-1 text-xs">
                 {lead.researchFitSignals.slice(0, 4).map((s, i) => (
-                  <li key={i} className="text-gtn-navy">• {s}</li>
+                  <li key={i} className="text-gtn-navy flex items-start gap-1.5">
+                    <span className="text-gtn-grey-3 flex-shrink-0">•</span>
+                    <MarkdownInline className="text-xs">{s}</MarkdownInline>
+                  </li>
                 ))}
                 {lead.researchFitSignals.length > 4 && (
                   <li className="text-gtn-grey-2">+{lead.researchFitSignals.length - 4} more</li>
@@ -364,9 +368,12 @@ function OverviewTab({ lead }: { lead: Lead }) {
               <p className="text-[10px] uppercase tracking-wide font-semibold text-gtn-purple mb-1">
                 Ask them ({lead.researchSuggestedQuestions.length})
               </p>
-              <ul className="space-y-0.5 text-xs">
+              <ul className="space-y-1 text-xs">
                 {lead.researchSuggestedQuestions.slice(0, 4).map((s, i) => (
-                  <li key={i} className="text-gtn-navy">• {s}</li>
+                  <li key={i} className="text-gtn-navy flex items-start gap-1.5">
+                    <span className="text-gtn-grey-3 flex-shrink-0">•</span>
+                    <MarkdownInline className="text-xs">{s}</MarkdownInline>
+                  </li>
                 ))}
                 {lead.researchSuggestedQuestions.length > 4 && (
                   <li className="text-gtn-grey-2">+{lead.researchSuggestedQuestions.length - 4} more</li>
@@ -377,9 +384,12 @@ function OverviewTab({ lead }: { lead: Lead }) {
               <p className="text-[10px] uppercase tracking-wide font-semibold text-gtn-amber mb-1">
                 Risks ({lead.researchRisks.length})
               </p>
-              <ul className="space-y-0.5 text-xs">
+              <ul className="space-y-1 text-xs">
                 {lead.researchRisks.slice(0, 4).map((s, i) => (
-                  <li key={i} className="text-gtn-navy">• {s}</li>
+                  <li key={i} className="text-gtn-navy flex items-start gap-1.5">
+                    <span className="text-gtn-grey-3 flex-shrink-0">•</span>
+                    <MarkdownInline className="text-xs">{s}</MarkdownInline>
+                  </li>
                 ))}
                 {lead.researchRisks.length > 4 && (
                   <li className="text-gtn-grey-2">+{lead.researchRisks.length - 4} more</li>
@@ -894,7 +904,11 @@ function EnrichedIntelCard({ lead }: { lead: Lead }) {
                   {n.title}
                 </a>
                 {n.date && <span className="text-gtn-grey-3 text-xs ml-2">{n.date}</span>}
-                {n.summary && <p className="text-xs text-gtn-grey-2 mt-0.5">{n.summary}</p>}
+                {n.summary && (
+                  <Markdown variant="compact" className="text-xs text-gtn-grey-2 mt-0.5">
+                    {n.summary}
+                  </Markdown>
+                )}
               </li>
             ))}
             {recentNews.length > 6 && (
@@ -1052,6 +1066,10 @@ function ResearchTab({ lead, canEdit }: { lead: Lead; canEdit: boolean }) {
   const [fitSignals, setFitSignals] = useState<string[]>(lead.researchFitSignals ?? []);
   const [suggestedQuestions, setSuggestedQuestions] = useState<string[]>(lead.researchSuggestedQuestions ?? []);
   const [risks, setRisks] = useState<string[]>(lead.researchRisks ?? []);
+  // v3.3.29 — render markdown by default; show textarea only when the
+  // rep clicks Edit. AI summaries include intentional **bold** on
+  // attention-worthy phrases, which gets lost in a raw textarea.
+  const [editingSummary, setEditingSummary] = useState(false);
 
   async function save() {
     setSaving(true);
@@ -1161,19 +1179,57 @@ function ResearchTab({ lead, canEdit }: { lead: Lead; canEdit: boolean }) {
           </div>
         )}
       </div>
-      <p className="text-xs text-gtn-grey-2 mb-3">
-        Pulled from website + LinkedIn + Google. You can edit manually.
-      </p>
-      <Textarea
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        disabled={!canEdit}
-        rows={10}
-        placeholder="Click 'Gather research' to scrape website/LinkedIn/Google, then 'Summarize with Gateway AI' for a tight briefing."
-      />
-      {canEdit && (
-        <div className="mt-3 flex justify-end">
-          <Button onClick={save} disabled={saving}>{saving ? "Saving…" : "Save research"}</Button>
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <p className="text-xs text-gtn-grey-2">
+          Pulled from website, public registries, and AI research. <strong className="font-semibold">Bold</strong> calls out what to pay attention to.
+        </p>
+        {canEdit && text && !editingSummary && (
+          <button
+            type="button"
+            onClick={() => setEditingSummary(true)}
+            className="text-xs text-gtn-purple hover:underline flex-shrink-0"
+          >
+            Edit raw
+          </button>
+        )}
+      </div>
+      {editingSummary || !text ? (
+        <>
+          <Textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            disabled={!canEdit}
+            rows={10}
+            placeholder="Click 'Gather research' to scrape sources + run the AI agent. You can also paste markdown here directly — **bold**, *italic*, `code`, [link](url), bullet lists all render."
+          />
+          {canEdit && (
+            <div className="mt-2 flex justify-between items-center">
+              <p className="text-[11px] text-gtn-grey-2">
+                Markdown supported: <code className="bg-gtn-lavender px-1 rounded">**bold**</code>{" "}
+                <code className="bg-gtn-lavender px-1 rounded">*italic*</code>{" "}
+                <code className="bg-gtn-lavender px-1 rounded">[text](url)</code>
+              </p>
+              <div className="flex gap-2">
+                {text && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setEditingSummary(false)}
+                  >
+                    Preview
+                  </Button>
+                )}
+                <Button onClick={save} disabled={saving} size="sm">
+                  {saving ? "Saving…" : "Save research"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </>
+      ) : (
+        <div className="rounded-lg border border-gtn-lavender-2 bg-white p-4">
+          <Markdown variant="prose">{text}</Markdown>
         </div>
       )}
 
@@ -1280,7 +1336,9 @@ function ResearchCardEditor({
           {items.map((s, i) => (
             <li key={i} className="flex items-start gap-2">
               <span className="text-gtn-grey-3 mt-0.5">•</span>
-              <span className="flex-1 break-words">{s}</span>
+              <span className="flex-1 break-words">
+                <MarkdownInline>{s}</MarkdownInline>
+              </span>
               {canEdit && (
                 <button
                   type="button"
