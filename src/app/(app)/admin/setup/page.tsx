@@ -11,6 +11,8 @@ import {
   ShieldCheck,
   Trash2,
   Wrench,
+  Search,
+  ChevronRight,
   type LucideIcon,
 } from "lucide-react";
 import { auth } from "@/auth";
@@ -112,6 +114,26 @@ export default async function SetupPage() {
             varName="ANTHROPIC_API_KEY"
             hint="Optional — without it, you can still scrape sources but won't get an auto summary"
           />
+          {/* v3.3.28 — Phase-1 OSINT provider keys. Every one is optional;
+              the agentic research loop falls through cleanly when absent. */}
+          <HealthRow
+            label="TAVILY_API_KEY (LLM-grounded web search)"
+            ok={health.tavily.configured}
+            varName="TAVILY_API_KEY"
+            hint="Optional — 1000 free queries/mo. Falls back to Brave / DuckDuckGo when missing."
+          />
+          <HealthRow
+            label="BRAVE_SEARCH_API_KEY (search fallback)"
+            ok={health.brave.configured}
+            varName="BRAVE_SEARCH_API_KEY"
+            hint="Optional — 2000 free queries/mo. Used when Tavily quota is hit. Falls back to DDG."
+          />
+          <HealthRow
+            label="HUNTER_API_KEY (domain → emails)"
+            ok={health.hunter.configured}
+            varName="HUNTER_API_KEY"
+            hint="Optional — 25 free lookups/mo. Falls back to regex over scraped pages."
+          />
         </ul>
         <p className="text-xs text-ink-muted mt-4 pt-3 border-t border-line-subtle">
           Set missing values in <strong className="text-ink-strong">Vercel → Project Settings → Environment Variables → Production</strong>,
@@ -190,6 +212,31 @@ export default async function SetupPage() {
           <Link href="/login">Go to login</Link>
         </Button>
       </Step>
+
+      {/* v3.3.28 — link to the dedicated research-providers status page */}
+      <div className="rounded-xl bg-surface border border-line-subtle p-4 md:p-5">
+        <div className="flex items-start gap-3">
+          <Search className="h-5 w-5 text-ink-muted flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <h2 className="text-base font-semibold text-ink-strong">Research providers</h2>
+            <p className="text-sm text-ink-muted mt-1 leading-relaxed">
+              Per-provider status + month-to-date usage across the agentic OSINT loop
+              (Tavily, Brave, DDG, Hunter, NCUA, FDIC, SEC, ProPublica, OpenCorporates, DNS).
+              All providers are optional; the loop degrades gracefully when keys are missing.
+            </p>
+            <Button asChild variant="secondary" size="sm" className="mt-3">
+              <Link href="/admin/setup/research-providers">
+                Open provider status <ChevronRight className="h-3.5 w-3.5 ml-1" />
+              </Link>
+            </Button>
+          </div>
+          <div className="hidden sm:flex flex-col gap-1 text-right text-xs flex-shrink-0">
+            <ProviderBadge ok={health.tavily.configured} label="Tavily" />
+            <ProviderBadge ok={health.brave.configured} label="Brave" />
+            <ProviderBadge ok={health.hunter.configured} label="Hunter" />
+          </div>
+        </div>
+      </div>
 
       {/* Maintenance actions */}
       <div className="rounded-xl bg-surface border border-line-subtle p-4 md:p-5">
@@ -287,6 +334,20 @@ function Step({
         </div>
       </div>
     </div>
+  );
+}
+
+function ProviderBadge({ ok, label }: { ok: boolean; label: string }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap",
+        ok ? "bg-success-soft text-gtn-green" : "bg-surface-2 text-ink-muted",
+      )}
+    >
+      {ok ? <CheckCircle2 className="h-3 w-3" /> : <span className="h-2 w-2 rounded-full bg-ink-muted/40" />}
+      {label}
+    </span>
   );
 }
 

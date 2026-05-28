@@ -18,6 +18,13 @@ import { fetchPage } from "@/lib/scrape/fetch-page";
 import { webSearch } from "@/lib/scrape/search-multi";
 import { harvestFromText } from "@/lib/lead-enrich/enrich";
 import { env } from "@/lib/env";
+// v3.3.28 Phase 2 — industry-specific OSINT sources
+import { lookupCreditUnion } from "@/lib/lead-enrich/sources/ncua";
+import { lookupBank } from "@/lib/lead-enrich/sources/fdic";
+import { lookupSecFiler } from "@/lib/lead-enrich/sources/sec-edgar";
+import { lookupNonprofit } from "@/lib/lead-enrich/sources/propublica";
+import { lookupBusinessRegistry } from "@/lib/lead-enrich/sources/opencorporates";
+import { lookupDns } from "@/lib/lead-enrich/sources/dns";
 
 // ---------------------------------------------------------------------------
 // Registry types
@@ -380,11 +387,307 @@ async function hunterDomainSearch(
 }
 
 // ---------------------------------------------------------------------------
+// Phase 2 tools — industry-affinity OSINT lookups
+// ---------------------------------------------------------------------------
+
+const lookupCreditUnionTool: ToolDef = {
+  spec: {
+    name: "lookup_credit_union",
+    description:
+      "Authoritative US credit-union data from the NCUA (National Credit Union Administration). " +
+      "Returns charter number, employee count, member count, branch count, total assets, and " +
+      "asset-size band. Use FIRST when the lead's industry is FINANCIAL_SERVICES and the name " +
+      "contains 'credit union', 'CU', or 'FCU' — completely bypasses Cloudflare-protected credit-union " +
+      "websites. Pass the credit union's name (and state if known) — exact match preferred.",
+    input_schema: {
+      type: "object",
+      properties: {
+        name: { type: "string", description: "Credit union name (e.g. 'LAPFCU' or 'Los Angeles Police Federal Credit Union')." },
+        state: { type: "string", description: "Optional 2-letter US state code to disambiguate." },
+      },
+      required: ["name"],
+    },
+  },
+  artifactType: ResearchArtifactType.NCUA_LOOKUP,
+  industryAffinity: [Industry.FINANCIAL_SERVICES],
+  isAvailable: () => true,
+  async handler(input) {
+    const name = String(input.name ?? "").trim();
+    if (!name) {
+      return { content: "ERROR: name required", payload: { error: "missing_name" }, isError: true };
+    }
+    const state = typeof input.state === "string" ? input.state : null;
+    const res = await lookupCreditUnion({ name, state });
+    if (!res.ok) {
+      return {
+        content: `NCUA lookup returned no match for "${name}"${state ? ` in ${state}` : ""} (${res.reason}). If the lead is a bank rather than a credit union, try lookup_bank instead.`,
+        payload: { ok: false, reason: res.reason },
+        isError: true,
+      };
+    }
+    return {
+      content:
+        `NCUA match for ${res.legalName} (charter ${res.charterNumber}):\n` +
+        `  Location: ${[res.city, res.state, res.zip].filter(Boolean).join(", ") || "(unknown)"}\n` +
+        `  Website: ${res.websiteUrl ?? "(unknown)"}\n` +
+        `  Employees: ${res.employeeCount ?? "(unknown)"}\n` +
+        `  Members: ${res.memberCount ?? "(unknown)"}\n` +
+        `  Branches: ${res.branchCount ?? "(unknown)"}\n` +
+        `  Total assets: ${res.totalAssetsUsd != null ? `$${res.totalAssetsUsd.toLocaleString()} (${res.assetSizeBand})` : "(unknown)"}`,
+      payload: res,
+      sourceUrl: res.websiteUrl ?? `https://mapping.ncua.gov/CreditUnion?CharterID=${res.charterNumber}`,
+    };
+  },
+};
+
+const lookupBankTool: ToolDef = {
+  spec: {
+    name: "lookup_bank",
+    description:
+      "Authoritative US bank data from the FDIC BankFind. Returns cert number, employee count, " +
+      "branch count, total assets, asset-size band, and year established. Use FIRST when the lead " +
+      "is an FDIC-insured bank or thrift (industry = FINANCIAL_SERVICES and the name suggests a " +
+      "bank rather than a credit union). Bypasses Cloudflare-protected bank websites.",
+    input_schema: {
+      type: "object",
+      properties: {
+        name: { type: "string", description: "Bank name." },
+        state: { type: "string", description: "Optional 2-letter US state code to disambiguate." },
+      },
+      required: ["name"],
+    },
+  },
+  artifactType: ResearchArtifactType.FDIC_LOOKUP,
+  industryAffinity: [Industry.FINANCIAL_SERVICES],
+  isAvailable: () => true,
+  async handler(input) {
+    const name = String(input.name ?? "").trim();
+    if (!name) {
+      return { content: "ERROR: name required", payload: { error: "missing_name" }, isError: true };
+    }
+    const state = typeof input.state === "string" ? input.state : null;
+    const res = await lookupBank({ name, state });
+    if (!res.ok) {
+      return {
+        content: `FDIC lookup returned no match for "${name}" (${res.reason}). If this is a credit union, try lookup_credit_union.`,
+        payload: { ok: false, reason: res.reason },
+        isError: true,
+      };
+    }
+    return {
+      content:
+        `FDIC match for ${res.legalName} (cert ${res.certNumber}):\n` +
+        `  Location: ${[res.city, res.state].filter(Boolean).join(", ") || "(unknown)"}\n` +
+        `  Website: ${res.websiteUrl ?? "(unknown)"}\n` +
+        `  Established: ${res.establishedYear ?? "(unknown)"}\n` +
+        `  Employees: ${res.employeeCount ?? "(unknown)"}\n` +
+        `  Offices/branches: ${res.branchCount ?? "(unknown)"}\n` +
+        `  Total assets: ${res.totalAssetsUsd != null ? `$${res.totalAssetsUsd.toLocaleString()} (${res.assetSizeBand})` : "(unknown)"}`,
+      payload: res,
+      sourceUrl: res.websiteUrl ?? `https://banks.data.fdic.gov/explore/historical?displayFields=NAME%2CCERT%2CCITY%2CSTALP&filters=CERT%3D${res.certNumber}`,
+    };
+  },
+};
+
+const lookupSecFilerTool: ToolDef = {
+  spec: {
+    name: "lookup_sec_filer",
+    description:
+      "Look up a publicly-traded company in SEC EDGAR. Returns CIK, ticker, legal name, and a URL " +
+      "to the most recent 10-K filing. Use when the lead is likely a US public company (subsidiary " +
+      "of one, or a company explicitly mentioning being publicly-traded). Bypasses any IR-page " +
+      "scraping limits. Pass the ticker if known, otherwise the company's legal name.",
+    input_schema: {
+      type: "object",
+      properties: {
+        name_or_ticker: { type: "string", description: "Ticker symbol (e.g. 'AAPL') or company legal name." },
+      },
+      required: ["name_or_ticker"],
+    },
+  },
+  artifactType: ResearchArtifactType.SEC_LOOKUP,
+  // No industryAffinity — applicable across industries when the company is public.
+  isAvailable: () => true,
+  async handler(input) {
+    const q = String(input.name_or_ticker ?? "").trim();
+    if (!q) {
+      return { content: "ERROR: name_or_ticker required", payload: { error: "missing_query" }, isError: true };
+    }
+    const res = await lookupSecFiler({ nameOrTicker: q });
+    if (!res.ok) {
+      return {
+        content: `SEC EDGAR found no public filer matching "${q}" (${res.reason}). The company may be private — try lookup_business_registry or web_search.`,
+        payload: { ok: false, reason: res.reason },
+        isError: true,
+      };
+    }
+    return {
+      content:
+        `SEC EDGAR match: ${res.legalName} (CIK ${res.cik}${res.ticker ? `, ticker ${res.ticker}` : ""}).\n` +
+        (res.latest10kUrl ? `Most recent 10-K (${res.latest10kDate ?? "date unknown"}): ${res.latest10kUrl}\n` : "") +
+        `To extract revenue / employee count / risk factors, call fetch_url on the 10-K above.`,
+      payload: res,
+      sourceUrl: res.latest10kUrl ?? `https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=${res.cik}`,
+    };
+  },
+};
+
+const lookupNonprofitTool: ToolDef = {
+  spec: {
+    name: "lookup_nonprofit",
+    description:
+      "Authoritative 501(c) nonprofit data from ProPublica Nonprofit Explorer (Form 990). " +
+      "Returns EIN, latest year's revenue/assets/employees, and IRS classification. Use FIRST when " +
+      "the lead's industry is NONPROFIT. Bypasses any website scraping. Pass the nonprofit's name " +
+      "OR a 9-digit EIN (with or without dash).",
+    input_schema: {
+      type: "object",
+      properties: {
+        ein_or_name: { type: "string", description: "9-digit EIN ('12-3456789') or nonprofit name." },
+      },
+      required: ["ein_or_name"],
+    },
+  },
+  artifactType: ResearchArtifactType.NONPROFIT_LOOKUP,
+  industryAffinity: [Industry.NONPROFIT],
+  isAvailable: () => true,
+  async handler(input) {
+    const q = String(input.ein_or_name ?? "").trim();
+    if (!q) {
+      return { content: "ERROR: ein_or_name required", payload: { error: "missing_query" }, isError: true };
+    }
+    const res = await lookupNonprofit({ einOrName: q });
+    if (!res.ok) {
+      return {
+        content: `ProPublica found no nonprofit matching "${q}" (${res.reason}).`,
+        payload: { ok: false, reason: res.reason },
+        isError: true,
+      };
+    }
+    return {
+      content:
+        `ProPublica match: ${res.legalName} (EIN ${res.ein}).\n` +
+        `  Location: ${[res.city, res.state].filter(Boolean).join(", ") || "(unknown)"}\n` +
+        `  Latest filing year: ${res.latestYear ?? "(unknown)"}\n` +
+        `  Revenue: ${res.latestRevenueUsd != null ? `$${res.latestRevenueUsd.toLocaleString()}` : "(unknown)"}\n` +
+        `  Assets: ${res.assetsUsd != null ? `$${res.assetsUsd.toLocaleString()}` : "(unknown)"}\n` +
+        `  Employees: ${res.employeeCount ?? "(unknown)"}`,
+      payload: res,
+      sourceUrl: `https://projects.propublica.org/nonprofits/organizations/${res.ein}`,
+    };
+  },
+};
+
+const lookupBusinessRegistryTool: ToolDef = {
+  spec: {
+    name: "lookup_business_registry",
+    description:
+      "Look up an entity in OpenCorporates — public business registries from all 50 US states " +
+      "(plus international). Returns entity type (LLC, Corp, etc.), current status (active/inactive), " +
+      "incorporation date, and registered address. Useful for confirming a lead is a real registered " +
+      "business + finding the right legal name. Pass the company's name and US state if known.",
+    input_schema: {
+      type: "object",
+      properties: {
+        name: { type: "string", description: "Company name to search." },
+        state: { type: "string", description: "Optional 2-letter US state code." },
+      },
+      required: ["name"],
+    },
+  },
+  artifactType: ResearchArtifactType.BUSINESS_REGISTRY_LOOKUP,
+  isAvailable: () => true,
+  async handler(input) {
+    const name = String(input.name ?? "").trim();
+    if (!name) {
+      return { content: "ERROR: name required", payload: { error: "missing_name" }, isError: true };
+    }
+    const state = typeof input.state === "string" ? input.state : null;
+    const res = await lookupBusinessRegistry({ name, state });
+    if (!res.ok) {
+      return {
+        content: `OpenCorporates found no match for "${name}"${state ? ` in ${state}` : ""} (${res.reason}).`,
+        payload: { ok: false, reason: res.reason },
+        isError: true,
+      };
+    }
+    return {
+      content:
+        `OpenCorporates match: ${res.legalName}\n` +
+        `  Jurisdiction: ${res.jurisdictionCode}\n` +
+        `  Company number: ${res.companyNumber}\n` +
+        `  Type: ${res.companyType ?? "(unknown)"}\n` +
+        `  Status: ${res.currentStatus ?? "(unknown)"}\n` +
+        `  Incorporated: ${res.incorporationDate ?? "(unknown)"}\n` +
+        `  Registered address: ${res.registeredAddress ?? "(unknown)"}`,
+      payload: res,
+      sourceUrl: res.registryUrl ?? undefined,
+    };
+  },
+};
+
+const lookupDnsTool: ToolDef = {
+  spec: {
+    name: "lookup_dns",
+    description:
+      "Resolve DNS records for a domain. Returns MX (mail provider — reveals Google Workspace / " +
+      "Microsoft 365 / on-prem), SPF (which mail senders are authorized — reveals CRM and " +
+      "marketing tools), and NS (hosting provider — Cloudflare / AWS / GoDaddy / etc.). Always " +
+      "free, never blocked. Use to fingerprint the lead's tech stack and email provider. Pass a " +
+      "bare domain like 'example.com'.",
+    input_schema: {
+      type: "object",
+      properties: {
+        domain: { type: "string", description: "Bare domain (no protocol, no path)." },
+      },
+      required: ["domain"],
+    },
+  },
+  artifactType: ResearchArtifactType.DNS_LOOKUP,
+  // Applicable for every lead that has a website domain.
+  isAvailable: () => true,
+  async handler(input) {
+    const domain = String(input.domain ?? "").trim();
+    if (!domain) {
+      return { content: "ERROR: domain required", payload: { error: "missing_domain" }, isError: true };
+    }
+    const res = await lookupDns({ domain });
+    if (!res.ok) {
+      return {
+        content: `DNS lookup failed for ${domain} (${res.reason}).`,
+        payload: { ok: false, reason: res.reason },
+        isError: true,
+      };
+    }
+    return {
+      content:
+        `DNS for ${res.domain}:\n` +
+        `  MX provider: ${res.mxProvider ?? "(unknown — raw: " + res.mxRecords.slice(0, 2).map((m) => m.exchange).join(", ") + ")"}\n` +
+        `  NS provider: ${res.nsProvider ?? "(unknown — raw: " + res.nsRecords.slice(0, 2).join(", ") + ")"}\n` +
+        (res.spfSenders.length > 0 ? `  SPF includes: ${res.spfSenders.slice(0, 8).join(", ")}\n` : "") +
+        `  ${res.mxRecords.length} MX, ${res.txtRecords.length} TXT, ${res.nsRecords.length} NS records total.`,
+      payload: res,
+    };
+  },
+};
+
+// ---------------------------------------------------------------------------
 // Public registry
 // ---------------------------------------------------------------------------
 
-/** All registered tools. Phase 2/3 lookups append to this list. */
+/** All registered tools. Ordering here is the default; selectToolsFor()
+ *  reorders by industry affinity at call time. */
 export const ALL_TOOLS: ToolDef[] = [
+  // Industry-specific lookups first (selectToolsFor reorders by affinity,
+  // but defaults here favor them over generic web tools when an industry
+  // is unspecified — better than throwing fetch_url at every lead).
+  lookupCreditUnionTool,
+  lookupBankTool,
+  lookupNonprofitTool,
+  lookupSecFilerTool,
+  lookupBusinessRegistryTool,
+  lookupDnsTool,
+  // Generic OSINT
   webSearchTool,
   fetchUrlTool,
   findEmailsTool,
