@@ -768,9 +768,24 @@ function ResearchTab({ lead, canEdit }: { lead: Lead; canEdit: boolean }) {
       if (!res.ok) {
         toast.error(data?.error ?? "Gather failed");
       } else {
-        const counts = data.sources as Record<string, { ok: boolean; error?: string }>;
-        const okCount = Object.values(counts ?? {}).filter((s) => s.ok).length;
-        toast.success(`Gathered ${okCount} source(s)`);
+        const counts = data.sources as Record<string, { ok: boolean; reason?: string }>;
+        const entries = Object.entries(counts ?? {});
+        const okCount = entries.filter(([, s]) => s.ok).length;
+        if (okCount === 0) {
+          // Don't fail silently — show which slots had URLs and what
+          // went wrong (robots, http_403, fetch_failed, no_url) so the
+          // rep can fix the URL or skip that source.
+          const failures = entries
+            .filter(([, s]) => !s.ok && s.reason && s.reason !== "no_url")
+            .map(([k, s]) => `${k}: ${s.reason}`);
+          if (failures.length > 0) {
+            toast.error(`Gathered 0 sources — ${failures.join(", ")}`);
+          } else {
+            toast.error("Gathered 0 sources — add a website, LinkedIn, or Google Business URL on the lead first");
+          }
+        } else {
+          toast.success(`Gathered ${okCount} source(s)`);
+        }
         if (data.summary) {
           setText(data.summary);
           setFitSignals(Array.isArray(data.fitSignals) ? data.fitSignals : []);

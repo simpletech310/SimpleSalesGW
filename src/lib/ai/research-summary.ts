@@ -167,18 +167,26 @@ export async function summarizeResearch(
     system: systemPrompt,
     user,
     responseHint,
-    maxTokens: 1200,
+    // 1200 was too tight: summary (3-5 sentences) + 3-5 questions +
+    // risks + fitSignals routinely overran, the JSON got chopped mid-
+    // string, parse failed, and the entire raw JSON ended up in the
+    // summary box with empty card arrays. 2500 covers the worst case.
+    maxTokens: 2500,
     budget: budget
       ? { leadId: budget.leadId, userId: budget.userId, feature: AiFeatureKind.RESEARCH_SUMMARY }
       : undefined,
   });
 
   let parsed: { summary?: string; suggestedQuestions?: string[]; risks?: string[]; fitSignals?: string[] } = {};
-  try {
-    const cleaned = text.trim().replace(/^```(json)?/i, "").replace(/```$/, "").trim();
-    parsed = JSON.parse(cleaned) as typeof parsed;
-  } catch {
-    parsed = { summary: text };
+  const extracted = extractJsonObject(text);
+  if (extracted) {
+    try {
+      parsed = JSON.parse(extracted) as typeof parsed;
+    } catch {
+      parsed = { summary: stripJsonScaffold(text) };
+    }
+  } else {
+    parsed = { summary: stripJsonScaffold(text) };
   }
 
   return {
@@ -188,4 +196,53 @@ export async function summarizeResearch(
     fitSignals: Array.isArray(parsed.fitSignals) ? parsed.fitSignals : [],
     raw: text,
   };
+}
+
+/**
+ * Pull the first balanced top-level JSON object out of arbitrary model
+ * output. Tolerates leading prose, ```json fences, trailing commentary,
+ * and braces inside string literals. Returns null if no candidate found.
+ */
+function extractJsonObject(text: string): string | null {
+  if (!text) return null;
+  const start = text.indexOf("{");
+  if (start === -1) return null;
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+    if (escape) { escape = false; continue; }
+    if (ch === "\\") { escape = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (ch === "{") depth++;
+    else if (ch === "}") {
+      depth--;
+      if (depth === 0) return text.slice(start, i + 1);
+    }
+  }
+  return null;
+}
+
+/**
+ * If the model truncated mid-JSON and we couldn't parse, try not to
+ * dump raw JSON syntax into the rep's summary textarea. Strip the
+ * scaffolding so what remains is at least readable prose.
+ */
+function stripJsonScaffold(text: string): string {
+  const cleaned = text
+    .replace(/^```(json)?/i, "")
+    .replace(/```$/, "")
+    .trim();
+  const match = cleaned.match(/"summary"\s*:\s*"((?:[^"\\]|\\.)*)/);
+  const captured = match?.[1];
+  if (captured) {
+    try {
+      return JSON.parse(`"${captured}"`) as string;
+    } catch {
+      return captured;
+    }
+  }
+  return cleaned;
 }

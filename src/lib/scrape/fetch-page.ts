@@ -10,9 +10,14 @@
 import { isAllowed } from "@/lib/scrape/robots";
 import { extractFromHtml, type ExtractedPage } from "@/lib/scrape/extract";
 
+// Many small-business sites (and Cloudflare-fronted credit unions, law
+// firms, MSP targets, etc.) silently 403 or hide content from anything
+// whose User-Agent string contains "bot". We still respect robots.txt
+// (see `isAllowed` below) and identify Gateway via a contact URL, but
+// we lead with a Mozilla token so legitimate public pages render.
 const DEFAULT_UA =
   process.env.SCRAPE_USER_AGENT ??
-  "Mozilla/5.0 (compatible; GatewayTelNetSalesBot/1.0; +https://gatewaytelnet.com)";
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 GatewayTelNet/1.0 (+https://gatewaytelnet.com)";
 const DEFAULT_TIMEOUT_MS = 6_000;
 const MAX_BYTES = 384 * 1024;
 const ALLOWED_CONTENT_TYPES = ["text/html", "application/xhtml+xml"];
