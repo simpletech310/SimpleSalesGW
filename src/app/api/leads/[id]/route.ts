@@ -72,6 +72,58 @@ const updateSchema = z.object({
   aiAdvisoryInterest: z.string().max(2000).nullable().optional(),
   expectedCloseDate: z.string().datetime().nullable().optional(),
   closedLostReason: z.string().max(2_000).nullable().optional(),
+  // v3.3.28 — OSINT-discovered enrichment columns. All optional; the
+  // edit form lets the rep correct anything the agent got wrong.
+  foundedYear: z.coerce.number().int().min(1700).max(2100).nullable().optional(),
+  estimatedAnnualRevenue: z.string().max(40).nullable().optional(),
+  employeeCountBand: z.string().max(40).nullable().optional(),
+  registeredEntityType: z.string().max(80).nullable().optional(),
+  // Free-form JSON shapes — rendered by the Overview "Enriched intel" card.
+  offices: z.array(
+    z.object({
+      label: z.string().max(120).nullable().optional(),
+      address: z.string().max(200).nullable().optional(),
+      city: z.string().max(100).nullable().optional(),
+      state: z.string().max(50).nullable().optional(),
+      zip: z.string().max(20).nullable().optional(),
+      isPrimary: z.boolean().optional(),
+      isHQ: z.boolean().optional(),
+    }),
+  ).max(50).nullable().optional(),
+  keyContacts: z.array(
+    z.object({
+      name: z.string().min(1).max(200),
+      title: z.string().max(200).nullable().optional(),
+      role: z.string().max(40).nullable().optional(),
+      email: z.string().max(200).nullable().optional(),
+      phone: z.string().max(50).nullable().optional(),
+      sourceUrl: z.string().max(500).nullable().optional(),
+      confidence: z.number().min(0).max(1).optional(),
+    }),
+  ).max(40).nullable().optional(),
+  techStackHints: z.array(z.string().max(80)).max(40).optional(),
+  emailProvider: z.string().max(80).nullable().optional(),
+  websiteCms: z.string().max(80).nullable().optional(),
+  recentNews: z.array(
+    z.object({
+      title: z.string().min(1).max(300),
+      url: z.string().url(),
+      date: z.string().max(40).nullable().optional(),
+      summary: z.string().max(1000).nullable().optional(),
+    }),
+  ).max(20).nullable().optional(),
+  publicCertifications: z.array(z.string().max(80)).max(20).optional(),
+  charterIdentifiers: z.object({
+    ncuaCharter: z.string().max(40).nullable().optional(),
+    fdicCert: z.string().max(40).nullable().optional(),
+    ein: z.string().max(40).nullable().optional(),
+    secCik: z.string().max(40).nullable().optional(),
+    dunsNumber: z.string().max(40).nullable().optional(),
+  }).nullable().optional(),
+  socialFacebookUrl: z.string().url().nullable().optional().or(z.literal("")),
+  socialTwitterUrl: z.string().url().nullable().optional().or(z.literal("")),
+  socialYoutubeUrl: z.string().url().nullable().optional().or(z.literal("")),
+  pressContactEmail: z.string().email().nullable().optional().or(z.literal("")),
 });
 
 async function ensureCanEdit(leadId: string, user: { id: string; role: import("@prisma/client").Role }) {
@@ -126,6 +178,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     if (cleaned.linkedinCompanyUrl === "") cleaned.linkedinCompanyUrl = null;
     if (cleaned.googleBusinessUrl === "") cleaned.googleBusinessUrl = null;
     if (cleaned.primaryContactEmail === "") cleaned.primaryContactEmail = null;
+    // v3.3.28 — enrichment field blank/empty cleanups
+    if (cleaned.socialFacebookUrl === "") cleaned.socialFacebookUrl = null;
+    if (cleaned.socialTwitterUrl === "") cleaned.socialTwitterUrl = null;
+    if (cleaned.socialYoutubeUrl === "") cleaned.socialYoutubeUrl = null;
+    if (cleaned.pressContactEmail === "") cleaned.pressContactEmail = null;
     if (typeof cleaned.expectedCloseDate === "string") {
       cleaned.expectedCloseDate = new Date(cleaned.expectedCloseDate);
     }

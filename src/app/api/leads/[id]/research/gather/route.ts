@@ -1,17 +1,35 @@
+/**
+ * v3.3.28 — Gather research via agentic OSINT loop.
+ *
+ * Replaces the v3.3.27-and-earlier 3-fetcher (website / LinkedIn / Google
+ * Business). New flow:
+ *   1. runResearchAgent does seed-scrape (free) + Claude tool-use loop
+ *      with web_search / fetch_url / find_emails. Each tool call
+ *      auto-persists a ResearchArtifact row.
+ *   2. applyEnrichmentToLead writes the resulting briefing onto Lead row
+ *      using non-null-overwrite semantics — fields the agent didn't find
+ *      stay as they were (protecting any manual data).
+ *   3. Toast on the client shows tool-call counts + source provider.
+ *
+ * Fall-back behavior: if the agent loop fails (Anthropic outage, JSON
+ * parse fail, etc.), we still return the seed-scrape's regex-harvested
+ * intel so the UI shows _something_ and the rep can click "Summarize
+ * with Gateway AI" to retry.
+ *
+ * LinkedIn is no longer fetched server-side — relabeled as a manual
+ * reference URL on the lead form. ToS-compliant + no more silent 403s.
+ */
+
 import { NextResponse } from "next/server";
 import { ResearchArtifactType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ApiError, getAuditContext, jsonError, requireSessionUser } from "@/lib/api";
 import { can } from "@/lib/rbac";
 import { writeAudit } from "@/lib/audit";
-import { fetchPage } from "@/lib/scrape/fetch-page";
-import { fetchLinkedInCompany } from "@/lib/scrape/linkedin";
-import { fetchGoogleBusiness } from "@/lib/scrape/google-business";
-import { summarizeResearch } from "@/lib/ai/research-summary";
 import { isAnthropicConfigured } from "@/lib/ai/anthropic";
 import { AiBudgetExceededError } from "@/lib/ai/budget";
-
-type SourceResult = { ok: boolean; artifactId?: string; reason?: string };
+import { runResearchAgent } from "@/lib/lead-enrich/agent";
+import { applyEnrichmentToLead } from "@/lib/lead-enrich/persist";
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -23,162 +41,87 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       throw new ApiError(403, "Forbidden");
     }
 
-    const sources: Record<"website" | "linkedin" | "google", SourceResult> = {
-      website: { ok: false, reason: "no_url" },
-      linkedin: { ok: false, reason: "no_url" },
-      google: { ok: false, reason: "no_url" },
-    };
+    // ---- Run the agent ----
+    const agentResult = await runResearchAgent({
+      lead: {
+        id: lead.id,
+        businessName: lead.businessName,
+        industry: lead.industry,
+        websiteUrl: lead.websiteUrl,
+        addressCity: lead.addressCity,
+        addressState: lead.addressState,
+        seatCount: lead.seatCount,
+        siteCount: lead.siteCount,
+        primaryContactName: lead.primaryContactName,
+      },
+      userId: user.id,
+    });
 
-    if (lead.websiteUrl) {
-      const res = await fetchPage(lead.websiteUrl);
-      if (res.ok) {
-        const art = await prisma.researchArtifact.create({
+    // ---- Persist the briefing (non-null overwrite) ----
+    let persistDiff = { updatedFields: [] as string[], skippedFields: [] as string[] };
+    if (agentResult.briefing) {
+      // Persist a final AGENT_BRIEFING artifact for audit + the
+      // Research-tab Artifacts list.
+      try {
+        await prisma.researchArtifact.create({
           data: {
             leadId: lead.id,
-            type: ResearchArtifactType.WEBSITE_SNAPSHOT,
-            sourceUrl: res.url,
+            type: ResearchArtifactType.AGENT_BRIEFING,
+            sourceUrl: null,
             payload: {
-              source: "website",
-              finalUrl: res.finalUrl,
-              title: res.page.title,
-              metaTags: res.page.metaTags,
-              plainText: res.page.plainText,
-              bytes: res.bytes,
+              rounds: agentResult.rounds,
+              stopReason: agentResult.stopReason,
+              briefing: agentResult.briefing,
             } as never,
           },
         });
-        sources.website = { ok: true, artifactId: art.id };
-      } else {
-        sources.website = { ok: false, reason: res.reason };
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn("[gather] AGENT_BRIEFING artifact write failed:", (err as Error).message);
       }
-    }
 
-    if (lead.linkedinCompanyUrl) {
-      const res = await fetchLinkedInCompany(lead.linkedinCompanyUrl);
-      if (res.ok) {
-        const art = await prisma.researchArtifact.create({
-          data: {
-            leadId: lead.id,
-            type: ResearchArtifactType.LINKEDIN_LINK,
-            sourceUrl: lead.linkedinCompanyUrl,
-            payload: res.payload as never,
-          },
-        });
-        sources.linkedin = { ok: true, artifactId: art.id };
-      } else {
-        sources.linkedin = { ok: false, reason: res.reason };
-      }
-    }
-
-    if (lead.googleBusinessUrl) {
-      const res = await fetchGoogleBusiness(lead.googleBusinessUrl);
-      if (res.ok) {
-        const art = await prisma.researchArtifact.create({
-          data: {
-            leadId: lead.id,
-            type: ResearchArtifactType.GOOGLE_BUSINESS_DATA,
-            sourceUrl: lead.googleBusinessUrl,
-            payload: res.payload as never,
-          },
-        });
-        sources.google = { ok: true, artifactId: art.id };
-      } else {
-        sources.google = { ok: false, reason: res.reason };
-      }
-    }
-
-    // Then ask Claude for a unified summary. We used to gate this on
-    // `anySucceeded`, but credit-union + Cloudflare-fronted sites 403
-    // most server-side fetches and the rep was left staring at an
-    // empty page with no signal. The summarizer already handles
-    // "(no gathered artifacts yet — work from Lead context only)"
-    // gracefully, so always run it when Claude is configured — the
-    // toast on the client tells the rep whether artifacts were scraped.
-    let summary: string | null = null;
-    let suggestedQuestions: string[] = [];
-    let risks: string[] = [];
-    let fitSignals: string[] = [];
-    if (isAnthropicConfigured()) {
-      const fresh = await prisma.lead.findUnique({
-        where: { id },
-        include: { researchArtifacts: { orderBy: { createdAt: "desc" }, take: 8 } },
+      const applied = await applyEnrichmentToLead(lead.id, agentResult.briefing, {
+        source: "agent_loop",
       });
-      if (fresh) {
-        const result = await summarizeResearch({
-          lead: {
-            businessName: fresh.businessName,
-            industry: fresh.industry,
-            seatCount: fresh.seatCount,
-            siteCount: fresh.siteCount,
-            addressCity: fresh.addressCity,
-            addressState: fresh.addressState,
-            websiteUrl: fresh.websiteUrl,
-            linkedinCompanyUrl: fresh.linkedinCompanyUrl,
-            googleBusinessUrl: fresh.googleBusinessUrl,
-            primaryContactName: fresh.primaryContactName,
-            primaryContactTitle: fresh.primaryContactTitle,
-            executiveSponsorName: fresh.executiveSponsorName,
-            currentMspName: fresh.currentMspName,
-            currentMspSatisfaction: fresh.currentMspSatisfaction,
-            complianceDrivers: fresh.complianceDrivers,
-            researchSummary: fresh.researchSummary,
-            // v3.3.11 — multi-service intake passes through to AI context
-            interestedServices: fresh.interestedServices,
-            currentPhoneSystem: fresh.currentPhoneSystem,
-            currentPhonePainPoint: fresh.currentPhonePainPoint,
-            currentAccessControl: fresh.currentAccessControl,
-            currentAccessDoorCount: fresh.currentAccessDoorCount,
-            currentVideoSurveillance: fresh.currentVideoSurveillance,
-            currentVideoCameraCount: fresh.currentVideoCameraCount,
-            cablingStatus: fresh.cablingStatus,
-            expansionPlans: fresh.expansionPlans,
-            aiAdvisoryInterest: fresh.aiAdvisoryInterest,
-          },
-          artifacts: fresh.researchArtifacts.map((a) => ({
-            type: a.type,
-            sourceUrl: a.sourceUrl,
-            payload: a.payload,
-          })),
-        }, { leadId: id, userId: user.id });
-        await prisma.$transaction([
-          prisma.researchArtifact.create({
-            data: {
-              leadId: id,
-              type: ResearchArtifactType.CLAUDE_SUMMARY,
-              payload: result as never,
-              sourceUrl: null,
-            },
-          }),
-          prisma.lead.update({
-            where: { id },
-            data: {
-              researchSummary: result.summary,
-              researchCompletedAt: new Date(),
-              // v3.3.10 — persist the three cards on the lead so they
-              // survive reload + are editable from the Save Research path.
-              researchFitSignals: result.fitSignals ?? [],
-              researchSuggestedQuestions: result.suggestedQuestions ?? [],
-              researchRisks: result.risks ?? [],
-            },
-          }),
-        ]);
-        summary = result.summary;
-        suggestedQuestions = result.suggestedQuestions;
-        risks = result.risks;
-        fitSignals = result.fitSignals;
-      }
+      persistDiff = applied.diff;
     }
+
+    // ---- Sources summary (back-compat with the existing toast contract) ----
+    // The old UI inspected `sources.{website,linkedin,google}.ok`. We
+    // synthesize an equivalent shape from the seed-scrape's per-page log
+    // so the existing toast still works without UI changes.
+    const sources = synthesizeSourcesSummary(agentResult.seedResult);
 
     await writeAudit({
       actorUserId: user.id,
       entityType: "Lead",
       entityId: id,
       action: "UPDATE",
-      after: { researchGathered: true, sources },
+      after: {
+        researchGathered: true,
+        agentRounds: agentResult.rounds,
+        stopReason: agentResult.stopReason,
+        sourcesScraped: agentResult.seedResult.sourcesUsed.length,
+        fieldsUpdated: persistDiff.updatedFields.length,
+      },
       ...getAuditContext(req),
     });
 
-    return NextResponse.json({ sources, summary, suggestedQuestions, risks, fitSignals });
+    return NextResponse.json({
+      sources,
+      // Backward-compat top-level fields consumed by LeadTabs.tsx ResearchTab
+      summary: agentResult.briefing?.summary ?? null,
+      suggestedQuestions: agentResult.briefing?.suggestedQuestions ?? [],
+      risks: agentResult.briefing?.risks ?? [],
+      fitSignals: agentResult.briefing?.fitSignals ?? [],
+      // New telemetry for the toast / debug overlays
+      agent: {
+        configured: isAnthropicConfigured(),
+        rounds: agentResult.rounds,
+        stopReason: agentResult.stopReason,
+        updatedFields: persistDiff.updatedFields,
+      },
+    });
   } catch (err) {
     if (err instanceof AiBudgetExceededError) {
       return NextResponse.json(
@@ -188,4 +131,34 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     }
     return jsonError(err);
   }
+}
+
+// ---------------------------------------------------------------------------
+// Shape the seed-scrape per-page log into the legacy {website,linkedin,google}
+// counts the existing UI toast expects. Anything other than the homepage
+// rolls up as additional successful sources; LinkedIn is always reported
+// as "skipped" since we no longer fetch it server-side.
+// ---------------------------------------------------------------------------
+function synthesizeSourcesSummary(seed: {
+  sourcesUsed: Array<{ url: string; kind: string }>;
+  sourcesFailed: Array<{ url: string; reason: string }>;
+  homepage: string | null;
+}): Record<"website" | "linkedin" | "google", { ok: boolean; reason?: string }> {
+  const website = seed.homepage
+    ? { ok: true }
+    : {
+        ok: false,
+        reason:
+          seed.sourcesFailed[0]?.reason ?? "no_url",
+      };
+  return {
+    website,
+    // LinkedIn is intentionally never fetched in v3.3.28 — the field on the
+    // lead form is a manual reference URL only (ToS + always-403 reality).
+    linkedin: { ok: false, reason: "manual_reference_only" },
+    // Google Business is currently a candidate URL in the seed-scrape's
+    // candidate list; if it succeeded we'd have a homepage. Report parity
+    // with old contract: "no_url" if the lead has no google business URL.
+    google: { ok: false, reason: "manual_reference_only" },
+  };
 }

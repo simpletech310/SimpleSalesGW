@@ -14,6 +14,12 @@ const envSchema = z.object({
   BLOB_READ_WRITE_TOKEN: z.string().optional().default(""),
   ASSESSMENT_LINK_EXPIRY_DAYS: z.coerce.number().int().min(1).max(60).default(14),
   SCRAPE_USER_AGENT: z.string().optional().default(""),
+  // v3.3.28 — free-tier OSINT providers for agentic lead research. All
+  // optional: the tool registry silently skips any provider whose key is
+  // absent, falling back to the next provider in priority order.
+  TAVILY_API_KEY: z.string().optional().default(""),       // 1000 free queries/mo
+  BRAVE_SEARCH_API_KEY: z.string().optional().default(""), // 2000 free queries/mo
+  HUNTER_API_KEY: z.string().optional().default(""),       // 25 free email lookups/mo
   NEXT_PUBLIC_APP_NAME: z.string().default("Gateway TelNet Sales Portal"),
   NEXT_PUBLIC_APP_URL: z.string().url().default("http://localhost:3000"),
   // v2.22 — Mapbox: secret token for server-side geocoding + static
@@ -110,6 +116,10 @@ export type IntegrationHealth = {
   // v2.22
   mapbox: { configured: boolean; var: "MAPBOX_SECRET_TOKEN + NEXT_PUBLIC_MAPBOX_PUBLIC_TOKEN"; degradedFeatures: string[] };
   daily: { configured: boolean; var: "DAILY_API_KEY"; degradedFeatures: string[] };
+  // v3.3.28 — free-tier OSINT search providers (Tavily > Brave > DDG fallback)
+  tavily: { configured: boolean; var: "TAVILY_API_KEY"; degradedFeatures: string[] };
+  brave: { configured: boolean; var: "BRAVE_SEARCH_API_KEY"; degradedFeatures: string[] };
+  hunter: { configured: boolean; var: "HUNTER_API_KEY"; degradedFeatures: string[] };
 };
 
 export function integrationHealth(): IntegrationHealth {
@@ -148,6 +158,24 @@ export function integrationHealth(): IntegrationHealth {
       var: "DAILY_API_KEY",
       degradedFeatures: ["In-portal video / audio calls"],
     },
+    // v3.3.28 — agentic OSINT research providers. Missing keys aren't
+    // fatal: the search façade falls Tavily → Brave → DuckDuckGo, and
+    // Hunter falls back to regex over already-scraped pages.
+    tavily: {
+      configured: Boolean(e.TAVILY_API_KEY),
+      var: "TAVILY_API_KEY",
+      degradedFeatures: ["Higher-quality LLM-grounded web search (falls back to Brave/DDG)"],
+    },
+    brave: {
+      configured: Boolean(e.BRAVE_SEARCH_API_KEY),
+      var: "BRAVE_SEARCH_API_KEY",
+      degradedFeatures: ["Brave Search fallback when Tavily quota hits (falls back to DDG)"],
+    },
+    hunter: {
+      configured: Boolean(e.HUNTER_API_KEY),
+      var: "HUNTER_API_KEY",
+      degradedFeatures: ["Domain-to-email lookups (falls back to regex over scraped pages)"],
+    },
   };
 }
 
@@ -168,6 +196,9 @@ export function logIntegrationHealthBanner(): void {
     `  RESEND_API_KEY set:    ${h.resend.configured ? "✓" : "⚠ disabled — magic-link + outreach degraded"}`,
     `  BLOB_READ_WRITE_TOKEN: ${h.blob.configured ? "✓" : "⚠ disabled — file uploads will return 503"}`,
     `  ANTHROPIC_API_KEY:     ${h.anthropic.configured ? "✓" : "⚠ disabled — auto research summary off"}`,
+    `  TAVILY_API_KEY:        ${h.tavily.configured ? "✓" : "○ optional — falls back to Brave/DDG"}`,
+    `  BRAVE_SEARCH_API_KEY:  ${h.brave.configured ? "✓" : "○ optional — falls back to DDG"}`,
+    `  HUNTER_API_KEY:        ${h.hunter.configured ? "✓" : "○ optional — falls back to page regex"}`,
     "═════════════════════════════════════════════════════════════",
   ];
   // eslint-disable-next-line no-console

@@ -299,7 +299,11 @@ export function NewLeadForm() {
           >
             <Input id="websiteUrl" name="websiteUrl" type="url" placeholder="https://" />
           </FormField>
-          <FormField label="LinkedIn company URL" htmlFor="linkedinCompanyUrl">
+          <FormField
+            label="LinkedIn company URL (manual reference)"
+            htmlFor="linkedinCompanyUrl"
+            hint="Stored as a reference — not auto-scraped. LinkedIn blocks server-side fetches."
+          >
             <Input
               id="linkedinCompanyUrl"
               name="linkedinCompanyUrl"

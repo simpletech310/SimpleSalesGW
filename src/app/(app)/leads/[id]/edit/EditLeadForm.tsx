@@ -43,6 +43,20 @@ type LeadShape = {
   executiveSponsorTitle: string | null;
   currentMspName: string | null;
   currentMspSatisfaction: MspSatisfaction;
+  // v3.3.28 — OSINT-discovered fields. All optional; the rep can correct
+  // anything the agent got wrong.
+  foundedYear: number | null;
+  estimatedAnnualRevenue: string | null;
+  employeeCountBand: string | null;
+  registeredEntityType: string | null;
+  techStackHints: string[];
+  emailProvider: string | null;
+  websiteCms: string | null;
+  publicCertifications: string[];
+  socialFacebookUrl: string | null;
+  socialTwitterUrl: string | null;
+  socialYoutubeUrl: string | null;
+  pressContactEmail: string | null;
 };
 
 /**
@@ -80,6 +94,19 @@ export function EditLeadForm({ lead }: { lead: LeadShape }) {
       executiveSponsorTitle: nullableStr(fd.get("executiveSponsorTitle")),
       currentMspName: nullableStr(fd.get("currentMspName")),
       currentMspSatisfaction: fd.get("currentMspSatisfaction"),
+      // v3.3.28 — OSINT enrichment fields (all optional)
+      foundedYear: fd.get("foundedYear") ? Number(fd.get("foundedYear")) : null,
+      estimatedAnnualRevenue: nullableStr(fd.get("estimatedAnnualRevenue")),
+      employeeCountBand: nullableStr(fd.get("employeeCountBand")),
+      registeredEntityType: nullableStr(fd.get("registeredEntityType")),
+      techStackHints: csvToArray(fd.get("techStackHints")),
+      emailProvider: nullableStr(fd.get("emailProvider")),
+      websiteCms: nullableStr(fd.get("websiteCms")),
+      publicCertifications: csvToArray(fd.get("publicCertifications")),
+      socialFacebookUrl: nullableStr(fd.get("socialFacebookUrl")),
+      socialTwitterUrl: nullableStr(fd.get("socialTwitterUrl")),
+      socialYoutubeUrl: nullableStr(fd.get("socialYoutubeUrl")),
+      pressContactEmail: nullableStr(fd.get("pressContactEmail")),
     };
     try {
       const res = await fetch(`/api/leads/${lead.id}`, {
@@ -182,8 +209,11 @@ export function EditLeadForm({ lead }: { lead: LeadShape }) {
             <Input id="websiteUrl" name="websiteUrl" type="url" placeholder="https://" defaultValue={lead.websiteUrl ?? ""} />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="linkedinCompanyUrl">LinkedIn URL</Label>
+            <Label htmlFor="linkedinCompanyUrl">LinkedIn URL (manual reference)</Label>
             <Input id="linkedinCompanyUrl" name="linkedinCompanyUrl" type="url" placeholder="https://www.linkedin.com/company/…" defaultValue={lead.linkedinCompanyUrl ?? ""} />
+            <p className="text-xs text-gtn-grey-2">
+              Stored as a reference for the rep — not auto-scraped. LinkedIn blocks server-side fetches.
+            </p>
           </div>
           <div className="space-y-2">
             <Label htmlFor="googleBusinessUrl">Google Business URL</Label>
@@ -245,6 +275,142 @@ export function EditLeadForm({ lead }: { lead: LeadShape }) {
         </div>
       </Card>
 
+      {/* v3.3.28 — Auto-discovered enrichment fields. Rendered with an
+          `id="enrichment"` anchor so the Overview-tab "Edit" link drops
+          the rep directly here. Every field is optional. The agent
+          populates them; the rep corrects anything wrong. Arrays accept
+          comma-separated input. Offices, keyContacts, recentNews, and
+          charterIdentifiers (which need richer editors) are managed via
+          the agent + read-only Overview card today; a structured
+          editor for those lands in a follow-up. */}
+      <Card id="enrichment">
+        <h2 className="text-lg font-semibold text-gtn-navy mb-1">Auto-discovered intel</h2>
+        <p className="text-xs text-gtn-grey-2 mb-3">
+          Populated by Gateway AI research. All optional — correct anything wrong, or leave blank.
+        </p>
+        <div className="grid md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="foundedYear">Founded year</Label>
+            <Input
+              id="foundedYear"
+              name="foundedYear"
+              type="number"
+              min={1700}
+              max={2100}
+              defaultValue={lead.foundedYear ?? undefined}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="registeredEntityType">Entity type</Label>
+            <Input
+              id="registeredEntityType"
+              name="registeredEntityType"
+              maxLength={80}
+              placeholder="LLC, S-Corp, 501c3, Credit Union…"
+              defaultValue={lead.registeredEntityType ?? ""}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="estimatedAnnualRevenue">Est. annual revenue / assets</Label>
+            <Input
+              id="estimatedAnnualRevenue"
+              name="estimatedAnnualRevenue"
+              maxLength={40}
+              placeholder="$1M-$5M, $25M-$100M, etc."
+              defaultValue={lead.estimatedAnnualRevenue ?? ""}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="employeeCountBand">Employee count (band)</Label>
+            <Input
+              id="employeeCountBand"
+              name="employeeCountBand"
+              maxLength={40}
+              placeholder="10-50, 100-250, etc."
+              defaultValue={lead.employeeCountBand ?? ""}
+            />
+          </div>
+          <div className="space-y-2 md:col-span-2">
+            <Label htmlFor="techStackHints">Tech stack hints (comma-separated)</Label>
+            <Input
+              id="techStackHints"
+              name="techStackHints"
+              placeholder="Microsoft 365, Cloudflare, WordPress"
+              defaultValue={lead.techStackHints?.join(", ") ?? ""}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="emailProvider">Email provider</Label>
+            <Input
+              id="emailProvider"
+              name="emailProvider"
+              maxLength={80}
+              placeholder="Google Workspace, Microsoft 365…"
+              defaultValue={lead.emailProvider ?? ""}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="websiteCms">Website CMS</Label>
+            <Input
+              id="websiteCms"
+              name="websiteCms"
+              maxLength={80}
+              placeholder="WordPress, Wix, Webflow…"
+              defaultValue={lead.websiteCms ?? ""}
+            />
+          </div>
+          <div className="space-y-2 md:col-span-2">
+            <Label htmlFor="publicCertifications">Publicly claimed certifications (comma-separated)</Label>
+            <Input
+              id="publicCertifications"
+              name="publicCertifications"
+              placeholder="SOC 2, HIPAA, PCI DSS, ISO 27001"
+              defaultValue={lead.publicCertifications?.join(", ") ?? ""}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="socialFacebookUrl">Facebook URL</Label>
+            <Input
+              id="socialFacebookUrl"
+              name="socialFacebookUrl"
+              type="url"
+              defaultValue={lead.socialFacebookUrl ?? ""}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="socialTwitterUrl">X / Twitter URL</Label>
+            <Input
+              id="socialTwitterUrl"
+              name="socialTwitterUrl"
+              type="url"
+              defaultValue={lead.socialTwitterUrl ?? ""}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="socialYoutubeUrl">YouTube URL</Label>
+            <Input
+              id="socialYoutubeUrl"
+              name="socialYoutubeUrl"
+              type="url"
+              defaultValue={lead.socialYoutubeUrl ?? ""}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="pressContactEmail">Press contact email</Label>
+            <Input
+              id="pressContactEmail"
+              name="pressContactEmail"
+              type="email"
+              defaultValue={lead.pressContactEmail ?? ""}
+            />
+          </div>
+        </div>
+        <p className="text-xs text-gtn-grey-2 mt-3">
+          Offices, decision-makers, and recent-news entries are managed by the AI agent on
+          the Research tab — view them on the Overview tab&apos;s &quot;Enriched intel&quot; card.
+        </p>
+      </Card>
+
       <div className="flex justify-end gap-2">
         <Button type="button" variant="ghost" onClick={() => router.push(`/leads/${lead.id}`)} disabled={saving}>
           Cancel
@@ -261,4 +427,16 @@ function nullableStr(v: FormDataEntryValue | null): string | null {
   if (v == null) return null;
   const s = String(v).trim();
   return s ? s : null;
+}
+
+/** Parse a comma-separated input into a deduplicated, trimmed string array.
+ *  Returns [] when blank — the zod schema treats that as "no change" and
+ *  the PATCH route's non-null logic preserves any existing value. */
+function csvToArray(v: FormDataEntryValue | null): string[] {
+  if (v == null) return [];
+  return String(v)
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .filter((s, i, arr) => arr.indexOf(s) === i);
 }

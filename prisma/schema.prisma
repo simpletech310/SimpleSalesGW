@@ -205,6 +205,17 @@ enum ResearchArtifactType {
   HANDOFF_QC
   // v2.23 — vCIO post-assessment recommendations (tasks + services + risks)
   VCIO_RECOMMENDATION
+  // v3.3.28 — agentic OSINT research loop artifacts. Each tool the
+  // agent invokes writes a row; the final briefing also gets one.
+  WEB_SEARCH_RESULT
+  EMAIL_DISCOVERY
+  DNS_LOOKUP
+  NCUA_LOOKUP
+  SEC_LOOKUP
+  FDIC_LOOKUP
+  NONPROFIT_LOOKUP
+  BUSINESS_REGISTRY_LOOKUP
+  AGENT_BRIEFING
 }
 
 // v2.20 — which AI feature spent a Claude call. Drives usage roll-ups + budget caps.
@@ -512,6 +523,32 @@ model Lead {
   researchFitSignals         String[]            @default([]) @map("research_fit_signals")
   researchSuggestedQuestions String[]            @default([]) @map("research_suggested_questions")
   researchRisks              String[]            @default([]) @map("research_risks")
+  // v3.3.28 — first-class enrichment fields persisted by the agentic
+  // OSINT research loop. All optional; the agent only writes fields it
+  // actually discovered, so a research pass that comes up empty never
+  // clobbers existing manual data.
+  foundedYear                Int?                @map("founded_year")
+  estimatedAnnualRevenue     String?             @map("estimated_annual_revenue")
+  employeeCountBand          String?             @map("employee_count_band")
+  registeredEntityType       String?             @map("registered_entity_type")
+  // [{label?, address, city, state, zip, isPrimary?, isHQ?}]
+  offices                    Json?               @map("offices")
+  // [{name, title, role, email?, phone?, sourceUrl?, confidence}]
+  keyContacts                Json?               @map("key_contacts")
+  techStackHints             String[]            @default([]) @map("tech_stack_hints")
+  emailProvider              String?             @map("email_provider")
+  websiteCms                 String?             @map("website_cms")
+  // [{title, url, date?, summary}]
+  recentNews                 Json?               @map("recent_news")
+  publicCertifications       String[]            @default([]) @map("public_certifications")
+  // {ncuaCharter?, fdicCert?, ein?, secCik?, dunsNumber?}
+  charterIdentifiers         Json?               @map("charter_identifiers")
+  socialFacebookUrl          String?             @map("social_facebook_url")
+  socialTwitterUrl           String?             @map("social_twitter_url")
+  socialYoutubeUrl           String?             @map("social_youtube_url")
+  pressContactEmail          String?             @map("press_contact_email")
+  enrichmentCompletedAt      DateTime?           @map("enrichment_completed_at")
+  enrichmentSource           String?             @map("enrichment_source")
   suggestedBundle            ServiceBundle?      @map("suggested_bundle")
   servicesScore              Int                 @default(0) @map("services_score")
   customerScore              Int                 @default(0) @map("customer_score")

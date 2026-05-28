@@ -98,6 +98,24 @@ type Lead = {
   serviceMatches: Array<{ id: string; serviceLine: string; fitScore: number; reasoning: string; recommended: boolean }>;
   researchSummary: string | null;
   researchArtifacts: Array<{ id: string; type: string; sourceUrl: string | null; createdAt: Date }>;
+  // v3.3.28 — OSINT-discovered enrichment fields (all optional)
+  foundedYear: number | null;
+  estimatedAnnualRevenue: string | null;
+  employeeCountBand: string | null;
+  registeredEntityType: string | null;
+  offices: unknown; // [{label?, address, city, state, zip, isPrimary?, isHQ?}]
+  keyContacts: unknown; // [{name, title?, role?, email?, phone?, sourceUrl?, confidence?}]
+  techStackHints: string[];
+  emailProvider: string | null;
+  websiteCms: string | null;
+  recentNews: unknown; // [{title, url, date?, summary?}]
+  publicCertifications: string[];
+  charterIdentifiers: unknown; // {ncuaCharter?, fdicCert?, ein?, secCik?, dunsNumber?}
+  socialFacebookUrl: string | null;
+  socialTwitterUrl: string | null;
+  socialYoutubeUrl: string | null;
+  pressContactEmail: string | null;
+  enrichmentCompletedAt: Date | null;
 };
 
 type AuditEntry = {
@@ -372,6 +390,12 @@ function OverviewTab({ lead }: { lead: Lead }) {
         </Card>
       )}
 
+      {/* v3.3.28 — OSINT-discovered enrichment intel. Renders only when
+          the research agent (or a manual edit) populated at least one
+          first-class enrichment field. Read-only here; "Edit" link drops
+          the rep into the edit form's Auto-discovered section. */}
+      <EnrichedIntelCard lead={lead} />
+
       {/* Attachments at a glance — image strip + category counts */}
       {lead.attachments.length > 0 && (
         <Card>
@@ -637,6 +661,301 @@ function ServiceFitTile({ fit }: { fit: import("@/lib/scoring/service-fit").Serv
         </ul>
       )}
     </div>
+  );
+}
+
+/**
+ * v3.3.28 — Overview-tab card surfacing every first-class enrichment
+ * field the OSINT agent (or a manual edit) populated on the Lead. Hidden
+ * entirely when nothing is set so we don't show an empty box.
+ */
+function EnrichedIntelCard({ lead }: { lead: Lead }) {
+  const offices = Array.isArray(lead.offices)
+    ? (lead.offices as Array<{ label?: string | null; address?: string | null; city?: string | null; state?: string | null; zip?: string | null; isPrimary?: boolean; isHQ?: boolean }>)
+    : [];
+  const keyContacts = Array.isArray(lead.keyContacts)
+    ? (lead.keyContacts as Array<{ name: string; title?: string | null; role?: string | null; email?: string | null; phone?: string | null; sourceUrl?: string | null; confidence?: number }>)
+    : [];
+  const recentNews = Array.isArray(lead.recentNews)
+    ? (lead.recentNews as Array<{ title: string; url: string; date?: string | null; summary?: string | null }>)
+    : [];
+  const charter = (lead.charterIdentifiers && typeof lead.charterIdentifiers === "object"
+    ? (lead.charterIdentifiers as { ncuaCharter?: string | null; fdicCert?: string | null; ein?: string | null; secCik?: string | null; dunsNumber?: string | null })
+    : null);
+
+  const hasAnything =
+    lead.foundedYear != null ||
+    Boolean(lead.estimatedAnnualRevenue) ||
+    Boolean(lead.employeeCountBand) ||
+    Boolean(lead.registeredEntityType) ||
+    offices.length > 0 ||
+    keyContacts.length > 0 ||
+    (lead.techStackHints?.length ?? 0) > 0 ||
+    Boolean(lead.emailProvider) ||
+    Boolean(lead.websiteCms) ||
+    recentNews.length > 0 ||
+    (lead.publicCertifications?.length ?? 0) > 0 ||
+    Boolean(lead.socialFacebookUrl) ||
+    Boolean(lead.socialTwitterUrl) ||
+    Boolean(lead.socialYoutubeUrl) ||
+    Boolean(lead.pressContactEmail) ||
+    Boolean(charter && Object.values(charter).some(Boolean));
+
+  if (!hasAnything) return null;
+
+  // Group key contacts by role for a tidy decision-maker map.
+  const contactsByRole = keyContacts.reduce<Record<string, typeof keyContacts>>((m, c) => {
+    const r = (c.role ?? "OTHER").toUpperCase();
+    (m[r] ||= []).push(c);
+    return m;
+  }, {});
+  const roleOrder = ["CEO", "COO", "CFO", "CIO", "IT_LEAD", "OFFICE_MGR", "OTHER"];
+  const sortedRoles = Object.keys(contactsByRole).sort(
+    (a, b) => (roleOrder.indexOf(a) === -1 ? 99 : roleOrder.indexOf(a)) - (roleOrder.indexOf(b) === -1 ? 99 : roleOrder.indexOf(b)),
+  );
+
+  return (
+    <Card>
+      <div className="flex items-baseline justify-between gap-2 mb-3 flex-wrap">
+        <div>
+          <h3 className="text-sm font-semibold text-gtn-navy">Enriched intel</h3>
+          <p className="text-xs text-gtn-grey-2 mt-0.5">
+            Discovered by Gateway AI research. Click Edit to correct anything.
+            {lead.enrichmentCompletedAt && (
+              <> · Last refreshed {format(new Date(lead.enrichmentCompletedAt), "MMM d, yyyy")}</>
+            )}
+          </p>
+        </div>
+        <a
+          href={`/leads/${lead.id}/edit#enrichment`}
+          className="text-xs text-gtn-purple hover:underline"
+        >
+          Edit
+        </a>
+      </div>
+
+      {/* Top row: business-profile facts */}
+      {(lead.foundedYear != null ||
+        lead.estimatedAnnualRevenue ||
+        lead.employeeCountBand ||
+        lead.registeredEntityType) && (
+        <dl className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 text-sm mb-4">
+          {lead.foundedYear != null && (
+            <FactTile label="Founded" value={String(lead.foundedYear)} />
+          )}
+          {lead.estimatedAnnualRevenue && (
+            <FactTile label="Est. revenue / assets" value={lead.estimatedAnnualRevenue} />
+          )}
+          {lead.employeeCountBand && (
+            <FactTile label="Employees (band)" value={lead.employeeCountBand} />
+          )}
+          {lead.registeredEntityType && (
+            <FactTile label="Entity type" value={lead.registeredEntityType} />
+          )}
+        </dl>
+      )}
+
+      {/* Charter / authoritative IDs */}
+      {charter && Object.values(charter).some(Boolean) && (
+        <div className="mb-4">
+          <p className="text-[10px] uppercase tracking-wide font-semibold text-gtn-grey-2 mb-1">
+            Authoritative identifiers
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {charter.ncuaCharter && <IdChip label="NCUA" value={charter.ncuaCharter} />}
+            {charter.fdicCert && <IdChip label="FDIC" value={charter.fdicCert} />}
+            {charter.ein && <IdChip label="EIN" value={charter.ein} />}
+            {charter.secCik && <IdChip label="SEC CIK" value={charter.secCik} />}
+            {charter.dunsNumber && <IdChip label="DUNS" value={charter.dunsNumber} />}
+          </div>
+        </div>
+      )}
+
+      {/* Offices list */}
+      {offices.length > 0 && (
+        <div className="mb-4">
+          <p className="text-[10px] uppercase tracking-wide font-semibold text-gtn-grey-2 mb-1">
+            Offices / branches ({offices.length})
+          </p>
+          <ul className="space-y-1 text-sm">
+            {offices.slice(0, 10).map((o, i) => (
+              <li key={i} className="flex items-start gap-2">
+                <span className="text-gtn-grey-3 mt-0.5">📍</span>
+                <span className="flex-1">
+                  {o.label && <span className="font-medium text-gtn-navy">{o.label}: </span>}
+                  <span className="text-gtn-navy">
+                    {[o.address, o.city, o.state, o.zip].filter(Boolean).join(", ")}
+                  </span>
+                  {o.isHQ && (
+                    <span className="ml-2 inline-block rounded-full bg-brand-soft text-gtn-purple px-1.5 py-0.5 text-[10px] font-semibold">
+                      HQ
+                    </span>
+                  )}
+                </span>
+              </li>
+            ))}
+            {offices.length > 10 && (
+              <li className="text-xs text-gtn-grey-2 italic">+{offices.length - 10} more</li>
+            )}
+          </ul>
+        </div>
+      )}
+
+      {/* Key contacts grouped by role */}
+      {keyContacts.length > 0 && (
+        <div className="mb-4">
+          <p className="text-[10px] uppercase tracking-wide font-semibold text-gtn-grey-2 mb-1">
+            Decision-makers ({keyContacts.length})
+          </p>
+          <div className="space-y-2 text-sm">
+            {sortedRoles.map((role) => (
+              <div key={role}>
+                <p className="text-[11px] font-semibold text-gtn-grey-2 uppercase tracking-wide">
+                  {role.replace(/_/g, " ")}
+                </p>
+                <ul className="ml-2">
+                  {contactsByRole[role]!.map((c, i) => (
+                    <li key={i} className="text-sm text-gtn-navy">
+                      <span className="font-medium">{c.name}</span>
+                      {c.title && <span className="text-gtn-grey-2"> · {c.title}</span>}
+                      {c.email && (
+                        <a className="ml-2 text-gtn-purple hover:underline text-xs break-all" href={`mailto:${c.email}`}>
+                          {c.email}
+                        </a>
+                      )}
+                      {c.phone && (
+                        <a className="ml-2 text-gtn-purple hover:underline text-xs" href={`tel:${c.phone.replace(/\D/g, "")}`}>
+                          {c.phone}
+                        </a>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Tech stack chips */}
+      {((lead.techStackHints?.length ?? 0) > 0 ||
+        Boolean(lead.emailProvider) ||
+        Boolean(lead.websiteCms)) && (
+        <div className="mb-4">
+          <p className="text-[10px] uppercase tracking-wide font-semibold text-gtn-grey-2 mb-1">
+            Tech footprint
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {lead.emailProvider && (
+              <span className="inline-block rounded-full bg-gtn-green-bg text-gtn-green px-2 py-0.5 text-[11px] font-semibold">
+                ✉ {lead.emailProvider}
+              </span>
+            )}
+            {lead.websiteCms && (
+              <span className="inline-block rounded-full bg-brand-soft text-gtn-purple px-2 py-0.5 text-[11px] font-semibold">
+                🌐 {lead.websiteCms}
+              </span>
+            )}
+            {lead.techStackHints?.map((t) => (
+              <span key={t} className="inline-block rounded-full bg-gtn-lavender text-gtn-navy px-2 py-0.5 text-[11px] font-semibold">
+                {t}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Public certifications */}
+      {(lead.publicCertifications?.length ?? 0) > 0 && (
+        <div className="mb-4">
+          <p className="text-[10px] uppercase tracking-wide font-semibold text-gtn-grey-2 mb-1">
+            Publicly claimed certifications
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {lead.publicCertifications.map((c) => (
+              <span key={c} className="inline-block rounded-full bg-amber-100 text-amber-800 px-2 py-0.5 text-[11px] font-semibold">
+                {c}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Recent news */}
+      {recentNews.length > 0 && (
+        <div className="mb-4">
+          <p className="text-[10px] uppercase tracking-wide font-semibold text-gtn-grey-2 mb-1">
+            Recent news / signals ({recentNews.length})
+          </p>
+          <ul className="space-y-2 text-sm">
+            {recentNews.slice(0, 6).map((n, i) => (
+              <li key={i} className="border-l-2 pl-2 border-gtn-lavender-2">
+                <a href={n.url} target="_blank" rel="noreferrer" className="text-gtn-purple hover:underline font-medium break-words">
+                  {n.title}
+                </a>
+                {n.date && <span className="text-gtn-grey-3 text-xs ml-2">{n.date}</span>}
+                {n.summary && <p className="text-xs text-gtn-grey-2 mt-0.5">{n.summary}</p>}
+              </li>
+            ))}
+            {recentNews.length > 6 && (
+              <li className="text-xs text-gtn-grey-2 italic">+{recentNews.length - 6} more</li>
+            )}
+          </ul>
+        </div>
+      )}
+
+      {/* Social + press contact */}
+      {(lead.socialFacebookUrl ||
+        lead.socialTwitterUrl ||
+        lead.socialYoutubeUrl ||
+        lead.pressContactEmail) && (
+        <div>
+          <p className="text-[10px] uppercase tracking-wide font-semibold text-gtn-grey-2 mb-1">
+            Social + outreach surface
+          </p>
+          <div className="flex flex-wrap gap-3 text-xs">
+            {lead.socialFacebookUrl && (
+              <a className="text-gtn-purple hover:underline" href={lead.socialFacebookUrl} target="_blank" rel="noreferrer">
+                Facebook
+              </a>
+            )}
+            {lead.socialTwitterUrl && (
+              <a className="text-gtn-purple hover:underline" href={lead.socialTwitterUrl} target="_blank" rel="noreferrer">
+                X / Twitter
+              </a>
+            )}
+            {lead.socialYoutubeUrl && (
+              <a className="text-gtn-purple hover:underline" href={lead.socialYoutubeUrl} target="_blank" rel="noreferrer">
+                YouTube
+              </a>
+            )}
+            {lead.pressContactEmail && (
+              <a className="text-gtn-purple hover:underline break-all" href={`mailto:${lead.pressContactEmail}`}>
+                Press: {lead.pressContactEmail}
+              </a>
+            )}
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function FactTile({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-gtn-lavender-2 bg-white p-2.5">
+      <p className="text-[10px] uppercase tracking-wide font-semibold text-gtn-grey-2">{label}</p>
+      <p className="text-sm font-semibold text-gtn-navy mt-0.5">{value}</p>
+    </div>
+  );
+}
+
+function IdChip({ label, value }: { label: string; value: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full bg-gtn-lavender text-gtn-navy px-2 py-0.5 text-[11px] font-semibold">
+      <span className="text-gtn-grey-2 uppercase tracking-wide">{label}</span>
+      <span className="font-mono tabular">{value}</span>
+    </span>
   );
 }
 

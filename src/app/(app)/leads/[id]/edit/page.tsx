@@ -44,6 +44,20 @@ export default async function EditLeadPage({
       executiveSponsorTitle: true,
       currentMspName: true,
       currentMspSatisfaction: true,
+      // v3.3.28 — OSINT-discovered enrichment fields surfaced in the
+      // Auto-discovered section of the edit form.
+      foundedYear: true,
+      estimatedAnnualRevenue: true,
+      employeeCountBand: true,
+      registeredEntityType: true,
+      techStackHints: true,
+      emailProvider: true,
+      websiteCms: true,
+      publicCertifications: true,
+      socialFacebookUrl: true,
+      socialTwitterUrl: true,
+      socialYoutubeUrl: true,
+      pressContactEmail: true,
     },
   });
   if (!lead) notFound();

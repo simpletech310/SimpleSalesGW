@@ -178,7 +178,12 @@ function classifySlug(path: string): "about" | "contact" | "team" | "services" |
   return null;
 }
 
-function pickSubUrls(base: string, discoveredLinks: string[], max: number): Array<{ url: string; kind: "about" | "contact" | "team" | "services" | "locations" }> {
+/**
+ * Pick up to `max` same-domain sub-URLs to crawl, classifying each by
+ * slug pattern. Exported so the new seed-scrape module can reuse it
+ * without duplicating the slug-classification logic.
+ */
+export function pickSubUrls(base: string, discoveredLinks: string[], max: number): Array<{ url: string; kind: "about" | "contact" | "team" | "services" | "locations" }> {
   const seen = new Set<string>();
   const out: Array<{ url: string; kind: "about" | "contact" | "team" | "services" | "locations" }> = [];
 
