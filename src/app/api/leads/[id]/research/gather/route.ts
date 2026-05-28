@@ -87,13 +87,18 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       }
     }
 
-    // Then ask Claude for a unified summary if any source succeeded and Claude is configured.
+    // Then ask Claude for a unified summary. We used to gate this on
+    // `anySucceeded`, but credit-union + Cloudflare-fronted sites 403
+    // most server-side fetches and the rep was left staring at an
+    // empty page with no signal. The summarizer already handles
+    // "(no gathered artifacts yet — work from Lead context only)"
+    // gracefully, so always run it when Claude is configured — the
+    // toast on the client tells the rep whether artifacts were scraped.
     let summary: string | null = null;
     let suggestedQuestions: string[] = [];
     let risks: string[] = [];
     let fitSignals: string[] = [];
-    const anySucceeded = Object.values(sources).some((s) => s.ok);
-    if (anySucceeded && isAnthropicConfigured()) {
+    if (isAnthropicConfigured()) {
       const fresh = await prisma.lead.findUnique({
         where: { id },
         include: { researchArtifacts: { orderBy: { createdAt: "desc" }, take: 8 } },

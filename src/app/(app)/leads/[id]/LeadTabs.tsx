@@ -774,12 +774,20 @@ function ResearchTab({ lead, canEdit }: { lead: Lead; canEdit: boolean }) {
         if (okCount === 0) {
           // Don't fail silently — show which slots had URLs and what
           // went wrong (robots, http_403, fetch_failed, no_url) so the
-          // rep can fix the URL or skip that source.
+          // rep can fix the URL or skip that source. Many credit-union,
+          // healthcare, and Cloudflare-fronted sites 403 server-side
+          // fetches regardless of headers; the rep can still get a
+          // useful briefing from the intake data via the Summarize
+          // button — nudge them toward it.
           const failures = entries
             .filter(([, s]) => !s.ok && s.reason && s.reason !== "no_url")
             .map(([k, s]) => `${k}: ${s.reason}`);
-          if (failures.length > 0) {
-            toast.error(`Gathered 0 sources — ${failures.join(", ")}`);
+          const hasUrls = failures.length > 0;
+          if (hasUrls) {
+            toast.error(
+              `0 sources scraped (${failures.join(", ")}). Click "Summarize with Gateway AI" to brief from intake data instead.`,
+              { duration: 8000 },
+            );
           } else {
             toast.error("Gathered 0 sources — add a website, LinkedIn, or Google Business URL on the lead first");
           }
