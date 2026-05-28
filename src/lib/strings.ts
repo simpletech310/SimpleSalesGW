@@ -3,7 +3,8 @@
  */
 export const STRINGS = {
   appName: "Gateway TelNet Sales Portal",
-  brand: { tagline: "Sales made simple. Operations made sure." },
+  // v3.3.25 — match the real gatewaytelnet.com voice.
+  brand: { tagline: "We listen more, talk less." },
   nav: {
     home: "Home",
     leads: "Leads",

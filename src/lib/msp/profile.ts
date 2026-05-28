@@ -94,8 +94,13 @@ export const DEFAULT_PROFILE: MspProfile = {
   tagline: "a Southern-California managed-services and technology partner",
   missionStatement:
     "Help SoCal businesses run on reliable IT, modern phones, secure facilities, and the right AI strategy — without juggling four vendors.",
+  // v3.3.25 — adopt the real gatewaytelnet.com voice. Specific snippets
+  // surfaced on the marketing site: "We listen more and talk less. We
+  // seek to understand, we measure twice and cut once." + "Technology
+  // is like an FTE, which you only have to pay for once." AI engagements
+  // should match this register.
   brandVoice:
-    "Warm + direct, no fluff, no MBA-speak. Specific over generic. Concrete over vague. We respect the reader's time.",
+    "Match the gatewaytelnet.com voice. Headline values: \"We listen more, talk less.\" \"Measure twice, cut once.\" \"Technology is like an FTE — pay for it once.\" Warm + direct, no fluff, no MBA-speak. Specific over generic. Concrete over vague. We respect the reader's time.",
   background:
     "Gateway TelNet is a Burbank-based managed services and technology partner serving Southern California businesses since the early 2000s. Our stack spans managed IT, cybersecurity, hosted voice, structured cabling, access control, video surveillance, vCIO strategy, AI advisory, and NIST/CMMC compliance — sold individually or as bundles. The differentiator is breadth: a customer can move offices, modernize phones, harden security, and roll out badge readers without onboarding four separate vendors.",
   differentiators: [

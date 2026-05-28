@@ -9,11 +9,12 @@
 export function BrandedFooter({
   versionLabel = "V1.0 — 2026",
   centerLabel,
-  rightLabel = "Sales made simple. Operations made sure.",
+  // v3.3.25 — adopt the real gatewaytelnet.com voice + footer details.
+  rightLabel = "We listen more, talk less.",
   className,
 }: {
   versionLabel?: string;
-  /** Center text — defaults to "GATEWAY TELNET" */
+  /** Center text — defaults to "GATEWAY TELNET · License #1100895 · (818) 775-1234" */
   centerLabel?: string;
   rightLabel?: string;
   className?: string;
@@ -21,7 +22,9 @@ export function BrandedFooter({
   return (
     <footer className={`gtn-footer-band ${className ?? ""}`}>
       <div>{versionLabel}</div>
-      <div className="gtn-footer-band__center">{centerLabel ?? "GATEWAY TELNET"}</div>
+      <div className="gtn-footer-band__center">
+        {centerLabel ?? "GATEWAY TELNET · License #1100895 · (818) 775-1234"}
+      </div>
       <div className="gtn-footer-band__right">{rightLabel}</div>
     </footer>
   );

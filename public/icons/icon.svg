@@ -1,5 +1,27 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!--
+    v3.3.25 — Mirrors the real gateway-header.png lockup at favicon scale.
+    Navy rounded-square + bold sans "G" wordmark + purple swoosh accent
+    underneath, echoing the published Gateway TelNet brand.
+  -->
   <rect width="512" height="512" rx="96" fill="#0F0E2E"/>
-  <text x="60" y="280" font-family="Inter, system-ui, sans-serif" font-style="italic" font-weight="700" font-size="160" fill="#fff">Gw</text>
-  <text x="60" y="380" font-family="Inter, system-ui, sans-serif" font-weight="600" font-size="48" letter-spacing="18" fill="#8B7FE8">TELNET</text>
+  <!-- Bold "G" -->
+  <text
+    x="256"
+    y="312"
+    text-anchor="middle"
+    font-family="Inter, system-ui, sans-serif"
+    font-weight="900"
+    font-size="280"
+    fill="#ffffff"
+    letter-spacing="-8"
+  >G</text>
+  <!-- Purple swoosh under the G — quadratic Bezier so it scales cleanly -->
+  <path
+    d="M 96 380 Q 256 460 416 380"
+    stroke="#8B7FE8"
+    stroke-width="22"
+    stroke-linecap="round"
+    fill="none"
+  />
 </svg>
