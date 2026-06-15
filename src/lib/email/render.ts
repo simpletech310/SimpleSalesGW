@@ -21,7 +21,7 @@ export function renderBrandedEmail(opts: { subject: string; bodyText: string }):
     <tr><td align="center">
       <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="background:#ffffff;border-radius:8px;box-shadow:0 1px 4px rgba(15,14,46,0.06);overflow:hidden">
         <tr>
-          <td style="background:#0F0E2E;padding:20px 28px">
+          <td style="background:#231F20;padding:20px 28px">
             <span style="display:inline-block;background:#ffffff;border-radius:6px;padding:6px 10px">
               <img src="${logoUrl}" alt="Gateway TelNet" width="160" height="55" style="display:block;border:0;outline:none;text-decoration:none;height:auto;width:160px">
             </span>
@@ -29,7 +29,7 @@ export function renderBrandedEmail(opts: { subject: string; bodyText: string }):
         </tr>
         <tr>
           <td style="padding:28px 28px 8px 28px">
-            <p style="margin:0;color:#0F0E2E;font-size:16px;line-height:1.6;white-space:pre-wrap">${escapeHtml(opts.bodyText)}</p>
+            <p style="margin:0;color:#231F20;font-size:16px;line-height:1.6;white-space:pre-wrap">${escapeHtml(opts.bodyText)}</p>
           </td>
         </tr>
         <tr>

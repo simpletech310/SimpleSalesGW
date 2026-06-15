@@ -169,7 +169,7 @@ export function NewLeadForm() {
                     "transition-all duration-120 ease-smooth",
                     "hover:border-line-strong hover:shadow-card",
                     "has-[:checked]:border-brand has-[:checked]:bg-brand-soft/30",
-                    "has-[:checked]:shadow-[0_2px_12px_rgba(91,79,207,0.12)]",
+                    "has-[:checked]:shadow-[0_2px_12px_rgba(97,61,130,0.12)]",
                   )}
                 >
                   <input

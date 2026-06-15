@@ -19,6 +19,8 @@ import { StatCard } from "@/components/ui/StatCard";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/help/EmptyState";
 import { PipelineStrip } from "@/components/pipeline/PipelineStrip";
+import { ConversionFunnel } from "@/components/ui/Charts";
+import { STRINGS } from "@/lib/strings";
 import { DashboardPage, DashboardSection } from "@/components/templates";
 import { DetailSplit } from "@/components/templates/DetailPage";
 import { loadNotifications } from "@/lib/notifications";
@@ -138,6 +140,17 @@ export async function SalesManagerHome({
   ];
   const stageCountMap = new Map(leadsByStage.map((r) => [r.pipelineStage, r._count._all]));
 
+  // v3.7 — conversion funnel from LEAD → CLOSED_WON. Each row's % is its
+  // share of the stage above it, so a manager can spot exactly where deals
+  // stall. Click any band to open that stage on the board.
+  const funnelStages = stageOrder.map((s) => ({
+    label: STRINGS.pipeline.stages[s] ?? s.replace(/_/g, " "),
+    count: stageCountMap.get(s) ?? 0,
+    href: `/pipeline?stage=${s}`,
+    terminal: s === PipelineStage.CLOSED_WON,
+  }));
+  const maxRepActive = Math.max(1, ...repsRanked.map((r) => r.activeCount));
+
   return (
     <DashboardPage
       eyebrow="Sales management"
@@ -161,6 +174,15 @@ export async function SalesManagerHome({
         counts={Object.fromEntries(stageCountMap) as Partial<Record<PipelineStage, number>>}
         heading="Team pipeline"
       />
+
+      {teamLeadCount > 0 && (
+        <DashboardSection
+          title="Conversion funnel"
+          subtitle="Lead → Closed won. The right-hand % is each stage's pass-through from the one above — your stall points at a glance."
+        >
+          <ConversionFunnel stages={funnelStages} />
+        </DashboardSection>
+      )}
 
       <DetailSplit
         asideWidth="340px"
@@ -299,7 +321,13 @@ export async function SalesManagerHome({
                           <p className="text-sm font-medium text-ink-strong group-hover:text-gtn-purple transition-colors truncate">
                             {r.name}
                           </p>
-                          <p className="text-[11px] text-ink-muted tabular">
+                          <div className="mt-1 h-1.5 rounded-full bg-surface-3 overflow-hidden" aria-hidden>
+                            <div
+                              className={`h-full rounded-full ${i === 0 ? "bg-brand" : "bg-gtn-purple/45"}`}
+                              style={{ width: `${Math.round((r.activeCount / maxRepActive) * 100)}%` }}
+                            />
+                          </div>
+                          <p className="text-[11px] text-ink-muted tabular mt-1">
                             {r.activeCount} active
                             {r.closedWon > 0 && <span className="text-gtn-green font-semibold"> · {r.closedWon} won</span>}
                           </p>

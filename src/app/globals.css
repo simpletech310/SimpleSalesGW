@@ -5,31 +5,32 @@
 @layer base {
   :root {
     /* ----------------------------------------------------------------
-       Gateway brand palette (v2.4) — keep in sync with tailwind.config.
-       UNCHANGED hex values: print/PDF surfaces depend on these exact
-       tokens. v3.0 layered semantic tokens on top instead of editing.
+       Gateway brand palette — v3.7 unified with the SOP + Agent portals
+       (sampled from gatewaytelnet.com): warm near-black ink, deep royal
+       purple swoosh, lavender accent. The "navy" tokens now carry the warm
+       ink so headings/dark surfaces match across all three apps.
        ---------------------------------------------------------------- */
-    --gtn-navy: #0F0E2E;
-    --gtn-navy-2: #1A1840;
-    --gtn-navy-3: #2D2A55;
-    --gtn-purple: #5B4FCF;
-    --gtn-purple-2: #6A5ACD;
-    --gtn-purple-3: #8B7FE8;
-    --gtn-lilac: #8B7FE8;
-    --gtn-eyebrow: #B5ADF0;
-    --gtn-lavender: #EFEEFB;
-    --gtn-lavender-2: #E4E1F8;
-    --gtn-callout-bg: #F5F3FC;
-    --gtn-grey: #4A4A4A;
-    --gtn-grey-2: #6B6B6B;
-    --gtn-grey-3: #ABABAB;
+    --gtn-navy: #231F20;     /* warm near-black ink (the GATEWAY wordmark) */
+    --gtn-navy-2: #332B36;
+    --gtn-navy-3: #46394C;
+    --gtn-purple: #613D82;   /* deep royal purple — the swoosh */
+    --gtn-purple-2: #7A529C;
+    --gtn-purple-3: #918EC3; /* lavender accent — TELNET subtitle */
+    --gtn-lilac: #918EC3;
+    --gtn-eyebrow: #918EC3;
+    --gtn-lavender: #F0EEF7;
+    --gtn-lavender-2: #E6E2F0;
+    --gtn-callout-bg: #F0EEF7;
+    --gtn-grey: #4A4540;
+    --gtn-grey-2: #6B6457;
+    --gtn-grey-3: #ABA597;
     --gtn-green: #2BB673;
     --gtn-green-bg: #E6F8EF;
     --gtn-amber: #E89422;
     --gtn-amber-bg: #FEF3E2;
     --gtn-red: #D03A2E;
     --gtn-red-bg: #FBE9E7;
-    --gtn-text: #1F1F2D;
+    --gtn-text: #231F20;
 
     /* ----------------------------------------------------------------
        v3.0 — semantic neutrals for the refined-SaaS surface system.
@@ -37,23 +38,23 @@
        restyles 100% of components.
        ---------------------------------------------------------------- */
     --surface:        #FFFFFF;  /* cards, popovers, primary surface */
-    --surface-2:      #FAFAFC;  /* page background */
-    --surface-3:      #F4F3FA;  /* hovered rows, subtle fills */
-    --surface-sunken: #ECEAF5;  /* inset wells, dividers */
+    --surface-2:      #F7F5F1;  /* warm cream page background (matches SOP) */
+    --surface-3:      #F0EDE6;  /* hovered rows, subtle fills */
+    --surface-sunken: #E9E5DC;  /* inset wells, dividers */
 
-    --border-subtle: #ECEAF5;
-    --border:        #DFDCEF;
-    --border-strong: #C9C4E2;
+    --border-subtle: #EFEBE2;
+    --border:        #E4E0D6;
+    --border-strong: #D8D2C5;
 
-    --text-strong: #1F1F2D;
-    --text:        #3A3A4F;
-    --text-muted:  #6B6B82;
-    --text-faint:  #9C9CB0;
+    --text-strong: #231F20;
+    --text:        #3A3530;
+    --text-muted:  #6B6457;
+    --text-faint:  #9C968A;
     --text-inverse:#FFFFFF;
 
     --brand-accent:      var(--gtn-purple);
     --brand-accent-soft: var(--gtn-lavender);
-    --brand-ring:        rgba(91, 79, 207, 0.35);
+    --brand-ring:        rgba(97, 61, 130, 0.35);
 
     /* Status — bg + fg pairs */
     --success:    var(--gtn-green);
@@ -69,25 +70,25 @@
        shadcn semantic tokens — mapped onto v3.0 neutrals.
        Values use HSL channels (no hsl() wrapper) per shadcn convention.
        ---------------------------------------------------------------- */
-    --background: 240 27% 99%;          /* surface-2 */
-    --foreground: 240 18% 15%;          /* text-strong */
+    --background: 40 27% 96%;           /* cream surface-2 */
+    --foreground: 20 6% 13%;            /* warm ink text-strong */
     --card: 0 0% 100%;
-    --card-foreground: 240 18% 15%;
+    --card-foreground: 20 6% 13%;
     --popover: 0 0% 100%;
-    --popover-foreground: 240 18% 15%;
-    --primary: 244 36% 12%;             /* navy */
+    --popover-foreground: 20 6% 13%;
+    --primary: 20 6% 13%;               /* warm ink */
     --primary-foreground: 0 0% 100%;
-    --secondary: 245 70% 96%;           /* lavender */
-    --secondary-foreground: 244 36% 12%;
-    --muted: 247 35% 96%;               /* surface-3 */
-    --muted-foreground: 240 11% 46%;    /* text-muted */
-    --accent: 249 58% 56%;              /* purple */
+    --secondary: 270 33% 95%;           /* lavender tint */
+    --secondary-foreground: 271 36% 30%;
+    --muted: 40 20% 94%;                /* warm surface-3 */
+    --muted-foreground: 30 10% 38%;     /* text-muted */
+    --accent: 271 36% 37%;              /* deep royal purple */
     --accent-foreground: 0 0% 100%;
     --destructive: 4 67% 50%;
     --destructive-foreground: 0 0% 100%;
-    --border: 248 25% 90%;              /* border */
-    --input: 248 25% 90%;
-    --ring: 249 58% 56%;
+    --border: 42 25% 86%;               /* warm hairline */
+    --input: 42 25% 86%;
+    --ring: 271 36% 37%;
     --radius: 0.5rem;
   }
 
@@ -105,8 +106,9 @@
   }
 
   body {
-    /* Carlito = brand body; Inter fallback; JetBrains Mono for code. */
-    font-family: var(--font-carlito), var(--font-inter), system-ui, sans-serif;
+    /* Montserrat = shared Gateway brand UI font (matches SOP + Agent portals);
+       Carlito/Inter remain as fallbacks. JetBrains Mono for code. */
+    font-family: var(--font-montserrat), var(--font-carlito), var(--font-inter), system-ui, sans-serif;
     font-feature-settings: "cv11", "ss01", "ss03";
   }
 
@@ -438,7 +440,7 @@
   .ui-app-bg {
     background-color: var(--surface-2);
     background-image:
-      radial-gradient(circle at 1px 1px, rgba(91, 79, 207, 0.04) 1px, transparent 0);
+      radial-gradient(circle at 1px 1px, rgba(97, 61, 130, 0.04) 1px, transparent 0);
     background-size: 28px 28px;
   }
 
@@ -500,28 +502,19 @@
     background-color: var(--surface-3);
     color: var(--text-strong);
   }
+  /* v3.7 — active item is a solid warm-ink fill with white text, matching
+     the SOP portal's nav treatment so all three portals read the same. */
   .ui-nav-item[data-active="true"] {
-    background-color: var(--brand-accent-soft);
-    color: var(--gtn-navy);
+    background-color: var(--gtn-navy);
+    color: #fff;
     font-weight: 600;
-  }
-  .ui-nav-item[data-active="true"]::before {
-    content: "";
-    position: absolute;
-    left: 0;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 3px;
-    height: 18px;
-    background-color: var(--brand-accent);
-    border-radius: 0 3px 3px 0;
   }
   .ui-nav-item svg {
     color: var(--text-muted);
     transition: color 120ms;
   }
   .ui-nav-item:hover svg { color: var(--text); }
-  .ui-nav-item[data-active="true"] svg { color: var(--brand-accent); }
+  .ui-nav-item[data-active="true"] svg { color: #fff; }
 
   /* Topbar — slim chrome with breadcrumb + search */
   .ui-topbar {

@@ -17,6 +17,8 @@ import { Button } from "@/components/ui/Button";
 import { StatCard } from "@/components/ui/StatCard";
 import { Badge, ScoreBadge } from "@/components/ui/Badge";
 import { PipelineStrip } from "@/components/pipeline/PipelineStrip";
+import { MiniBars, ConversionFunnel } from "@/components/ui/Charts";
+import { STRINGS } from "@/lib/strings";
 import { EmptyState } from "@/components/help/EmptyState";
 import { DashboardPage, DashboardSection } from "@/components/templates";
 import { DetailSplit } from "@/components/templates/DetailPage";
@@ -46,9 +48,11 @@ export async function SalespersonHome({
   const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
   const sevenDaysAhead = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  // First day of the month 5 months back → 6-month trend window.
+  const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
 
   // One query for the pipeline board + top opps + stale + counts.
-  const [leads, openActions, recentActivity, closedWonThisMonth] = await Promise.all([
+  const [leads, openActions, recentActivity, closedWonThisMonth, closedWonTrend] = await Promise.all([
     prisma.lead.findMany({
       where: visibility,
       orderBy: [{ pipelineStage: "asc" }, { dealQualityScore: "desc" }, { updatedAt: "desc" }],
@@ -92,6 +96,15 @@ export async function SalespersonHome({
         actualCloseDate: { gte: startOfMonth },
       },
     }),
+    // v3.7 — closed-won across the last 6 months for the momentum trend.
+    prisma.lead.findMany({
+      where: {
+        ...visibility,
+        pipelineStage: PipelineStage.CLOSED_WON,
+        actualCloseDate: { gte: sixMonthsAgo },
+      },
+      select: { actualCloseDate: true },
+    }),
   ]);
 
   const activeStages: PipelineStage[] = [
@@ -126,6 +139,40 @@ export async function SalespersonHome({
     .filter((l) => new Date(l.updatedAt).getTime() < sevenDaysAgo.getTime())
     .sort((a, b) => new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime())
     .slice(0, 5);
+
+  // 6-month closed-won trend, bucketed by calendar month (oldest → newest).
+  const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const monthlyWon = Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - 5 + i, 1);
+    return { key: `${d.getFullYear()}-${d.getMonth()}`, label: MONTH_LABELS[d.getMonth()]!, value: 0 };
+  });
+  const monthIndex = new Map(monthlyWon.map((m, i) => [m.key, i]));
+  for (const l of closedWonTrend) {
+    if (!l.actualCloseDate) continue;
+    const d = new Date(l.actualCloseDate);
+    const idx = monthIndex.get(`${d.getFullYear()}-${d.getMonth()}`);
+    if (idx != null) monthlyWon[idx]!.value += 1;
+  }
+  const wonLast6 = monthlyWon.reduce((s, m) => s + m.value, 0);
+
+  // Personal conversion funnel — LEAD → CLOSED_WON from this rep's own book.
+  const funnelOrder: PipelineStage[] = [
+    PipelineStage.LEAD,
+    PipelineStage.QUALIFIED,
+    PipelineStage.FIRST_INTERACTION,
+    PipelineStage.SITE_SURVEY_SCHEDULED,
+    PipelineStage.DISCOVERY,
+    PipelineStage.QUOTE_IN_PROGRESS,
+    PipelineStage.QUOTE_SENT,
+    PipelineStage.NEGOTIATION,
+    PipelineStage.CLOSED_WON,
+  ];
+  const funnelStages = funnelOrder.map((s) => ({
+    label: STRINGS.pipeline.stages[s] ?? s.replace(/_/g, " "),
+    count: stageCounts[s] ?? 0,
+    href: `/pipeline?stage=${s}`,
+    terminal: s === PipelineStage.CLOSED_WON,
+  }));
 
   const firstName = user.name?.split(" ")[0] ?? "there";
 
@@ -165,6 +212,28 @@ export async function SalespersonHome({
         <>
           {/* Compact pipeline strip — full kanban lives at /pipeline */}
           <PipelineStrip counts={stageCounts} heading="Your pipeline" />
+
+          {/* v3.7 — momentum trend + personal conversion funnel */}
+          <div className="grid lg:grid-cols-2 gap-4">
+            <section className="rounded-xl bg-surface border border-line-subtle p-4">
+              <header className="flex items-baseline justify-between gap-2 mb-3">
+                <div>
+                  <h3 className="text-sm font-semibold text-ink-strong">Your momentum</h3>
+                  <p className="text-[11px] text-ink-muted">Closed-won deals, last 6 months.</p>
+                </div>
+                <span className="text-xs font-mono font-bold text-gtn-purple tabular">{wonLast6} won</span>
+              </header>
+              <MiniBars data={monthlyWon.map((m) => ({ label: m.label, value: m.value }))} />
+            </section>
+
+            <section className="rounded-xl bg-surface border border-line-subtle p-4">
+              <header className="mb-3">
+                <h3 className="text-sm font-semibold text-ink-strong">Conversion funnel</h3>
+                <p className="text-[11px] text-ink-muted">Where your own deals sit, and pass-through between stages.</p>
+              </header>
+              <ConversionFunnel stages={funnelStages} />
+            </section>
+          </div>
 
           {/* Two-column split: top opps + recent activity (main); next-actions + stale (aside) */}
           <DetailSplit

@@ -42,11 +42,15 @@ export function Sidebar({
       className="hidden md:flex md:flex-col md:fixed md:inset-y-0 md:left-0 md:w-60 z-30 bg-surface border-r border-line-subtle"
       aria-label="Primary navigation"
     >
-      {/* Brand block — single navy slab at top */}
-      <div className="px-5 h-[52px] flex items-center border-b border-line-subtle bg-gtn-navy">
-        <Link href="/" className="block py-1.5 -my-1.5 px-1 -mx-1 rounded">
-          <GatewayLogo variant="onDark" size="sm" />
+      {/* Brand block — white slab with the wordmark + purple eyebrow, matching
+          the SOP + Agent portals so all three read as one product. */}
+      <div className="px-5 py-4 border-b border-line-subtle">
+        <Link href="/" className="block">
+          <GatewayLogo variant="onLight" size="md" />
         </Link>
+        <div className="mt-2 text-[10px] font-bold uppercase tracking-[0.28em] text-gtn-purple">
+          Sales Portal
+        </div>
       </div>
 
       {/* Grouped nav */}
@@ -153,7 +157,7 @@ export function MobileNav({ role }: { role: Role }) {
               className={cn(
                 "inline-flex items-center justify-center rounded-full transition-all",
                 item.primary
-                  ? "w-10 h-10 bg-gtn-purple text-white shadow-[0_4px_14px_rgba(91,79,207,0.35)]"
+                  ? "w-10 h-10 bg-gtn-purple text-white shadow-[0_4px_14px_rgba(97,61,130,0.35)]"
                   : active
                   ? "w-8 h-8 bg-brand-soft text-gtn-navy"
                   : "w-8 h-8",

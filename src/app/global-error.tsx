@@ -23,7 +23,7 @@ export default function GlobalError({
       <body
         style={{
           fontFamily: "system-ui, -apple-system, sans-serif",
-          color: "#0F0E2E",
+          color: "#231F20",
           backgroundColor: "#EFEEFB",
           padding: "2rem",
           minHeight: "100dvh",
@@ -40,7 +40,7 @@ export default function GlobalError({
             boxShadow: "0 4px 24px rgba(15,14,46,0.08)",
           }}
         >
-          <p style={{ fontSize: 10, letterSpacing: "0.2em", color: "#5B4FCF", fontWeight: 700, marginBottom: 12 }}>
+          <p style={{ fontSize: 10, letterSpacing: "0.2em", color: "#613D82", fontWeight: 700, marginBottom: 12 }}>
             GATEWAY TELNET · SOMETHING BROKE
           </p>
           <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 8 }}>
@@ -58,7 +58,7 @@ export default function GlobalError({
           <button
             onClick={() => reset()}
             style={{
-              background: "#5B4FCF",
+              background: "#613D82",
               color: "white",
               border: "none",
               padding: "0.625rem 1.25rem",

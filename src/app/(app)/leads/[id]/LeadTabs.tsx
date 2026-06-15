@@ -117,6 +117,11 @@ type Lead = {
   socialYoutubeUrl: string | null;
   pressContactEmail: string | null;
   enrichmentCompletedAt: Date | null;
+  // v3.6 — B2B Rocket vendor signals
+  vendorLeadScore: number | null;
+  vendorScoreSource: string | null;
+  intentTopics: string[];
+  playbookUrl: string | null;
 };
 
 type AuditEntry = {
@@ -339,6 +344,52 @@ function OverviewTab({ lead }: { lead: Lead }) {
           )}
         </Card>
       </div>
+
+      {/* v3.6 — Vendor signals (B2B Rocket import): fit score, intent topics, playbook */}
+      {(lead.vendorLeadScore != null || lead.intentTopics.length > 0 || lead.playbookUrl) && (
+        <Card>
+          <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+            <h3 className="text-sm font-semibold text-gtn-navy flex items-center gap-2">
+              Vendor signals
+              {lead.vendorScoreSource && (
+                <span className="text-[10px] uppercase tracking-wide text-gtn-grey-2 font-normal">
+                  {lead.vendorScoreSource}
+                </span>
+              )}
+            </h3>
+            {lead.vendorLeadScore != null && (
+              <span className="inline-flex items-baseline gap-1 rounded-full bg-gtn-purple/10 px-2.5 py-0.5">
+                <span className="text-sm font-bold text-gtn-purple tabular">{lead.vendorLeadScore}</span>
+                <span className="text-[10px] text-gtn-grey-2">fit score</span>
+              </span>
+            )}
+          </div>
+          {lead.intentTopics.length > 0 && (
+            <div className="mb-2">
+              <p className="text-[10px] uppercase tracking-wide font-semibold text-gtn-grey-2 mb-1">
+                Intent topics ({lead.intentTopics.length})
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {lead.intentTopics.map((t, i) => (
+                  <span key={i} className="rounded-full bg-gtn-lavender border border-line-subtle px-2 py-0.5 text-[11px] text-gtn-navy">
+                    {t}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          {lead.playbookUrl && (
+            <a
+              href={lead.playbookUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs font-semibold text-gtn-purple hover:underline inline-flex items-center gap-1"
+            >
+              Open vendor playbook →
+            </a>
+          )}
+        </Card>
+      )}
 
       {/* Research signals snippet — only when we have data */}
       {(lead.researchFitSignals.length > 0 || lead.researchSuggestedQuestions.length > 0 || lead.researchRisks.length > 0) && (

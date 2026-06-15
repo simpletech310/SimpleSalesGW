@@ -60,7 +60,7 @@ export default async function MePage() {
           <div className="flex items-center gap-4">
             <div
               aria-hidden
-              className="h-16 w-16 rounded-full bg-brand text-white flex items-center justify-center text-xl font-bold flex-shrink-0 shadow-[0_4px_14px_rgba(91,79,207,0.35)]"
+              className="h-16 w-16 rounded-full bg-brand text-white flex items-center justify-center text-xl font-bold flex-shrink-0 shadow-[0_4px_14px_rgba(97,61,130,0.35)]"
             >
               {initials(user.name)}
             </div>

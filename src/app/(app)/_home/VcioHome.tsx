@@ -17,6 +17,7 @@ import { StatCard } from "@/components/ui/StatCard";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/help/EmptyState";
 import { PipelineStrip } from "@/components/pipeline/PipelineStrip";
+import { SegmentDonut, ProgressRing, CHART_COLORS } from "@/components/ui/Charts";
 import { DashboardPage, DashboardSection } from "@/components/templates";
 import { DetailSplit } from "@/components/templates/DetailPage";
 import { customerVisibilityFilter, leadVisibilityFilter, VCIO_VISIBLE_STAGES } from "@/lib/rbac";
@@ -150,6 +151,23 @@ export async function VcioHome({
   const onboarding = customers.filter((c) => c.status === CustomerStatus.ONBOARDING).length;
   const steady = customers.filter((c) => c.status === CustomerStatus.ACTIVE).length;
 
+  // v3.7 — onboarding completion % per customer (from full task statuses on
+  // healthScan), plus the book-wide mix + average onboarding progress.
+  const progressByCustomer = new Map<string, number>();
+  for (const c of healthScan) {
+    const total = c.onboardingTasks.length;
+    const done = c.onboardingTasks.filter((t) => t.status === "DONE" || t.status === "SKIPPED").length;
+    progressByCustomer.set(c.id, total === 0 ? 0 : Math.round((done / total) * 100));
+  }
+  const bookOnboarding = healthScan.filter((c) => c.status === CustomerStatus.ONBOARDING);
+  const bookSteady = healthScan.filter((c) => c.status === CustomerStatus.ACTIVE);
+  const avgOnboardingPct =
+    bookOnboarding.length > 0
+      ? Math.round(
+          bookOnboarding.reduce((s, c) => s + (progressByCustomer.get(c.id) ?? 0), 0) / bookOnboarding.length,
+        )
+      : 0;
+
   // At-risk computation: stuck in ONBOARDING with <50% task completion after
   // 30 days, OR no QBR completed in 90+ days. Both = clear vCIO action item.
   type AtRisk = {
@@ -255,6 +273,55 @@ export async function VcioHome({
       <AutoRefresh intervalMs={30000} />
 
       <PipelineStrip counts={pipelineCounts} stages={VCIO_VISIBLE_STAGES} heading="Pipeline in your scope" />
+
+      {healthScan.length > 0 && (
+        <DashboardSection
+          title="Portfolio health"
+          subtitle="Your active book at a glance — onboarding vs steady-state, average onboarding progress, and accounts needing attention."
+        >
+          <div className="flex flex-wrap items-center gap-x-10 gap-y-6">
+            <SegmentDonut
+              size={132}
+              centerLabel={healthScan.length}
+              centerSub="accounts"
+              segments={[
+                { value: bookOnboarding.length, color: CHART_COLORS.amber, label: "Onboarding" },
+                { value: bookSteady.length, color: CHART_COLORS.green, label: "Steady state" },
+              ]}
+            />
+            <div className="flex items-center gap-3">
+              <ProgressRing value={avgOnboardingPct} size={84} color={CHART_COLORS.brand} />
+              <div className="text-sm">
+                <p className="font-semibold text-ink-strong">Avg onboarding</p>
+                <p className="text-xs text-ink-muted max-w-[170px]">
+                  Mean task completion across {bookOnboarding.length} onboarding account
+                  {bookOnboarding.length === 1 ? "" : "s"}.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <span
+                className={`inline-flex items-center justify-center w-[84px] h-[84px] rounded-full ${
+                  atRiskAccounts.length > 0 ? "bg-warn-soft" : "bg-success-soft"
+                }`}
+                aria-hidden
+              >
+                <span
+                  className={`text-3xl font-mono font-bold ${
+                    atRiskAccounts.length > 0 ? "text-gtn-amber" : "text-gtn-green"
+                  }`}
+                >
+                  {atRiskAccounts.length}
+                </span>
+              </span>
+              <div className="text-sm">
+                <p className="font-semibold text-ink-strong">At-risk</p>
+                <p className="text-xs text-ink-muted max-w-[170px]">Stuck in onboarding or overdue for a QBR.</p>
+              </div>
+            </div>
+          </div>
+        </DashboardSection>
+      )}
 
       {siteSurveysAwaiting > 0 && (
         <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 flex items-start gap-3">
@@ -367,6 +434,22 @@ export async function VcioHome({
                         <span aria-hidden>·</span>
                         <span>{c._count.qbrs} QBRs</span>
                       </div>
+                      {c.status === CustomerStatus.ONBOARDING && (
+                        <div className="mt-2.5">
+                          <div className="flex items-center justify-between text-[10px] mb-1">
+                            <span className="uppercase tracking-wide text-ink-faint">Onboarding</span>
+                            <span className="font-mono font-semibold text-ink-strong tabular">
+                              {progressByCustomer.get(c.id) ?? 0}%
+                            </span>
+                          </div>
+                          <div className="h-1.5 rounded-full bg-surface-3 overflow-hidden" aria-hidden>
+                            <div
+                              className="h-full rounded-full bg-gtn-purple"
+                              style={{ width: `${progressByCustomer.get(c.id) ?? 0}%` }}
+                            />
+                          </div>
+                        </div>
+                      )}
                     </Link>
                   </li>
                 ))}

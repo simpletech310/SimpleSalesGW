@@ -29,6 +29,24 @@ const envSchema = z.object({
   // v2.22 — Daily.co API key for creating video/audio call rooms +
   // issuing per-call meeting tokens. Server-only; never exposed to client.
   DAILY_API_KEY: z.string().optional().default(""),
+  // v3.5 — ConnectWise Manage (PSA) is the system of record. All five are
+  // required for the integration to activate; absent → integration disabled
+  // and every CW action degrades to a queued sync row (never blocks the UI).
+  //   CW_SITE_URL  e.g. https://api-na.myconnectwise.net
+  //   auth header  Basic base64("<CW_COMPANY_ID>+<CW_PUBLIC_KEY>:<CW_PRIVATE_KEY>")
+  //                plus a "clientId: <CW_CLIENT_ID>" header.
+  CW_SITE_URL: z.string().optional().default(""),
+  CW_COMPANY_ID: z.string().optional().default(""),
+  CW_PUBLIC_KEY: z.string().optional().default(""),
+  CW_PRIVATE_KEY: z.string().optional().default(""),
+  CW_CLIENT_ID: z.string().optional().default(""),
+  // v3.5 — ConnectWise Sell (CPQ) for quotes. May be the same instance or a
+  // separate CPQ surface; kept as its own base URL + key so it can differ.
+  CW_SELL_API_URL: z.string().optional().default(""),
+  CW_SELL_API_KEY: z.string().optional().default(""),
+  // v3.5 — shared secret gating the inbound CW callback endpoint
+  // (?token=...), same approach as the Daily webhook's query-string token.
+  CW_CALLBACK_SECRET: z.string().optional().default(""),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
 });
 
@@ -120,6 +138,9 @@ export type IntegrationHealth = {
   tavily: { configured: boolean; var: "TAVILY_API_KEY"; degradedFeatures: string[] };
   brave: { configured: boolean; var: "BRAVE_SEARCH_API_KEY"; degradedFeatures: string[] };
   hunter: { configured: boolean; var: "HUNTER_API_KEY"; degradedFeatures: string[] };
+  // v3.5 — ConnectWise Manage (PSA) + Sell (CPQ)
+  connectwise: { configured: boolean; var: "CW_SITE_URL + CW_COMPANY_ID + CW_PUBLIC_KEY + CW_PRIVATE_KEY + CW_CLIENT_ID"; degradedFeatures: string[] };
+  connectwiseSell: { configured: boolean; var: "CW_SELL_API_URL + CW_SELL_API_KEY"; degradedFeatures: string[] };
 };
 
 export function integrationHealth(): IntegrationHealth {
@@ -176,6 +197,28 @@ export function integrationHealth(): IntegrationHealth {
       var: "HUNTER_API_KEY",
       degradedFeatures: ["Domain-to-email lookups (falls back to regex over scraped pages)"],
     },
+    // v3.5 — ConnectWise PSA needs all five credentials. Missing any → the
+    // integration is disabled: lead sync, convert-to-ticket, survey/dispatch
+    // tickets, and close-won client conversion all queue instead of pushing.
+    connectwise: {
+      configured: Boolean(
+        e.CW_SITE_URL && e.CW_COMPANY_ID && e.CW_PUBLIC_KEY && e.CW_PRIVATE_KEY && e.CW_CLIENT_ID,
+      ),
+      var: "CW_SITE_URL + CW_COMPANY_ID + CW_PUBLIC_KEY + CW_PRIVATE_KEY + CW_CLIENT_ID",
+      degradedFeatures: [
+        "CW lead sync-in",
+        "Convert Lead → CW service ticket",
+        "Site-survey → CW dispatch ticket",
+        "Closed-won → CW client/agreement",
+      ],
+    },
+    // v3.5 — CW Sell (CPQ) is separate; without it, quotes still build in the
+    // portal but don't push as Sell quotes.
+    connectwiseSell: {
+      configured: Boolean(e.CW_SELL_API_URL && e.CW_SELL_API_KEY),
+      var: "CW_SELL_API_URL + CW_SELL_API_KEY",
+      degradedFeatures: ["Proposal → ConnectWise Sell quote push"],
+    },
   };
 }
 
@@ -199,6 +242,8 @@ export function logIntegrationHealthBanner(): void {
     `  TAVILY_API_KEY:        ${h.tavily.configured ? "✓" : "○ optional — falls back to Brave/DDG"}`,
     `  BRAVE_SEARCH_API_KEY:  ${h.brave.configured ? "✓" : "○ optional — falls back to DDG"}`,
     `  HUNTER_API_KEY:        ${h.hunter.configured ? "✓" : "○ optional — falls back to page regex"}`,
+    `  ConnectWise PSA:       ${h.connectwise.configured ? "✓" : "○ disabled — CW sync + tickets queue only"}`,
+    `  ConnectWise Sell:      ${h.connectwiseSell.configured ? "✓" : "○ disabled — quotes won't push to Sell"}`,
     "═════════════════════════════════════════════════════════════",
   ];
   // eslint-disable-next-line no-console

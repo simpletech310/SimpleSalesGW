@@ -20,8 +20,11 @@ type RowResult = {
   leadId?: string;
 };
 
+type ImportFormat = "b2b_rocket" | "generic";
+
 type PreviewResponse = {
   mode: "preview";
+  format: ImportFormat;
   total: number;
   valid: number;
   invalid: number;
@@ -31,6 +34,7 @@ type PreviewResponse = {
 
 type CreateResponse = {
   mode: "create";
+  format: ImportFormat;
   total: number;
   created: number;
   skippedDuplicate: number;
@@ -75,7 +79,8 @@ export function BulkImportClient({ canAssign }: { canAssign: boolean }) {
         return;
       }
       setPreview(data);
-      toast.success(`${data.valid} valid, ${data.invalid} with errors`);
+      const fmt = data.format === "b2b_rocket" ? "B2B Rocket export detected · " : "";
+      toast.success(`${fmt}${data.valid} valid, ${data.invalid} with errors`);
     } finally {
       setBusy(false);
     }
@@ -114,7 +119,14 @@ export function BulkImportClient({ canAssign }: { canAssign: boolean }) {
   return (
     <div className="space-y-5">
       <Callout kind="tip">
-        Accepted columns include: <code className="gtn-code-pill">businessName</code> (required),{" "}
+        <strong>B2B Rocket / bebop.ai exports are auto-detected.</strong> Drop the file in as-is — we
+        map the vendor <em>Score</em>, <em>Intent Topics</em>, the prose research (<em>Description</em>
+        {" "}+ <em>Reason</em>), the <em>Playbook URL</em>, and all up-to-3 contacts onto each lead, so
+        imported leads land fully briefed on the Research tab. Re-importing the same file is safe —
+        rows are de-duplicated by the vendor&rsquo;s row ID.
+      </Callout>
+      <Callout kind="tip">
+        For a plain CSV, accepted columns include: <code className="gtn-code-pill">businessName</code> (required),{" "}
         <code className="gtn-code-pill">industry</code>, <code className="gtn-code-pill">seatCount</code>,{" "}
         <code className="gtn-code-pill">siteCount</code>, <code className="gtn-code-pill">addressCity</code>,{" "}
         <code className="gtn-code-pill">addressState</code>, <code className="gtn-code-pill">addressZip</code>,{" "}
@@ -217,7 +229,11 @@ export function BulkImportClient({ canAssign }: { canAssign: boolean }) {
                     <th className="ui-label text-left px-3 py-2">Row</th>
                     <th className="ui-label text-left px-3 py-2">Business</th>
                     <th className="ui-label text-left px-3 py-2">Industry</th>
-                    <th className="ui-label text-right px-3 py-2">Seats</th>
+                    {preview.format === "b2b_rocket" ? (
+                      <th className="ui-label text-right px-3 py-2">Score</th>
+                    ) : (
+                      <th className="ui-label text-right px-3 py-2">Seats</th>
+                    )}
                     <th className="ui-label text-left px-3 py-2">Location</th>
                     <th className="ui-label text-left px-3 py-2">Contact</th>
                     <th className="ui-label text-left px-3 py-2">Issues</th>
@@ -232,9 +248,20 @@ export function BulkImportClient({ canAssign }: { canAssign: boolean }) {
                         <td className="px-3 py-1.5 tabular text-ink-muted">{r.rowIndex}</td>
                         <td className="px-3 py-1.5 font-medium text-gtn-navy">{String(n.businessName ?? r.raw.businessName ?? "—")}</td>
                         <td className="px-3 py-1.5 text-ink-muted">{String(n.industry ?? r.raw.industry ?? "—")}</td>
-                        <td className="px-3 py-1.5 text-right tabular">{String(n.seatCount ?? "—")}</td>
+                        {preview.format === "b2b_rocket" ? (
+                          <td className="px-3 py-1.5 text-right tabular font-semibold text-gtn-navy">
+                            {n.vendorLeadScore != null ? String(n.vendorLeadScore) : "—"}
+                          </td>
+                        ) : (
+                          <td className="px-3 py-1.5 text-right tabular">{String(n.seatCount ?? "—")}</td>
+                        )}
                         <td className="px-3 py-1.5 text-ink-muted">{[n.addressCity, n.addressState].filter(Boolean).join(", ") || "—"}</td>
-                        <td className="px-3 py-1.5 text-ink-muted">{String(n.primaryContactEmail ?? n.primaryContactPhone ?? "—")}</td>
+                        <td className="px-3 py-1.5 text-ink-muted">
+                          {String(n.primaryContactName ?? n.primaryContactEmail ?? n.primaryContactPhone ?? "—")}
+                          {Array.isArray(n.keyContacts) && n.keyContacts.length > 1 && (
+                            <span className="text-gtn-grey-2"> · +{n.keyContacts.length - 1} more</span>
+                          )}
+                        </td>
                         <td className="px-3 py-1.5">
                           {r.errors.length > 0 && (
                             <div className="text-gtn-red flex items-start gap-1">

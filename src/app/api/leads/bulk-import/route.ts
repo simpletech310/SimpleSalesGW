@@ -6,6 +6,7 @@ import { writeAudit } from "@/lib/audit";
 import { ApiError, getAuditContext, jsonError, requireSessionUser } from "@/lib/api";
 import { can } from "@/lib/rbac";
 import { parseCsv, normalizeHeader } from "@/lib/csv-parse";
+import { isB2BRocketCsv, normalizeB2BRocketRow } from "@/lib/prospects/b2b-rocket";
 
 /**
  * v3.3.9 — Bulk lead import.
@@ -190,8 +191,14 @@ export async function POST(req: Request) {
       throw new ApiError(400, `Too many rows (${parsed.rows.length}). Max is 500 per import — split the file.`);
     }
 
+    // Auto-detect the B2B Rocket / bebop.ai export by its header signature
+    // and route to the rich preset; otherwise use the generic flat parser.
+    const isB2B = isB2BRocketCsv(parsed.headers);
+    const format: "b2b_rocket" | "generic" = isB2B ? "b2b_rocket" : "generic";
+
     const results: RowResult[] = parsed.rows.map((raw, i) => {
-      const { data, errors, warnings } = normalizeRow(raw);
+      const { data, errors, warnings } = isB2B ? normalizeB2BRocketRow(raw) : normalizeRow(raw);
+      if (data && isB2B) data.source = LeadSource.B2B_ROCKET;
       return {
         rowIndex: i + 2, // header is row 1, first data row is row 2
         raw,
@@ -207,6 +214,7 @@ export async function POST(req: Request) {
     if (body.mode === "preview") {
       return NextResponse.json({
         mode: "preview",
+        format,
         total: results.length,
         valid: validCount,
         invalid: errorCount,
@@ -226,8 +234,15 @@ export async function POST(req: Request) {
         continue;
       }
       const businessName = String(r.normalized.businessName);
+      const externalLeadId = r.normalized.externalLeadId
+        ? String(r.normalized.externalLeadId)
+        : null;
+      // Dedupe by the vendor's row id first (stable across name edits), then
+      // fall back to an exact business-name match.
       const existing = await prisma.lead.findFirst({
-        where: { businessName },
+        where: externalLeadId
+          ? { OR: [{ externalLeadId }, { businessName }] }
+          : { businessName },
         select: { id: true },
       });
       if (existing) {
@@ -271,6 +286,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       mode: "create",
+      format,
       total: results.length,
       created,
       skippedDuplicate: skippedDup,

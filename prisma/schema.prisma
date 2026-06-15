@@ -76,6 +76,11 @@ enum LeadSource {
   EVENT
   PARTNER
   OTHER
+  // v3.5 — external lead origins for the ConnectWise/B2B Rocket integration.
+  // CONNECTWISE = pulled in from the CW PSA (system of record); B2B_ROCKET =
+  // ingested via the B2B Rocket CSV import preset.
+  CONNECTWISE
+  B2B_ROCKET
 }
 
 enum ComplianceDriver {
@@ -549,6 +554,16 @@ model Lead {
   pressContactEmail          String?             @map("press_contact_email")
   enrichmentCompletedAt      DateTime?           @map("enrichment_completed_at")
   enrichmentSource           String?             @map("enrichment_source")
+  // v3.6 — third-party lead-vendor signals (B2B Rocket CSV import). The
+  // vendor pre-scores + pre-researches each prospect; we keep those signals
+  // first-class so reps can sort the list by vendor score, see which intent
+  // topics fired, and jump straight to the vendor's playbook. externalLeadId
+  // is the vendor's row ID — used for idempotent re-imports (dedupe key).
+  externalLeadId             String?             @map("external_lead_id")
+  vendorLeadScore            Int?                @map("vendor_lead_score")
+  vendorScoreSource          String?             @map("vendor_score_source")
+  intentTopics               String[]            @default([]) @map("intent_topics")
+  playbookUrl                String?             @map("playbook_url")
   suggestedBundle            ServiceBundle?      @map("suggested_bundle")
   servicesScore              Int                 @default(0) @map("services_score")
   customerScore              Int                 @default(0) @map("customer_score")
@@ -560,6 +575,12 @@ model Lead {
   actualCloseDate            DateTime?           @map("actual_close_date")
   closedLostReason           String?             @map("closed_lost_reason") @db.Text
   connectwiseOpportunityId   String?             @map("connectwise_opportunity_id")
+  // v3.5 — ConnectWise PSA linkage (CW is system of record). companyId +
+  // contactId are set when the lead is created in / pulled from CW;
+  // salesTicketId is set by the "Convert Lead" action (CW Sales-board ticket).
+  connectwiseCompanyId       String?             @map("connectwise_company_id")
+  connectwiseContactId       String?             @map("connectwise_contact_id")
+  connectwiseSalesTicketId   String?             @map("connectwise_sales_ticket_id")
   // v3.3 — SOP Step 1: structured trigger event capture
   triggerEvent               TriggerEvent?       @default(NONE) @map("trigger_event")
   triggerEventNote           String?             @map("trigger_event_note") @db.Text
@@ -605,6 +626,9 @@ model Lead {
   @@index([teamId])
   @@index([territoryId])
   @@index([triggerEvent])
+  // v3.6 — sort the lead list by vendor score; dedupe re-imports by vendor row id.
+  @@index([vendorLeadScore])
+  @@index([externalLeadId])
   @@map("leads")
 }
 
@@ -613,34 +637,37 @@ model Lead {
 // before lead can leave SITE_SURVEY_SCHEDULED; vCIO must accept before
 // the lead can advance to DISCOVERY.
 model SiteSurvey {
-  id                  String                @id @default(uuid()) @db.Uuid
-  leadId              String                @unique @map("lead_id") @db.Uuid
-  lead                Lead                  @relation(fields: [leadId], references: [id], onDelete: Cascade)
-  scheduledDate       DateTime              @map("scheduled_date")
-  scheduledStart      String                @map("scheduled_start")
-  scheduledEnd        String                @map("scheduled_end")
-  timezone            String                @default("America/New_York")
-  pocName             String                @map("poc_name")
-  pocTitle            String                @map("poc_title")
-  pocEmail            String                @map("poc_email")
-  pocPhone            String                @map("poc_phone")
-  pocCanAuthorize     Boolean               @default(false) @map("poc_can_authorize")
-  clientType          SiteSurveyClientType  @map("client_type")
-  status              SiteSurveyStatus      @default(AWAITING_VCIO_ACCEPT)
-  notesForVcio        String?               @map("notes_for_vcio") @db.Text
-  vcioUserId          String?               @map("vcio_user_id") @db.Uuid
-  vcio                User?                 @relation("VcioSiteSurveys", fields: [vcioUserId], references: [id], onDelete: SetNull)
-  vcioAcceptedAt      DateTime?             @map("vcio_accepted_at")
-  vcioRejectedAt      DateTime?             @map("vcio_rejected_at")
-  vcioRejectReason    String?               @map("vcio_reject_reason") @db.Text
-  completedAt         DateTime?             @map("completed_at")
-  discoveryVerifiedAt DateTime?             @map("discovery_verified_at")
-  verifiedSeatCount   Int?                  @map("verified_seat_count")
-  verifiedSiteCount   Int?                  @map("verified_site_count")
-  createdById         String                @map("created_by_id") @db.Uuid
-  createdBy           User                  @relation("SiteSurveyCreator", fields: [createdById], references: [id])
-  createdAt           DateTime              @default(now()) @map("created_at")
-  updatedAt           DateTime              @updatedAt @map("updated_at")
+  id                  String               @id @default(uuid()) @db.Uuid
+  leadId              String               @unique @map("lead_id") @db.Uuid
+  lead                Lead                 @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  scheduledDate       DateTime             @map("scheduled_date")
+  scheduledStart      String               @map("scheduled_start")
+  scheduledEnd        String               @map("scheduled_end")
+  timezone            String               @default("America/New_York")
+  pocName             String               @map("poc_name")
+  pocTitle            String               @map("poc_title")
+  pocEmail            String               @map("poc_email")
+  pocPhone            String               @map("poc_phone")
+  pocCanAuthorize     Boolean              @default(false) @map("poc_can_authorize")
+  clientType          SiteSurveyClientType @map("client_type")
+  status              SiteSurveyStatus     @default(AWAITING_VCIO_ACCEPT)
+  notesForVcio        String?              @map("notes_for_vcio") @db.Text
+  vcioUserId          String?              @map("vcio_user_id") @db.Uuid
+  vcio                User?                @relation("VcioSiteSurveys", fields: [vcioUserId], references: [id], onDelete: SetNull)
+  vcioAcceptedAt      DateTime?            @map("vcio_accepted_at")
+  vcioRejectedAt      DateTime?            @map("vcio_rejected_at")
+  vcioRejectReason    String?              @map("vcio_reject_reason") @db.Text
+  completedAt         DateTime?            @map("completed_at")
+  discoveryVerifiedAt DateTime?            @map("discovery_verified_at")
+  verifiedSeatCount   Int?                 @map("verified_seat_count")
+  verifiedSiteCount   Int?                 @map("verified_site_count")
+  // v3.5 — CW dispatch/site-survey ticket created when the survey is
+  // submitted, so CW dispatch can assign a surveyor.
+  connectwiseTicketId String?              @map("connectwise_ticket_id")
+  createdById         String               @map("created_by_id") @db.Uuid
+  createdBy           User                 @relation("SiteSurveyCreator", fields: [createdById], references: [id])
+  createdAt           DateTime             @default(now()) @map("created_at")
+  updatedAt           DateTime             @updatedAt @map("updated_at")
 
   @@index([status])
   @@index([vcioUserId])
@@ -915,20 +942,22 @@ model PricingApproval {
 // ----------------------------------------------------------------------------
 
 model Customer {
-  id                    String          @id @default(uuid()) @db.Uuid
-  leadId                String          @unique @map("lead_id") @db.Uuid
-  accountManagerId      String?         @map("account_manager_id") @db.Uuid
-  status                CustomerStatus  @default(ONBOARDING)
-  currentPhase          OnboardingPhase @default(PRE_ENGAGEMENT) @map("current_phase")
-  onboardingStartedAt   DateTime?       @map("onboarding_started_at")
-  onboardingCompletedAt DateTime?       @map("onboarding_completed_at")
-  qbrFrequencyDays      Int             @default(90) @map("qbr_frequency_days")
-  nextQbrAt             DateTime?       @map("next_qbr_at")
-  strategicRoadmap      Json?           @map("strategic_roadmap")
-  archivedAt            DateTime?       @map("archived_at")
-  archivedReason        String?         @map("archived_reason") @db.Text
-  createdAt             DateTime        @default(now()) @map("created_at")
-  updatedAt             DateTime        @updatedAt @map("updated_at")
+  id                     String          @id @default(uuid()) @db.Uuid
+  leadId                 String          @unique @map("lead_id") @db.Uuid
+  accountManagerId       String?         @map("account_manager_id") @db.Uuid
+  status                 CustomerStatus  @default(ONBOARDING)
+  currentPhase           OnboardingPhase @default(PRE_ENGAGEMENT) @map("current_phase")
+  onboardingStartedAt    DateTime?       @map("onboarding_started_at")
+  onboardingCompletedAt  DateTime?       @map("onboarding_completed_at")
+  qbrFrequencyDays       Int             @default(90) @map("qbr_frequency_days")
+  nextQbrAt              DateTime?       @map("next_qbr_at")
+  strategicRoadmap       Json?           @map("strategic_roadmap")
+  // v3.5 — CW agreement created when the deal closes won (Prospect→Client).
+  connectwiseAgreementId String?         @map("connectwise_agreement_id")
+  archivedAt             DateTime?       @map("archived_at")
+  archivedReason         String?         @map("archived_reason") @db.Text
+  createdAt              DateTime        @default(now()) @map("created_at")
+  updatedAt              DateTime        @updatedAt @map("updated_at")
 
   lead                 Lead                  @relation(fields: [leadId], references: [id], onDelete: Cascade)
   accountManager       User?                 @relation("CustomerManager", fields: [accountManagerId], references: [id])
@@ -1612,48 +1641,52 @@ model SowTemplate {
 
 // Step 6: a specific Proposal/SOW draft for a specific Lead
 model Proposal {
-  id                   String         @id @default(uuid()) @db.Uuid
-  leadId               String         @map("lead_id") @db.Uuid
-  templateId           String?        @map("template_id") @db.Uuid // which SowTemplate seeded the draft
-  version              Int            @default(1) // version-on-edit
-  status               ProposalStatus @default(DRAFT)
+  id                     String         @id @default(uuid()) @db.Uuid
+  leadId                 String         @map("lead_id") @db.Uuid
+  templateId             String?        @map("template_id") @db.Uuid // which SowTemplate seeded the draft
+  version                Int            @default(1) // version-on-edit
+  status                 ProposalStatus @default(DRAFT)
   // Resolved sections (post-merge, editable)
-  scopeMarkdown        String         @db.Text
-  deliverablesMarkdown String         @db.Text
-  timelineMarkdown     String         @db.Text
-  exclusionsMarkdown   String         @db.Text
-  termsMarkdown        String         @db.Text
+  scopeMarkdown          String         @db.Text
+  deliverablesMarkdown   String         @db.Text
+  timelineMarkdown       String         @db.Text
+  exclusionsMarkdown     String         @db.Text
+  termsMarkdown          String         @db.Text
   // Snapshot of pricing at the moment of draft so a later catalog change can't silently
   // mutate the artifact the client saw
-  pricingSnapshot      Json           @default("{}")
+  pricingSnapshot        Json           @default("{}")
   // Gate sign-offs
-  vcioReviewedAt       DateTime?      @map("vcio_reviewed_at")
-  vcioReviewedById     String?        @map("vcio_reviewed_by_id") @db.Uuid
-  vcioReviewVerdict    ReviewVerdict? @map("vcio_review_verdict")
-  vcioReviewNotes      String?        @map("vcio_review_notes") @db.Text
-  managerReviewedAt    DateTime?      @map("manager_reviewed_at")
-  managerReviewedById  String?        @map("manager_reviewed_by_id") @db.Uuid
-  managerReviewVerdict ReviewVerdict? @map("manager_review_verdict")
-  managerReviewNotes   String?        @map("manager_review_notes") @db.Text
+  vcioReviewedAt         DateTime?      @map("vcio_reviewed_at")
+  vcioReviewedById       String?        @map("vcio_reviewed_by_id") @db.Uuid
+  vcioReviewVerdict      ReviewVerdict? @map("vcio_review_verdict")
+  vcioReviewNotes        String?        @map("vcio_review_notes") @db.Text
+  managerReviewedAt      DateTime?      @map("manager_reviewed_at")
+  managerReviewedById    String?        @map("manager_reviewed_by_id") @db.Uuid
+  managerReviewVerdict   ReviewVerdict? @map("manager_review_verdict")
+  managerReviewNotes     String?        @map("manager_review_notes") @db.Text
   // Send / accept
-  sentAt               DateTime?      @map("sent_at")
-  sentByUserId         String?        @map("sent_by_user_id") @db.Uuid
-  pdfBlobUrl           String?        @map("pdf_blob_url")
-  acceptedAt           DateTime?      @map("accepted_at")
-  declinedAt           DateTime?      @map("declined_at")
-  declinedReason       String?        @map("declined_reason") @db.Text
+  sentAt                 DateTime?      @map("sent_at")
+  sentByUserId           String?        @map("sent_by_user_id") @db.Uuid
+  pdfBlobUrl             String?        @map("pdf_blob_url")
+  acceptedAt             DateTime?      @map("accepted_at")
+  declinedAt             DateTime?      @map("declined_at")
+  declinedReason         String?        @map("declined_reason") @db.Text
   // SOP Step 7b — redline escalation
-  redlineRequestedAt   DateTime?      @map("redline_requested_at")
-  redlineRequestReason String?        @map("redline_request_reason") @db.Text
-  redlineResolvedAt    DateTime?      @map("redline_resolved_at")
-  redlineResolution    String?        @map("redline_resolution") @db.Text
+  redlineRequestedAt     DateTime?      @map("redline_requested_at")
+  redlineRequestReason   String?        @map("redline_request_reason") @db.Text
+  redlineResolvedAt      DateTime?      @map("redline_resolved_at")
+  redlineResolution      String?        @map("redline_resolution") @db.Text
   // AI provenance
-  aiDraftedAt          DateTime?      @map("ai_drafted_at")
-  aiDraftModel         String?        @map("ai_draft_model")
-  aiScopeQcJson        Json?          @map("ai_scope_qc_json") // most-recent SOW_SCOPE_QC output
-  aiScopeQcAt          DateTime?      @map("ai_scope_qc_at")
-  createdAt            DateTime       @default(now()) @map("created_at")
-  updatedAt            DateTime       @updatedAt @map("updated_at")
+  aiDraftedAt            DateTime?      @map("ai_drafted_at")
+  aiDraftModel           String?        @map("ai_draft_model")
+  aiScopeQcJson          Json?          @map("ai_scope_qc_json") // most-recent SOW_SCOPE_QC output
+  aiScopeQcAt            DateTime?      @map("ai_scope_qc_at")
+  // v3.5 — ConnectWise Sell (CPQ) quote linkage, set when the proposal is
+  // pushed to CW Sell on approve/send.
+  connectwiseQuoteId     String?        @map("connectwise_quote_id")
+  connectwiseQuoteNumber String?        @map("connectwise_quote_number")
+  createdAt              DateTime       @default(now()) @map("created_at")
+  updatedAt              DateTime       @updatedAt @map("updated_at")
 
   lead              Lead         @relation(fields: [leadId], references: [id], onDelete: Cascade)
   template          SowTemplate? @relation(fields: [templateId], references: [id])
@@ -1711,4 +1744,74 @@ model DealDebrief {
 
   @@index([outcome])
   @@map("deal_debriefs")
+}
+
+// ============================================================================
+// v3.5 — ConnectWise integration (CW PSA + Sell is the system of record)
+// ============================================================================
+
+// Which portal/CW entity a sync row tracks. Kept as an enum (not free text)
+// so the sync engine + admin console can group/filter reliably.
+enum ConnectWiseEntityType {
+  COMPANY
+  CONTACT
+  OPPORTUNITY
+  SALES_TICKET
+  SITE_SURVEY_TICKET
+  SELL_QUOTE
+  AGREEMENT
+}
+
+enum ConnectWiseSyncDirection {
+  OUTBOUND // portal -> CW
+  INBOUND // CW -> portal
+}
+
+enum ConnectWiseSyncStatus {
+  PENDING
+  SYNCED
+  FAILED
+  CONFLICT
+}
+
+// Idempotency + conflict ledger. One row per (entityType, portalId) link to a
+// CW record. `payloadHash` lets the engine skip no-op writes; `status` +
+// `lastError` + `attempts` drive the retry queue and the /admin sync console.
+model ConnectWiseSync {
+  id           String                   @id @default(uuid()) @db.Uuid
+  entityType   ConnectWiseEntityType    @map("entity_type")
+  portalId     String                   @map("portal_id") // uuid of the portal row (Lead/SiteSurvey/Proposal/Customer)
+  cwId         String?                  @map("cw_id") // CW record id once created
+  direction    ConnectWiseSyncDirection
+  status       ConnectWiseSyncStatus    @default(PENDING)
+  payloadHash  String?                  @map("payload_hash")
+  attempts     Int                      @default(0)
+  lastError    String?                  @map("last_error") @db.Text
+  lastSyncedAt DateTime?                @map("last_synced_at")
+  createdAt    DateTime                 @default(now()) @map("created_at")
+  updatedAt    DateTime                 @updatedAt @map("updated_at")
+
+  @@unique([entityType, portalId])
+  @@index([status])
+  @@index([cwId])
+  @@map("connectwise_sync")
+}
+
+// Raw inbound callback / poll payloads, persisted for replay + debugging
+// (mirrors how the Daily webhook keeps an auditable event trail). `processedAt`
+// null = not yet reconciled into portal rows.
+model ConnectWiseEvent {
+  id          String    @id @default(uuid()) @db.Uuid
+  source      String    @default("callback") // "callback" | "poll"
+  cwEntity    String    @map("cw_entity") // e.g. "ticket" | "opportunity" | "company"
+  cwId        String?   @map("cw_id")
+  action      String? // CW callback action: added | updated | deleted
+  payload     Json
+  processedAt DateTime? @map("processed_at")
+  error       String?   @db.Text
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@index([processedAt])
+  @@index([cwEntity, cwId])
+  @@map("connectwise_events")
 }

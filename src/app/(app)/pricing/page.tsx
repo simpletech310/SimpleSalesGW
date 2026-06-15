@@ -132,7 +132,7 @@ export default async function PricingPage() {
                 className={cn(
                   "relative rounded-2xl border bg-surface flex flex-col overflow-hidden transition-shadow duration-150 ease-smooth",
                   meta.featured
-                    ? "border-brand/40 shadow-[0_4px_24px_rgba(91,79,207,0.08)]"
+                    ? "border-brand/40 shadow-[0_4px_24px_rgba(97,61,130,0.08)]"
                     : "border-line-subtle hover:shadow-card",
                 )}
               >

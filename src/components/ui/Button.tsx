@@ -26,7 +26,7 @@ const buttonVariants = cva(
       variant: {
         // Primary CTA — purple, the strongest action on the page
         default:
-          "bg-gtn-purple text-white shadow-card hover:bg-[#4a3fb8] hover:shadow-[0_2px_8px_rgba(91,79,207,0.25)]",
+          "bg-gtn-purple text-white shadow-card hover:bg-[#4E3068] hover:shadow-[0_2px_8px_rgba(97,61,130,0.25)]",
         // Dark navy alt — used when primary purple conflicts with surrounding purple chrome
         primary:
           "bg-gtn-navy text-white hover:bg-gtn-navy-2 shadow-card",

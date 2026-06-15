@@ -134,6 +134,23 @@ export default async function LeadsPage() {
       cell: (l) => <ScoreBadge score={l.dealQualityScore} />,
     },
     {
+      // v3.6 — third-party vendor fit score (B2B Rocket). Only populated on
+      // imported leads; blank for everything else.
+      key: "vendor",
+      header: "Vendor",
+      align: "right",
+      width: "76px",
+      hideOnMobile: true,
+      cell: (l) =>
+        l.vendorLeadScore != null ? (
+          <Badge tone="brand" shape="pill" size="xs" title={l.vendorScoreSource ?? "Vendor score"}>
+            {l.vendorLeadScore}
+          </Badge>
+        ) : (
+          <span className="text-xs text-ink-faint">—</span>
+        ),
+    },
+    {
       key: "owner",
       header: "Owner",
       hideOnMobile: true,

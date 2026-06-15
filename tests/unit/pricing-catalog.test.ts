@@ -80,16 +80,18 @@ describe("tierFor", () => {
 describe("computeSticker", () => {
   it("computes MRR + onboarding for a Foundation 50-seat client", () => {
     const s = computeSticker(DEFAULT_CATALOG, ServiceBundle.ESSENTIAL, 50);
-    expect(s.perSeatMrr).toBe(169);
-    expect(s.monthlyMrr).toBe(50 * 169);
-    expect(s.onboardingBase).toBe(4500);
-    expect(s.onboardingPerSeat).toBe(50);
-    expect(s.onboardingTotal).toBe(4500 + 50 * 50);
+    // 50 seats lands in the 26–75 band: $99/seat (v3.3.4 reduced pricing)
+    expect(s.perSeatMrr).toBe(99);
+    expect(s.monthlyMrr).toBe(50 * 99);
+    expect(s.onboardingBase).toBe(1800);
+    expect(s.onboardingPerSeat).toBe(20);
+    expect(s.onboardingTotal).toBe(1800 + 20 * 50);
   });
 
   it("computes Enterprise 200-seat sticker", () => {
     const s = computeSticker(DEFAULT_CATALOG, ServiceBundle.ENTERPRISE, 200);
-    expect(s.monthlyMrr).toBe(200 * 289);
+    // 200 seats lands in the 150–250 band: $249/seat (v3.3.4 reduced pricing)
+    expect(s.monthlyMrr).toBe(200 * 249);
     expect(s.outOfBand).toBe(false);
     expect(s.annualAddOns.length).toBeGreaterThan(0);
   });
@@ -110,9 +112,9 @@ describe("computeSticker", () => {
 describe("isBelowFloor", () => {
   it("detects below-floor proposals", () => {
     const s = computeSticker(DEFAULT_CATALOG, ServiceBundle.ESSENTIAL, 50);
-    // floor at 50 seats: $139/seat = $6,950/mo
-    expect(isBelowFloor(s, 6000)).toBe(true);
-    expect(isBelowFloor(s, 7000)).toBe(false);
+    // floor at 50 seats: $79/seat = $3,950/mo (v3.3.4 reduced pricing)
+    expect(isBelowFloor(s, 3500)).toBe(true);
+    expect(isBelowFloor(s, 4500)).toBe(false);
   });
 
   it("returns false for zero-floor bundles (CUSTOM)", () => {
