@@ -28,6 +28,12 @@ const KIND_LABEL: Record<DiscoveryKind, string> = {
   VOICE_SCOPING: "Voice Pre-Sale Scoping (from Lead)",
   CCTV_SCOPING: "CCTV Pre-Sale Scoping (from Lead)",
   ACCESS_CONTROL_SCOPING: "Access Control Pre-Sale Scoping (from Lead)",
+  // v3.8 — vCIO assessment menu (run from the site survey on the Lead)
+  QUICK_IT: "Quick IT Assessment (from Lead)",
+  NETWORK: "Network Assessment (from Lead)",
+  WIFI: "Wi-Fi Assessment (from Lead)",
+  SOC2_INTERVIEW: "SOC 2 Readiness Interview (from Lead)",
+  AI_READINESS_LIGHT: "AI Readiness — Light (from Lead)",
 };
 
 const KIND_BLURB: Record<DiscoveryKind, string> = {
@@ -38,6 +44,12 @@ const KIND_BLURB: Record<DiscoveryKind, string> = {
   VOICE_SCOPING: "Pre-sale voice scoping that ran on the lead — captured extension counts, hardware needs, install context.",
   CCTV_SCOPING: "Pre-sale CCTV scoping that ran on the lead — camera count, retention, NVR sizing.",
   ACCESS_CONTROL_SCOPING: "Pre-sale access-control scoping that ran on the lead — door count, hardware, cardholder roster.",
+  // v3.8 — vCIO assessment menu (run from the site survey on the Lead)
+  QUICK_IT: "Fast IT triage run during the site survey — sizing plus the biggest risk gaps.",
+  NETWORK: "Network review — circuits, firewall, switching, segmentation, and documentation.",
+  WIFI: "Wi-Fi review — coverage, capacity, security, and dead-spot risks.",
+  SOC2_INTERVIEW: "SOC 2 control interview producing a readiness % and prioritized gaps.",
+  AI_READINESS_LIGHT: "Fast AI maturity read producing a readiness % and recommended next steps.",
 };
 
 const STATUS_TONE: Record<Assessment["status"], "neutral" | "brand" | "success"> = {

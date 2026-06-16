@@ -100,7 +100,12 @@ describe("v3.8 vCIO assessment scorers", () => {
 
   it("scoreDiscovery returns a valid scorecard on empty answers", () => {
     for (const kind of NEW_KINDS) {
-      const sc = scoreDiscovery(kind, {});
+      const sc = scoreDiscovery(kind, {}) as {
+        kind: string;
+        summary: string;
+        risks: unknown[];
+        coveragePct: number;
+      };
       expect(sc.kind).toBe(kind);
       expect(typeof sc.summary).toBe("string");
       expect(Array.isArray(sc.risks)).toBe(true);

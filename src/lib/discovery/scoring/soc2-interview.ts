@@ -49,7 +49,7 @@ export function scoreSoc2Interview(answers: Record<string, unknown>): Soc2Interv
   let gaps = 0;
   for (const v of Object.values(answers)) {
     if (typeof v === "string" && v in MATURITY) {
-      earned += MATURITY[v];
+      earned += MATURITY[v] ?? 0;
       possible += 2;
       if (v === "no" || v === "unknown" || v === "partial") gaps += 1;
     }

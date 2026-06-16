@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { OnboardingPhase } from "@prisma/client";
+import { OnboardingPhase, type DiscoveryKind } from "@prisma/client";
 import { ExternalLink } from "lucide-react";
 import { OnboardingPanel } from "./OnboardingPanel";
 import { DiscoveryPanel } from "./DiscoveryPanel";
@@ -18,14 +18,7 @@ type Props = {
   leadOwnerEmail: string;
   discoveryAssessments: Array<{
     id: string;
-    kind:
-      | "SITE_SURVEY"
-      | "AI_READINESS"
-      | "NIST_CSF"
-      | "NIST_800_171"
-      | "VOICE_SCOPING"
-      | "CCTV_SCOPING"
-      | "ACCESS_CONTROL_SCOPING";
+    kind: DiscoveryKind;
     status: "NOT_STARTED" | "IN_PROGRESS" | "COMPLETED";
     startedAt: string | null;
     completedAt: string | null;
