@@ -7,6 +7,12 @@ import { NIST_800_171_BANK } from "./nist-800-171-questions";
 import { VOICE_SCOPING_BANK } from "./voice-scoping-questions";
 import { CCTV_SCOPING_BANK } from "./cctv-scoping-questions";
 import { ACCESS_CONTROL_SCOPING_BANK } from "./access-control-scoping-questions";
+// v3.8 — vCIO assessment menu banks
+import { QUICK_IT_BANK } from "./quick-it-questions";
+import { NETWORK_BANK } from "./network-questions";
+import { WIFI_BANK } from "./wifi-questions";
+import { SOC2_INTERVIEW_BANK } from "./soc2-interview-questions";
+import { AI_READINESS_LIGHT_BANK } from "./ai-readiness-light-questions";
 
 const BANKS: Record<DiscoveryKind, DiscoveryBank> = {
   SITE_SURVEY: SITE_SURVEY_BANK,
@@ -17,6 +23,12 @@ const BANKS: Record<DiscoveryKind, DiscoveryBank> = {
   VOICE_SCOPING: VOICE_SCOPING_BANK,
   CCTV_SCOPING: CCTV_SCOPING_BANK,
   ACCESS_CONTROL_SCOPING: ACCESS_CONTROL_SCOPING_BANK,
+  // v3.8 — vCIO assessment menu
+  QUICK_IT: QUICK_IT_BANK,
+  NETWORK: NETWORK_BANK,
+  WIFI: WIFI_BANK,
+  SOC2_INTERVIEW: SOC2_INTERVIEW_BANK,
+  AI_READINESS_LIGHT: AI_READINESS_LIGHT_BANK,
 };
 
 export function bankForKind(kind: DiscoveryKind): DiscoveryBank {
@@ -32,6 +44,11 @@ export function discoveryTitle(kind: DiscoveryKind): string {
     case "VOICE_SCOPING": return "Voice / Phone Pre-Sale Scoping";
     case "CCTV_SCOPING": return "CCTV / Video Pre-Sale Scoping";
     case "ACCESS_CONTROL_SCOPING": return "Access Control Pre-Sale Scoping";
+    case "QUICK_IT": return "Quick IT Assessment";
+    case "NETWORK": return "Network Assessment";
+    case "WIFI": return "Wi-Fi Assessment";
+    case "SOC2_INTERVIEW": return "SOC 2 Readiness Interview";
+    case "AI_READINESS_LIGHT": return "AI Readiness (Light)";
   }
 }
 

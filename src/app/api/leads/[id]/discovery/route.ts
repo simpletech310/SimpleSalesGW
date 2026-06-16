@@ -61,7 +61,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     // can request on any. (Lin doesn't have `discovery:run` — that's for
     // VCIO who actually answers the questions — but she's allowed to
     // create the request row.)
-    if (lead.ownerUserId !== user.id && !can(user.role, "lead:edit:any")) {
+    // v3.8 — the vCIO (discovery:run) also creates assessments directly when
+    // performing the accepted site survey, so allow that role here too.
+    if (
+      lead.ownerUserId !== user.id &&
+      !can(user.role, "lead:edit:any") &&
+      !can(user.role, "discovery:run")
+    ) {
       throw new ApiError(403, "Forbidden");
     }
 

@@ -447,6 +447,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
         lead={lead as never}
         canEdit={canEditLead}
         canAcceptSiteSurvey={can(session.user.role, "site-survey:accept")}
+        canRunDiscovery={can(session.user.role, "discovery:run")}
         canCreateQuote={can(session.user.role, "quote:create")}
         auditLogs={auditLogs}
       />

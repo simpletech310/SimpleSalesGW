@@ -147,12 +147,14 @@ export function LeadTabs({
   lead,
   canEdit,
   canAcceptSiteSurvey = false,
+  canRunDiscovery = false,
   canCreateQuote = false,
   auditLogs,
 }: {
   lead: Lead;
   canEdit: boolean;
   canAcceptSiteSurvey?: boolean;
+  canRunDiscovery?: boolean;
   canCreateQuote?: boolean;
   auditLogs: AuditEntry[];
 }) {
@@ -191,6 +193,7 @@ export function LeadTabs({
             leadId={lead.id}
             canEdit={canEdit}
             canAccept={canAcceptSiteSurvey}
+            canRunDiscovery={canRunDiscovery}
           />
         )}
         {tab === "Proposal" && (

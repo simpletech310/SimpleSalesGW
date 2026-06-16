@@ -39,6 +39,12 @@ export type DiscoveryBank = {
     | "NIST_800_171"
     | "VOICE_SCOPING"
     | "CCTV_SCOPING"
-    | "ACCESS_CONTROL_SCOPING";
+    | "ACCESS_CONTROL_SCOPING"
+    // v3.8 — vCIO assessment menu
+    | "QUICK_IT"
+    | "NETWORK"
+    | "WIFI"
+    | "SOC2_INTERVIEW"
+    | "AI_READINESS_LIGHT";
   questions: ReadonlyArray<DiscoveryQuestion>;
 };

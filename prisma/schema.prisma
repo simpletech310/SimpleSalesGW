@@ -293,6 +293,12 @@ enum DiscoveryKind {
   VOICE_SCOPING
   CCTV_SCOPING
   ACCESS_CONTROL_SCOPING
+  // v3.8 — vCIO assessment menu run while performing the site survey.
+  QUICK_IT
+  NETWORK
+  WIFI
+  SOC2_INTERVIEW
+  AI_READINESS_LIGHT
 }
 
 enum SignedDocType {

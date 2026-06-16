@@ -7,6 +7,12 @@ import { scoreNist800171, type NistSp800171Scorecard } from "./nist-800-171";
 import { scoreVoiceScoping, type VoiceScopingScorecard } from "./voice-scoping";
 import { scoreCctvScoping, type CctvScopingScorecard } from "./cctv-scoping";
 import { scoreAccessControlScoping, type AccessControlScopingScorecard } from "./access-control-scoping";
+// v3.8 — vCIO assessment menu scorers
+import { scoreQuickIt, type QuickItScorecard } from "./quick-it";
+import { scoreNetwork, type NetworkScorecard } from "./network";
+import { scoreWifi, type WifiScorecard } from "./wifi";
+import { scoreSoc2Interview, type Soc2InterviewScorecard } from "./soc2-interview";
+import { scoreAiReadinessLight, type AiReadinessLightScorecard } from "./ai-readiness-light";
 
 export type DiscoveryScorecard =
   | SiteSurveyScorecard
@@ -15,7 +21,12 @@ export type DiscoveryScorecard =
   | NistSp800171Scorecard
   | VoiceScopingScorecard
   | CctvScopingScorecard
-  | AccessControlScopingScorecard;
+  | AccessControlScopingScorecard
+  | QuickItScorecard
+  | NetworkScorecard
+  | WifiScorecard
+  | Soc2InterviewScorecard
+  | AiReadinessLightScorecard;
 
 export function scoreDiscovery(kind: DiscoveryKind, answers: Record<string, unknown>): DiscoveryScorecard {
   switch (kind) {
@@ -26,6 +37,11 @@ export function scoreDiscovery(kind: DiscoveryKind, answers: Record<string, unkn
     case "VOICE_SCOPING": return scoreVoiceScoping(answers);
     case "CCTV_SCOPING": return scoreCctvScoping(answers);
     case "ACCESS_CONTROL_SCOPING": return scoreAccessControlScoping(answers);
+    case "QUICK_IT": return scoreQuickIt(answers);
+    case "NETWORK": return scoreNetwork(answers);
+    case "WIFI": return scoreWifi(answers);
+    case "SOC2_INTERVIEW": return scoreSoc2Interview(answers);
+    case "AI_READINESS_LIGHT": return scoreAiReadinessLight(answers);
   }
 }
 
@@ -37,4 +53,9 @@ export type {
   VoiceScopingScorecard,
   CctvScopingScorecard,
   AccessControlScopingScorecard,
+  QuickItScorecard,
+  NetworkScorecard,
+  WifiScorecard,
+  Soc2InterviewScorecard,
+  AiReadinessLightScorecard,
 };

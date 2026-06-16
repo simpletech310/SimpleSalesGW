@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { scoreSiteSurvey } from "@/lib/discovery/scoring/site-survey";
 import { scoreAiReadiness } from "@/lib/discovery/scoring/ai-readiness";
+import { scoreDiscovery } from "@/lib/discovery/scoring";
+import { scoreQuickIt } from "@/lib/discovery/scoring/quick-it";
+import { scoreNetwork } from "@/lib/discovery/scoring/network";
+import { scoreWifi } from "@/lib/discovery/scoring/wifi";
+import { scoreSoc2Interview } from "@/lib/discovery/scoring/soc2-interview";
+import { scoreAiReadinessLight } from "@/lib/discovery/scoring/ai-readiness-light";
+import { bankForKind } from "@/lib/discovery/banks";
 
 describe("site survey scoring", () => {
   it("flags high-risk MFA absence", () => {
@@ -78,3 +85,55 @@ describe("AI readiness scoring (v2.1 — 8-dimension scorecard)", () => {
 
 // NIST CSF scoring moved to nist-csf-full.test.ts — that file tests the full
 // 106-subcategory roll-up with the v2.1 question IDs (e.g. GV.OC-01).
+
+// v3.8 — vCIO assessment menu: each new kind has a bank + scorer wired into
+// the generic engine. Smoke-test that empty answers yield a valid scorecard
+// and a representative gap surfaces a risk + next step.
+describe("v3.8 vCIO assessment scorers", () => {
+  const NEW_KINDS = ["QUICK_IT", "NETWORK", "WIFI", "SOC2_INTERVIEW", "AI_READINESS_LIGHT"] as const;
+
+  it("every new kind has a question bank", () => {
+    for (const kind of NEW_KINDS) {
+      expect(bankForKind(kind).questions.length).toBeGreaterThan(10);
+    }
+  });
+
+  it("scoreDiscovery returns a valid scorecard on empty answers", () => {
+    for (const kind of NEW_KINDS) {
+      const sc = scoreDiscovery(kind, {});
+      expect(sc.kind).toBe(kind);
+      expect(typeof sc.summary).toBe("string");
+      expect(Array.isArray(sc.risks)).toBe(true);
+      expect(sc.coveragePct).toBe(0);
+    }
+  });
+
+  it("Quick IT flags missing MFA + backups as high risk", () => {
+    const r = scoreQuickIt({ QIT11: "none", QIT15: "none" });
+    expect(r.risks.some((x) => x.severity === "high" && /MFA/i.test(x.description))).toBe(true);
+    expect(r.recommendedActions.some((a) => /MFA/i.test(a))).toBe(true);
+  });
+
+  it("Network flags EOL firewall", () => {
+    const r = scoreNetwork({ NET08: "gt5" });
+    expect(r.risks.some((x) => x.severity === "high" && /firewall/i.test(x.description))).toBe(true);
+  });
+
+  it("Wi-Fi flags open corporate SSID", () => {
+    const r = scoreWifi({ WIFI11: "open" });
+    expect(r.risks.some((x) => x.severity === "high")).toBe(true);
+  });
+
+  it("SOC 2 computes a readiness band and flags critical gaps", () => {
+    const strong = scoreSoc2Interview({ SOC10: "yes", SOC33: "yes", SOC23: "yes", SOC26: "yes" });
+    expect(strong.readinessPct).toBeGreaterThan(0);
+    const weak = scoreSoc2Interview({ SOC10: "no", SOC33: "no" });
+    expect(weak.risks.some((x) => x.severity === "high")).toBe(true);
+  });
+
+  it("AI light computes readiness from tier answers", () => {
+    const r = scoreAiReadinessLight({ AIL01: "tier_4", AIL05: "shadow" });
+    expect(r.readinessPct).toBeGreaterThan(0);
+    expect(r.risks.some((x) => /shadow/i.test(x.description))).toBe(true);
+  });
+});

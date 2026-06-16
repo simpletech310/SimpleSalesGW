@@ -7,6 +7,7 @@ import { SiteSurveyClientType, SiteSurveyStatus } from "@prisma/client";
 import { Button } from "@/components/ui/Button";
 import { Input, Label, Textarea } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
+import { SurveyAssessmentsPanel } from "./SurveyAssessmentsPanel";
 
 type SiteSurvey = {
   id: string;
@@ -63,11 +64,14 @@ export function SiteSurveyPanel({
   leadId,
   canEdit,
   canAccept,
+  canRunDiscovery = false,
   defaultClientType,
 }: {
   leadId: string;
   canEdit: boolean;
   canAccept: boolean;
+  /** v3.8 — vCIO/COO/admin can run assessments once the survey is accepted. */
+  canRunDiscovery?: boolean;
   defaultClientType?: SiteSurveyClientType;
 }) {
   const router = useRouter();
@@ -112,6 +116,12 @@ export function SiteSurveyPanel({
           setBusy={setBusy}
           onCreate={(s) => { setSurvey(s); router.refresh(); }}
         />
+      )}
+
+      {/* v3.8 — once the survey is accepted, the vCIO performs it by running
+          assessments. Visible read-only to others; launchable by canRunDiscovery. */}
+      {survey && (survey.status === "ACCEPTED" || survey.status === "COMPLETED") && (
+        <SurveyAssessmentsPanel leadId={leadId} canRun={canRunDiscovery} />
       )}
     </div>
   );
