@@ -87,6 +87,13 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
     const hasPreSale = await prisma.discoveryAssessment.count({ where: { leadId: id } });
     if (hasPreSale > 0) leadVisible = true;
   }
+  // The vCIO/COO is pulled in to review a site survey before the lead reaches
+  // their normal stage scope. If a survey exists on this lead, let them open it
+  // even if the rep hasn't advanced the pipeline stage yet.
+  if (!leadVisible && can(session.user.role, "site-survey:accept")) {
+    const hasSurvey = await prisma.siteSurvey.count({ where: { leadId: id } });
+    if (hasSurvey > 0) leadVisible = true;
+  }
   if (!leadVisible) {
     return (
       <div className="rounded-xl bg-surface border border-line-subtle p-6 max-w-md">

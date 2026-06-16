@@ -14,6 +14,7 @@ const STATUS_LABEL: Record<string, string> = {
   AWAITING_VCIO_ACCEPT: "Awaiting accept",
   ACCEPTED: "Accepted",
   REJECTED: "Rejected",
+  RESCHEDULE_REQUESTED: "Reschedule requested",
   COMPLETED: "Completed",
   DRAFT: "Draft",
 };

@@ -116,6 +116,12 @@ async function siteSurveyAcceptedByVcio(leadId: string): Promise<GateResult> {
       note: `vCIO rejected this site survey${survey.vcioRejectReason ? `: ${survey.vcioRejectReason}` : ""}. Update the survey and resubmit.`,
     };
   }
+  if (survey.status === "RESCHEDULE_REQUESTED") {
+    return {
+      passed: false,
+      note: "vCIO requested a reschedule. Pick a new date/time on the site survey and resubmit before moving to Discovery.",
+    };
+  }
   if (!survey.vcioAcceptedAt) {
     return { passed: false, note: "Waiting on vCIO to accept the site survey before moving to Discovery." };
   }

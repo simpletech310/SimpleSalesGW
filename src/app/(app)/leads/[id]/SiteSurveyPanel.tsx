@@ -27,6 +27,8 @@ type SiteSurvey = {
   vcioAcceptedAt: string | null;
   vcioRejectedAt: string | null;
   vcioRejectReason: string | null;
+  rescheduleRequestedAt: string | null;
+  rescheduleNote: string | null;
   discoveryVerifiedAt: string | null;
   verifiedSeatCount: number | null;
   verifiedSiteCount: number | null;
@@ -44,6 +46,7 @@ const STATUS_LABEL: Record<SiteSurveyStatus, string> = {
   AWAITING_VCIO_ACCEPT: "Awaiting vCIO acceptance",
   ACCEPTED: "Accepted by vCIO",
   REJECTED: "Rejected by vCIO",
+  RESCHEDULE_REQUESTED: "Reschedule requested",
   COMPLETED: "Completed",
 };
 
@@ -52,6 +55,7 @@ const STATUS_TONE: Record<SiteSurveyStatus, string> = {
   AWAITING_VCIO_ACCEPT: "bg-amber-100 text-amber-900",
   ACCEPTED:             "bg-emerald-100 text-emerald-900",
   REJECTED:             "bg-red-100 text-red-900",
+  RESCHEDULE_REQUESTED: "bg-orange-100 text-orange-900",
   COMPLETED:            "bg-blue-100 text-blue-900",
 };
 
@@ -276,6 +280,20 @@ function ExistingSurvey({
   setBusy: (b: boolean) => void;
   onUpdate: (s: SiteSurvey) => void;
 }) {
+  const [editing, setEditing] = useState(false);
+
+  if (editing) {
+    return (
+      <EditSurveyForm
+        survey={survey}
+        busy={busy}
+        setBusy={setBusy}
+        onCancel={() => setEditing(false)}
+        onSaved={(s) => { setEditing(false); onUpdate(s); }}
+      />
+    );
+  }
+
   async function accept() {
     setBusy(true);
     try {
@@ -304,6 +322,29 @@ function ExistingSurvey({
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error ?? "Reject failed");
       toast.success("Site survey rejected — rep notified.");
+      onUpdate(data.siteSurvey);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function requestReschedule() {
+    const reason = window.prompt(
+      "Ask the rep to reschedule. What date/time window works for you? (the rep will see this)",
+    );
+    if (!reason || reason.trim().length < 3) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/leads/${survey.leadId}/site-survey/reschedule`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Reschedule request failed");
+      toast.success("Reschedule requested — rep notified.");
       onUpdate(data.siteSurvey);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed");
@@ -383,6 +424,12 @@ function ExistingSurvey({
             <dd className="text-red-900 whitespace-pre-wrap">{survey.vcioRejectReason}</dd>
           </div>
         )}
+        {survey.rescheduleNote && survey.status === "RESCHEDULE_REQUESTED" && (
+          <div className="md:col-span-2">
+            <dt className="text-[11px] uppercase tracking-wide text-orange-700">Reschedule requested — vCIO note</dt>
+            <dd className="text-orange-900 whitespace-pre-wrap">{survey.rescheduleNote}</dd>
+          </div>
+        )}
         {survey.discoveryVerifiedAt && (
           <div className="md:col-span-2 mt-2 p-3 rounded bg-emerald-50 border border-emerald-200">
             <p className="text-xs font-semibold uppercase tracking-wide text-emerald-900">Discovery verified</p>
@@ -395,9 +442,15 @@ function ExistingSurvey({
       </dl>
 
       <div className="mt-5 flex flex-wrap gap-2 justify-end">
+        {canEdit && survey.status !== "COMPLETED" && (
+          <Button variant="secondary" disabled={busy} onClick={() => setEditing(true)} className="mr-auto">
+            Edit details
+          </Button>
+        )}
         {canAccept && survey.status === "AWAITING_VCIO_ACCEPT" && (
           <>
-            <Button variant="secondary" disabled={busy} onClick={reject}>Reject</Button>
+            <Button variant="secondary" disabled={busy} onClick={reject}>Decline</Button>
+            <Button variant="secondary" disabled={busy} onClick={requestReschedule}>Request reschedule</Button>
             <Button disabled={busy} onClick={accept}>Accept</Button>
           </>
         )}
@@ -405,9 +458,167 @@ function ExistingSurvey({
           <Button disabled={busy} onClick={verify}>Verify discovery data</Button>
         )}
         {canEdit && survey.status === "REJECTED" && (
-          <p className="text-xs text-gtn-grey-2 self-center">Update the lead&apos;s site survey and resubmit when the vCIO&apos;s concerns are addressed.</p>
+          <p className="text-xs text-gtn-grey-2 self-center">Use <strong>Edit details</strong> to address the vCIO&apos;s concerns — saving resubmits it to the queue.</p>
+        )}
+        {canEdit && survey.status === "RESCHEDULE_REQUESTED" && (
+          <p className="text-xs text-gtn-grey-2 self-center">Use <strong>Edit details</strong> to pick a new date/time — saving returns it to the vCIO&apos;s queue automatically.</p>
         )}
       </div>
+    </Card>
+  );
+}
+
+function EditSurveyForm({
+  survey,
+  busy,
+  setBusy,
+  onSaved,
+  onCancel,
+}: {
+  survey: SiteSurvey;
+  busy: boolean;
+  setBusy: (b: boolean) => void;
+  onSaved: (s: SiteSurvey) => void;
+  onCancel: () => void;
+}) {
+  const [form, setForm] = useState({
+    // <input type="date"> wants YYYY-MM-DD; scheduledDate is an ISO string.
+    scheduledDate: survey.scheduledDate.slice(0, 10),
+    scheduledStart: survey.scheduledStart,
+    scheduledEnd: survey.scheduledEnd,
+    timezone: survey.timezone,
+    pocName: survey.pocName,
+    pocTitle: survey.pocTitle,
+    pocEmail: survey.pocEmail,
+    pocPhone: survey.pocPhone,
+    pocCanAuthorize: survey.pocCanAuthorize,
+    clientType: survey.clientType,
+    notesForVcio: survey.notesForVcio ?? "",
+  });
+
+  function set<K extends keyof typeof form>(k: K, v: (typeof form)[K]) {
+    setForm((f) => ({ ...f, [k]: v }));
+  }
+
+  const willResubmit =
+    survey.status === "REJECTED" ||
+    survey.status === "RESCHEDULE_REQUESTED" ||
+    survey.status === "ACCEPTED";
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/leads/${survey.leadId}/site-survey`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Couldn't save the site survey");
+      toast.success(
+        data.siteSurvey?.status === "AWAITING_VCIO_ACCEPT"
+          ? "Saved — resubmitted to the vCIO."
+          : "Site survey updated.",
+      );
+      onSaved(data.siteSurvey);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card>
+      <div className="space-y-1">
+        <h3 className="text-base font-semibold text-gtn-navy">Edit site survey</h3>
+        <p className="text-xs text-gtn-grey-2">
+          {willResubmit
+            ? "Saving a change to the date, time, POC, or client type resubmits this to the vCIO for acceptance."
+            : "Update the details below."}
+        </p>
+      </div>
+      <form onSubmit={submit} className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div>
+          <Label>Assessment date</Label>
+          <Input type="date" required value={form.scheduledDate} onChange={(e) => set("scheduledDate", e.target.value)} />
+        </div>
+        <div>
+          <Label>Timezone</Label>
+          <Input value={form.timezone} onChange={(e) => set("timezone", e.target.value)} />
+        </div>
+        <div>
+          <Label>Start time</Label>
+          <Input type="time" required value={form.scheduledStart} onChange={(e) => set("scheduledStart", e.target.value)} />
+        </div>
+        <div>
+          <Label>End time</Label>
+          <Input type="time" required value={form.scheduledEnd} onChange={(e) => set("scheduledEnd", e.target.value)} />
+        </div>
+
+        <div className="md:col-span-2 pt-2 border-t border-gtn-lavender-2 mt-1">
+          <p className="text-xs font-semibold uppercase tracking-wide text-gtn-grey-2 mb-2">On-site POC (decision maker)</p>
+        </div>
+        <div>
+          <Label>POC name</Label>
+          <Input required value={form.pocName} onChange={(e) => set("pocName", e.target.value)} />
+        </div>
+        <div>
+          <Label>POC title</Label>
+          <Input required value={form.pocTitle} onChange={(e) => set("pocTitle", e.target.value)} />
+        </div>
+        <div>
+          <Label>POC email</Label>
+          <Input type="email" required value={form.pocEmail} onChange={(e) => set("pocEmail", e.target.value)} />
+        </div>
+        <div>
+          <Label>POC phone</Label>
+          <Input required value={form.pocPhone} onChange={(e) => set("pocPhone", e.target.value)} />
+        </div>
+        <div className="md:col-span-2">
+          <label className="flex items-start gap-2 text-sm text-gtn-navy">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={form.pocCanAuthorize}
+              onChange={(e) => set("pocCanAuthorize", e.target.checked)}
+            />
+            <span>I&apos;ve confirmed this POC can authorize purchase decisions on behalf of the business.</span>
+          </label>
+        </div>
+
+        <div className="md:col-span-2 pt-2 border-t border-gtn-lavender-2 mt-1">
+          <p className="text-xs font-semibold uppercase tracking-wide text-gtn-grey-2 mb-2">Service scope</p>
+        </div>
+        <div className="md:col-span-2">
+          <Label>Client type</Label>
+          <select
+            className="w-full border border-gtn-lavender-2 rounded-md px-3 py-2 text-sm bg-white"
+            value={form.clientType}
+            onChange={(e) => set("clientType", e.target.value as SiteSurveyClientType)}
+          >
+            {(Object.keys(CLIENT_TYPE_LABEL) as SiteSurveyClientType[]).map((k) => (
+              <option key={k} value={k}>{CLIENT_TYPE_LABEL[k]}</option>
+            ))}
+          </select>
+        </div>
+        <div className="md:col-span-2">
+          <Label>Notes for the vCIO (optional)</Label>
+          <Textarea
+            rows={3}
+            value={form.notesForVcio}
+            onChange={(e) => set("notesForVcio", e.target.value)}
+          />
+        </div>
+
+        <div className="md:col-span-2 mt-2 flex justify-end gap-2">
+          <Button type="button" variant="secondary" disabled={busy} onClick={onCancel}>Cancel</Button>
+          <Button type="submit" disabled={busy}>
+            {busy ? "Saving…" : willResubmit ? "Save & resubmit" : "Save changes"}
+          </Button>
+        </div>
+      </form>
     </Card>
   );
 }

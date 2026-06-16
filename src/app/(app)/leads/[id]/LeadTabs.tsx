@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ActivityType, ActivityOutcome } from "@prisma/client";
@@ -136,6 +136,13 @@ type AuditEntry = {
 
 const TABS = ["Overview", "Research", "Activity", "Assessment", "Site Survey", "Proposal", "Objections", "Files", "Signed Docs", "Audit"] as const;
 
+/** Map a ?tab= slug (e.g. from the vCIO site-survey queue link) to a tab label. */
+function tabFromSlug(slug: string | null): (typeof TABS)[number] | null {
+  if (!slug) return null;
+  const norm = slug.toLowerCase().replace(/[\s_]+/g, "-");
+  return TABS.find((t) => t.toLowerCase().replace(/[\s_]+/g, "-") === norm) ?? null;
+}
+
 export function LeadTabs({
   lead,
   canEdit,
@@ -149,7 +156,10 @@ export function LeadTabs({
   canCreateQuote?: boolean;
   auditLogs: AuditEntry[];
 }) {
-  const [tab, setTab] = useState<(typeof TABS)[number]>("Overview");
+  const searchParams = useSearchParams();
+  const [tab, setTab] = useState<(typeof TABS)[number]>(
+    () => tabFromSlug(searchParams.get("tab")) ?? "Overview",
+  );
 
   return (
     <div>

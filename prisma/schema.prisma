@@ -66,6 +66,9 @@ enum SiteSurveyStatus {
   AWAITING_VCIO_ACCEPT
   ACCEPTED
   REJECTED
+  // v3.7 — vCIO bounces a survey back to the rep asking for a new
+  // date/time (distinct from a quality REJECTED). Rep edits + resubmits.
+  RESCHEDULE_REQUESTED
   COMPLETED
 }
 
@@ -657,6 +660,9 @@ model SiteSurvey {
   vcioAcceptedAt      DateTime?            @map("vcio_accepted_at")
   vcioRejectedAt      DateTime?            @map("vcio_rejected_at")
   vcioRejectReason    String?              @map("vcio_reject_reason") @db.Text
+  // v3.7 — reschedule request (vCIO asks the rep for a new date/time).
+  rescheduleRequestedAt DateTime?          @map("reschedule_requested_at")
+  rescheduleNote        String?            @map("reschedule_note") @db.Text
   completedAt         DateTime?            @map("completed_at")
   discoveryVerifiedAt DateTime?            @map("discovery_verified_at")
   verifiedSeatCount   Int?                 @map("verified_seat_count")

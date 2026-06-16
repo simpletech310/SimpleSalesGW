@@ -1,10 +1,13 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { SiteSurveyClientType, SiteSurveyStatus } from "@prisma/client";
+import { ActivityType, PipelineStage, SiteSurveyClientType, SiteSurveyStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ApiError, getAuditContext, jsonError, requireSessionUser } from "@/lib/api";
 import { can } from "@/lib/rbac";
 import { writeAudit } from "@/lib/audit";
+import { ALL_STAGES } from "@/lib/pipeline/stages";
+
+const SITE_SURVEY_STAGE_INDEX = ALL_STAGES.indexOf(PipelineStage.SITE_SURVEY_SCHEDULED);
 
 const createSchema = z.object({
   scheduledDate: z.string().min(1),
@@ -93,6 +96,38 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       ...getAuditContext(req),
     });
 
+    // Submitting a valid survey is exactly what "Site survey scheduled" means.
+    // Advance the lead into that stage if it's still earlier in the pipeline,
+    // so the vCIO (whose visibility starts at SITE_SURVEY_SCHEDULED) can open
+    // the lead from their queue to review it. The POST schema already enforces
+    // the same data the FIRST_INTERACTION→SITE_SURVEY_SCHEDULED gate checks.
+    const currentIndex = ALL_STAGES.indexOf(lead.pipelineStage);
+    if (currentIndex !== -1 && currentIndex < SITE_SURVEY_STAGE_INDEX) {
+      const before = lead.pipelineStage;
+      await prisma.lead.update({
+        where: { id },
+        data: { pipelineStage: PipelineStage.SITE_SURVEY_SCHEDULED },
+      });
+      await prisma.activity.create({
+        data: {
+          leadId: id,
+          actorUserId: user.id,
+          type: ActivityType.STAGE_CHANGE,
+          subject: `Stage: ${before} → ${PipelineStage.SITE_SURVEY_SCHEDULED}`,
+          body: "Auto-advanced on site-survey submission (queued for vCIO acceptance).",
+        },
+      });
+      await writeAudit({
+        actorUserId: user.id,
+        entityType: "Lead",
+        entityId: id,
+        action: "UPDATE",
+        before: { pipelineStage: before },
+        after: { pipelineStage: PipelineStage.SITE_SURVEY_SCHEDULED, via: "site-survey-submit" },
+        ...getAuditContext(req),
+      });
+    }
+
     return NextResponse.json({ siteSurvey: survey }, { status: 201 });
   } catch (err) {
     return jsonError(err);
@@ -136,9 +171,21 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       input.pocName !== undefined ||
       input.pocEmail !== undefined ||
       input.clientType !== undefined;
-    if (materialChange && existing.status === SiteSurveyStatus.ACCEPTED) {
+    // A material edit re-opens the vCIO's decision in every non-draft state:
+    //  - ACCEPTED            → the accepted plan changed, re-accept needed.
+    //  - REJECTED            → rep addressed the concern, resubmit to queue.
+    //  - RESCHEDULE_REQUESTED → rep picked a new date/time, resubmit to queue.
+    const reopensVcioDecision =
+      existing.status === SiteSurveyStatus.ACCEPTED ||
+      existing.status === SiteSurveyStatus.REJECTED ||
+      existing.status === SiteSurveyStatus.RESCHEDULE_REQUESTED;
+    if (materialChange && reopensVcioDecision) {
       data.status = SiteSurveyStatus.AWAITING_VCIO_ACCEPT;
       data.vcioAcceptedAt = null;
+      data.vcioRejectedAt = null;
+      data.vcioRejectReason = null;
+      data.rescheduleRequestedAt = null;
+      data.rescheduleNote = null;
     }
 
     const survey = await prisma.siteSurvey.update({ where: { id: existing.id }, data });
